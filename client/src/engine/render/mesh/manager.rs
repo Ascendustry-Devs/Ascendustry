@@ -1,6 +1,6 @@
 use std::usize;
 
-use wgpu::{BufferUsages, CommandEncoder, Device, Queue};
+use wgpu::{Buffer, BufferUsages, CommandEncoder, Device, Queue};
 
 use crate::engine::render::{mesh::mesh::MeshId, utils::smart_buffer::SmartBuffer};
 
@@ -27,13 +27,18 @@ pub struct Gap {
     pub length: usize,
 }
 
+// pub struct WriteOperation {
+//     data: &[u8],
+// }
+
 pub struct MeshManager {
-    pub buffer: SmartBuffer,
+    buffer: SmartBuffer,
     pub data: Vec<MeshEntry>,
     gaps: Vec<Gap>,
     defrag_strategy: DefragmentationStrategy,
     pending_destruction: Vec<SmartBuffer>,
     next_id: MeshId,
+    // write_operations: Vec<WriteOperation>,
 }
 
 enum DefragmentationStrategy {
@@ -63,6 +68,10 @@ impl MeshManager {
             next_id: 0,
             defrag_strategy: DefragmentationStrategy::EventBased,
         }
+    }
+
+    pub fn get_buffer(&self) -> &Buffer {
+        self.buffer.buffer()
     }
 
     fn reallocate_defragment(&mut self, device: &Device, encoder: &mut CommandEncoder, needed: usize) {

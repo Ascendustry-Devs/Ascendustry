@@ -241,9 +241,9 @@ impl Renderer {
             let _start = Instant::now();
 
             if _rendered_mesh_count > 0 {
-                render_pass.set_vertex_buffer(0, self.render_manager.mesh_manager.buffer.buffer().slice(..));
+                render_pass.set_vertex_buffer(0, self.render_manager.mesh_manager.get_buffer().slice(..));
 
-                const CAN_MULTIDRAW: bool = true;
+                const CAN_MULTIDRAW: bool = true; // TODO: detect if the device supports multi-draw indirect
 
                 if CAN_MULTIDRAW {
                     render_pass.multi_draw_indirect(&self.render_manager.indirect_buffer.buffer(), 0, meshes.len() as u32);
