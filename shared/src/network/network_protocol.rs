@@ -103,11 +103,11 @@ impl EncryptedCodec {
     /// Étapes :
     /// 1. Sérialise le paquet en JSON
     /// 2. Chiffre avec XOR
-    /// 3. Ajoute le préfixe de longueur
     ///
     /// # Returns
     ///
     /// Un vecteur d'octets prêt à être envoyé sur le réseau
+    /// (le préfixe de longueur est ajouté par send_packet())
     pub fn encode(&self, packet: &Paquet) -> Vec<u8> {
         // Étape 1: Sérialisation JSON
         let serialized = packet.serialize();
@@ -115,45 +115,22 @@ impl EncryptedCodec {
         // Étape 2: Chiffrement XOR
         let encrypted = self.cipher.encrypt(&serialized);
 
-        // Étape 3: Ajout du préfixe de longueur
-        let len = encrypted.len() as u32;
-        let mut result = Vec::with_capacity(4 + encrypted.len());
-        result.extend_from_slice(&len.to_be_bytes());
-        result.extend_from_slice(&encrypted);
-        result
+        encrypted
     }
 
     /// Décode les données reçues en paquet.
     ///
     /// Étapes :
-    /// 1. Vérifier la longueur
-    /// 2. Extraire et déchiffrer les données
-    /// 3. Désérialiser en paquet
+    /// 1. Déchiffrer les données
+    /// 2. Désérialiser en paquet
     ///
     /// # Returns
     ///
     /// Le paquet désérialisé
+    /// (le préfixe de longueur a déjà été retiré par receive_packet())
     pub fn decode(&self, data: &[u8]) -> Result<Paquet, NetworkError> {
-        // Vérification du préfixe de longueur
-        if data.len() < 4 {
-            return Err(NetworkError::InvalidData("Data too short for length prefix".to_string()));
-        }
-
-        let len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
-
-        // Vérification de la taille maximale
-        if len > MAX_PAQUET_SIZE {
-            return Err(NetworkError::PacketTooLarge(len));
-        }
-
-        // Vérification que toutes les données sont présentes
-        if data.len() < 4 + len {
-            return Err(NetworkError::InvalidData("Data too short for packet".to_string()));
-        }
-
-        // Extraction et déchiffrement
-        let encrypted = &data[4..4 + len];
-        let decrypted = self.cipher.decrypt(encrypted);
+        // Déchiffrement
+        let decrypted = self.cipher.decrypt(data);
 
         // Désérialisation
         Paquet::deserialize(&decrypted).map_err(|e| NetworkError::InvalidPacket(e.to_string()))

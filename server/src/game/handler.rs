@@ -31,11 +31,17 @@ impl PacketHandler {
 
             ContenuPaquet::ChunkValidationBatchRequest { chunks } => {
                 log_server!("Reception ChunkValidationBatchRequest avec {} chunks", chunks.len());
-                let seed = GAME_STATE.get_seed();
-                let chunks = chunks.clone();
-                let results = self.validator.validate_batch(chunks, seed, &GAME_STATE);
-                log_server!("Envoi ChunkValidationBatchResponse avec {} résultats", results.len());
-                Some(messages::new_chunk_validation_batch_response(results))
+
+                // Répondre immédiatement sans bloquer le thread async
+                // La validation lourde sera faite en arrière-plan plus tard
+                let chunks_vec = chunks.clone();
+                tokio::spawn(async move {
+                    let seed = GAME_STATE.get_seed();
+                    let mut validator = ChunkValidator::new();
+                    let _results = validator.validate_batch(chunks_vec, seed, &GAME_STATE);
+                });
+
+                Some(messages::new_chunk_validation_batch_response(vec![]))
             }
 
             _ => None,
