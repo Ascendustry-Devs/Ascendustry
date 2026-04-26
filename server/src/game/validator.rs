@@ -3,6 +3,7 @@
 //! Ce module valide les chunks générés par les clients pour détecter toute tricherie.
 //! Le serveur génère le même chunk avec la même seed et compare les checksums.
 
+use crate::chunk_generator::generate_chunks_parallel;
 use crate::state::GameState;
 use shared::network::messages::{BatchChunkChecksum, BatchValidationResult};
 use shared::world::data::chunk::Chunk;
@@ -101,25 +102,62 @@ impl ChunkValidator {
     pub fn validate_batch(&mut self, chunks: Vec<BatchChunkChecksum>, seed: u32, game_state: &GameState) -> Vec<BatchValidationResult> {
         let mut results = Vec::with_capacity(chunks.len());
 
+        // Sépare les chunks en deux catégories:
+        // - ceux déjà en cache (validation directe)
+        // - ceux à générer (nécessitent génération parallèle)
+        let mut coords_to_generate = Vec::new();
+        let mut cached_results: HashMap<(i32, i32, i32), bool> = HashMap::new();
+
+        for chunk_data in &chunks {
+            let key = (chunk_data.x, chunk_data.y, chunk_data.z);
+
+            // Vérifie si le chunk est déjà en cache côté serveur
+            if let Some(cached_checksum) = game_state.get_cached_checksum(key.0, key.1, key.2) {
+                // Chunk en cache: compare directement les checksums
+                let valide = chunk_data.checksum == cached_checksum;
+                cached_results.insert(key, valide);
+            } else {
+                // Chunk non en cache: à générer
+                coords_to_generate.push(key);
+            }
+        }
+
+        // Génère les chunks manquants en parallèle
+        if !coords_to_generate.is_empty() {
+            let generated = generate_chunks_parallel(seed, coords_to_generate);
+
+            // Met en cache les chunks générés pourusage futur
+            for ((cx, cy, cz), chunk_with_checksum) in generated {
+                game_state.cache_chunk_with_checksum(cx, cy, cz, chunk_with_checksum.chunk_data.chunk, chunk_with_checksum.checksum);
+            }
+        }
+
+        // Construit les résultats de validation
         for chunk_data in chunks {
             let key = (chunk_data.x, chunk_data.y, chunk_data.z);
 
-            let server_checksum = if let Some(cached_checksum) = game_state.get_cached_checksum(key.0, key.1, key.2) {
-                cached_checksum
+            // Détermine si le chunk est valide
+            // - Si déjà en cache: utilise le résultat calculé précédemment
+            // - Sinon: récupère le checksum généré et compare
+            let valide = if let Some(&cached_valide) = cached_results.get(&key) {
+                cached_valide
             } else {
-                let chunk = Chunk::generate(key.0, key.1, key.2, seed);
-                game_state.cache_chunk(key.0, key.1, key.2, chunk);
-                game_state.get_cached_checksum(key.0, key.1, key.2).unwrap()
+                if let Some(server_checksum) = game_state.get_cached_checksum(key.0, key.1, key.2) {
+                    chunk_data.checksum == server_checksum
+                } else {
+                    // Ne devrait pas arriver: le chunk aurait dû être généré ci-dessus
+                    false
+                }
             };
 
-            let valide = chunk_data.checksum == server_checksum;
-
+            // Met à jour le compteur de tentatives échouées
             if valide {
                 self.failed_attempts.remove(&key);
             } else {
                 let attempt = self.failed_attempts.entry(key).or_insert(0);
                 *attempt += 1;
 
+                // Reset après trop de tentatives
                 if *attempt >= MAX_VALIDATION_ATTEMPT {
                     self.failed_attempts.remove(&key);
                 }

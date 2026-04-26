@@ -2,9 +2,7 @@ use cgmath::Point3;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use shared::network::messages::{Position, Rotation};
-use shared::parallel::{Parallelizable, WorkerPool};
 use shared::world::data::chunk::Chunk;
-use shared::world::generation::chunk::ChunkWithChecksum;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -77,6 +75,10 @@ impl GameState {
 
     pub fn cache_chunk(&self, x: i32, y: i32, z: i32, chunk: Chunk) {
         let checksum = chunk.compute_checksum();
+        self.inner.write().unwrap().cache_chunk(x, y, z, chunk, checksum);
+    }
+
+    pub fn cache_chunk_with_checksum(&self, x: i32, y: i32, z: i32, chunk: Chunk, checksum: [u8; 2]) {
         self.inner.write().unwrap().cache_chunk(x, y, z, chunk, checksum);
     }
 
