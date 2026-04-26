@@ -18,7 +18,7 @@ impl Vertex {
     pub fn new(x: f32, y: f32, z: f32, tex_layer: u32, ao: f32, u: f32, v: f32) -> Vertex {
         return Vertex {
             position: [x, y, z],
-            color: 16777215,
+            color: 4294967295,
             tex_layer: tex_layer,
             ao: ao,
             u,
