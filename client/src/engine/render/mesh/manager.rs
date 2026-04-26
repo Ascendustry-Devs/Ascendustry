@@ -3,7 +3,6 @@ use std::usize;
 use wgpu::{BufferUsages, CommandEncoder, Device, Queue};
 
 use crate::engine::render::{mesh::mesh::MeshId, utils::smart_buffer::SmartBuffer};
-use shared::time;
 
 pub struct DataEntry<'a> {
     pub id: MeshId,

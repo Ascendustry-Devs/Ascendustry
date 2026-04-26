@@ -8,7 +8,6 @@ use crate::game::PacketHandler;
 use crate::network::ServerConnection;
 use crate::state::GAME_STATE;
 use anyhow::Result;
-use cgmath::Point3;
 use shared::network::crypto::generate_server_id;
 use shared::network::messages::{self, new_server_seed_paquet};
 use shared::*;

@@ -6,9 +6,9 @@ use crate::{
     },
 };
 use cgmath::Vector3;
+use shared::parallel::Parallelizable;
 use shared::time_noprint;
 use shared::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F, LAST_CHUNK_AXIS_INDEX, LAST_CHUNK_AXIS_INDEX_USIZE};
-use shared::{parallel::Parallelizable, time};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
@@ -195,7 +195,7 @@ impl ChunkMesh {
         let mut e_v = [0; 3];
 
         let axes = ["X", "  Y", "    Z"];
-        let axis_str = axes[axis as usize];
+        let _axis_str = axes[axis as usize];
 
         e_d[axis as usize] = 1;
         e_u[((axis + 1) % 3) as usize] = 1;

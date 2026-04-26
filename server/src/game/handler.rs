@@ -1,10 +1,8 @@
-use crate::game::validator::{ChunkValidator, ValidationResult};
-use crate::state::{Player, GAME_STATE};
+use crate::game::validator::ChunkValidator;
+use crate::state::GAME_STATE;
 use shared::network::messages::*;
 use shared::network::messages::{self, ContenuPaquet, Paquet};
-use shared::world::data;
 use shared::*;
-use std::io::Error;
 
 pub struct PacketHandler {
     validator: ChunkValidator,

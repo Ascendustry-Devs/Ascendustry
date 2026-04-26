@@ -108,7 +108,7 @@ impl World {
 
         let player_pos = player.get_pos();
         let player_cx = (player_pos.x / CHUNK_SIZE as f32).floor() as i32;
-        let player_cy = (player_pos.y / CHUNK_SIZE as f32).floor() as i32;
+        let _player_cy = (player_pos.y / CHUNK_SIZE as f32).floor() as i32;
         let player_cz = (player_pos.z / CHUNK_SIZE as f32).floor() as i32;
 
         let priority_distance_sq = CHUNK_PRIORITY_DISTANCE.powi(2);
