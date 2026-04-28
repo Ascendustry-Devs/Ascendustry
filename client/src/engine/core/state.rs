@@ -7,6 +7,7 @@ use crate::engine::core::frame::{EngineFrameData, GameFrameData};
 use crate::engine::render::camera::RenderCamera;
 use crate::engine::render::manager::RenderManager;
 use crate::engine::render::render::{GpuContext, RenderOptions, Renderer};
+use crate::engine::render::text::text_renderer::FPS_UPDATE_DELAY;
 use crate::engine::render::text::TextRenderer;
 use crate::engine::render::texture::TextureArrayManager;
 use shared::world::data::chunk::CHUNK_SIZE_F;
@@ -74,9 +75,6 @@ impl State {
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
-
-        // let diffuse_bytes = include_bytes!("../../../../assets/images/happy-tree.png");
-        // let diffuse_texture = crate::engine::render::texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "happy-tree.png").unwrap();
 
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -500,18 +498,19 @@ impl State {
             self.engine_frame_data.frame_count = 0;
             self.engine_frame_data.fps_timer = self.engine_frame_data.fps_timer - 1.0;
         }
-
-        // println!(
-        //     "FPS (avg): {:4.0} FPS (last): {:4.0} dt: {:.3}ms",
-        //     self.engine_frame_data.fps,
-        //     1.0 / self.engine_frame_data.dt,
-        //     self.engine_frame_data.dt * 1000.0
-        // );
     }
 
     pub fn update(&mut self) {
         self.frame_update();
-        self.text_renderer.update_text(self.engine_frame_data.fps);
+        self.text_renderer.timer += self.engine_frame_data.dt;
+        if self.text_renderer.timer >= FPS_UPDATE_DELAY {
+            self.text_renderer.update_text(
+                self.engine_frame_data.fps,
+                (1.0 / self.engine_frame_data.dt) as u32,
+                self.engine_frame_data.dt,
+            );
+            self.text_renderer.timer -= FPS_UPDATE_DELAY;
+        }
         if let Some(ref mut audio) = self.audio_manager {
             audio.update();
         }

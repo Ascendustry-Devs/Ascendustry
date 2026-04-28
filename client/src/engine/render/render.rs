@@ -144,6 +144,8 @@ impl Renderer {
 
         queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&camera.get_view_proj_raw()));
 
+        // TODO: CODE SERVANT À DESSINER LE DEBUG CHUNK - VIRER CETTE MERDE AU PLUS VITE (la rendre meilleure et extraire)
+
         // vp = projection * view
         let inv_vp = camera.get_view_proj().invert().expect("VP matrix is not invertible");
 
@@ -184,6 +186,8 @@ impl Renderer {
             .collect();
 
         queue.write_buffer(&self.chunk_borders_buffer, 0, bytemuck::cast_slice(&debug_vertices));
+
+        // FIN CODE DEBUG CHUNK
 
         let output = surface.get_current_texture().unwrap();
 
@@ -236,8 +240,6 @@ impl Renderer {
 
             let mut _rendered_mesh_count = meshes.len();
 
-            // println!("Rendering {} meshes", meshes.len());
-
             let _start = Instant::now();
 
             if _rendered_mesh_count > 0 {
@@ -254,27 +256,6 @@ impl Renderer {
                     }
                 }
             }
-            // for mesh in meshes {
-            //     if mesh.get_vertex_count() == 0 || mesh.get_vertex_capacity() == 0 {
-            //         _rendered_mesh_count -= 1;
-            //         continue;
-            //     }
-
-            //     render_pass.set_vertex_buffer(0, mesh.get_vertex_buffer().slice(..));
-
-            //     if mesh.has_index_buffer() {
-            //         render_pass.set_index_buffer(mesh.get_index_buffer().slice(..), mesh.get_index_format());
-            //         render_pass.draw_indexed(0..mesh.get_index_count(), 0, 0..1);
-            //     } else {
-            //         render_pass.draw(0..mesh.get_vertex_count(), 0..1);
-            //     }
-            // }
-
-            // println!(
-            //     "Actually drawn {} meshes, took {:.3}ms.",
-            //     _rendered_mesh_count,
-            //     _start.elapsed().as_millis()
-            // );
 
             if self.wireframe || self.show_chunk_borders {
                 render_pass.set_pipeline(&self.gizmo_render_pipeline);

@@ -2,7 +2,14 @@ use std::{time::Instant, usize};
 
 use wgpu::{Buffer, BufferUsages, CommandEncoder, Device, Queue};
 
-use crate::engine::render::{mesh::mesh::MeshId, utils::smart_buffer::SmartBuffer};
+use crate::engine::render::utils::smart_buffer::SmartBuffer;
+
+const BYTES_PER_FRAME_CAP: usize = 1024 * 1024 * 8;
+const MAX_MILLIS_PER_FRAME_CAP: u128 = 8;
+const MAX_WRITE_OPERATIONS_PER_FRAME: usize = 5;
+const ARENA_MIN_SIZE: usize = 1024 * 1024 * 16;
+
+pub type MeshId = u32;
 
 pub struct DataEntry<'a> {
     pub id: MeshId,
@@ -38,7 +45,6 @@ pub struct MeshManager {
     buffer: SmartBuffer,
     pub data: Vec<MeshEntry>,
     gaps: Vec<Gap>,
-    defrag_strategy: DefragmentationStrategy,
     pending_destruction: Vec<SmartBuffer>,
     next_id: MeshId,
     write_operations: Vec<WriteOperation>,
@@ -46,22 +52,11 @@ pub struct MeshManager {
     arena: Vec<u8>,
 }
 
-enum DefragmentationStrategy {
-    EventBased,
-    // TimeBased,
-    // LastResort,
-}
-
 impl Gap {
     pub fn new(position: usize, length: usize) -> Self {
         Self { position, length }
     }
 }
-
-const BYTES_PER_FRAME_CAP: usize = 1024 * 1024;
-const MAX_MILLIS_PER_FRAME_CAP: u128 = 2;
-const MAX_WRITE_OPERATIONS_PER_FRAME: usize = 4;
-const ARENA_MIN_SIZE: usize = 1024 * 1024 * 16;
 
 impl MeshManager {
     pub fn new(device: &Device) -> Self {
@@ -78,7 +73,6 @@ impl MeshManager {
             gaps: vec![],
             pending_destruction: vec![],
             next_id: 0,
-            defrag_strategy: DefragmentationStrategy::EventBased,
             write_operations: vec![],
             schedule_merge: false,
             arena: arena,
@@ -107,11 +101,6 @@ impl MeshManager {
 
         // Copy each entry to the new buffer without any gaps
         for entry in &mut self.data {
-            // println!("entry? hello?");
-            // println!(
-            //     "Entry pos/length/current_pos: {} {} {}",
-            //     entry.position, entry.length, current_position
-            // );
             encoder.copy_buffer_to_buffer(
                 self.buffer.buffer(),
                 entry.position as u64,
@@ -145,7 +134,6 @@ impl MeshManager {
     }
 
     fn write_at(&mut self, position: usize, data: &[u8], mesh_id: MeshId) {
-        // let now = Instant::now();
         let arena_offset = self.arena.len();
         self.arena.extend_from_slice(data);
         self.write_operations.push(WriteOperation {
@@ -155,9 +143,6 @@ impl MeshManager {
             arena_offset: arena_offset,
         });
         self.schedule_merge = true;
-        // let time_took = now.elapsed();
-        // println!("submit: write op - mesh {} pos {} ({}b) in {} ms", mesh_id, position, data.len(), time_took.as_millis());
-        // queue.write_buffer(self.buffer.buffer(), position as u64, data);
     }
 
     fn merge_commands(&mut self) {
@@ -220,14 +205,6 @@ impl MeshManager {
         }
 
         self.write_operations.drain(0..i);
-
-        // println!(
-        //     "Flushing {} ops ({} bytes) in {}ms. {} left.",
-        //     used_ops,
-        //     used_bytes,
-        //     time_took_millis,
-        //     self.write_operations.len()
-        // );
 
         if self.write_operations.is_empty() {
             self.arena.clear();
@@ -373,15 +350,6 @@ impl MeshManager {
 
             (pos, len)
         };
-
-        // println!(
-        //     "add_data {} {} {} {} {}",
-        //     position,
-        //     data.len(),
-        //     gap_length,
-        //     self.buffer.capacity(),
-        //     self.buffer.length()
-        // );
 
         if gap_length == 0 {
             self.gaps.remove(index);

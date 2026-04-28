@@ -16,8 +16,6 @@ impl SmartBuffer {
         let length = data.len() as u32;
         let capacity = BUFFER_MIN_CAPACITY.max((length as f32 * BUFFER_CAPACITY_MARGIN).ceil() as u32);
 
-        // println!("SmartBuffer create: length {}, capacity {}", length, capacity);
-
         let buffer = device.create_buffer(&BufferDescriptor {
             label: Some(format!("SmartBuffer (c: {}, l: {})", capacity, length).as_str()),
             size: capacity as u64,
@@ -39,8 +37,6 @@ impl SmartBuffer {
     pub fn from_capacity(capacity_bytes: u32, device: &Device, format: Option<IndexFormat>, usages: BufferUsages) -> Self {
         let length = capacity_bytes;
         let capacity = BUFFER_MIN_CAPACITY.max((length as f32 * BUFFER_CAPACITY_MARGIN).ceil() as u32);
-
-        // println!("SmartBuffer create: length {}, capacity {}", length, capacity);
 
         let buffer = device.create_buffer(&BufferDescriptor {
             label: Some(format!("SmartBuffer (c: {}, l: {})", capacity, length).as_str()),
@@ -80,8 +76,6 @@ impl SmartBuffer {
 
     pub fn update(&mut self, device: &Device, queue: &Queue, data: &[u8]) {
         let length = data.len() as u32;
-
-        // println!("SmartBuffer update: length {}, capacity {}", length, self.capacity);
 
         if self.capacity >= length {
             self.length = length;

@@ -6,12 +6,8 @@ use crate::{
         world::world::World,
     },
 };
-use cgmath::num_traits::ToPrimitive;
 use shared::parallel::{WorkResult, WorkerPool};
-use std::{
-    collections::{HashMap, HashSet},
-    time::Instant,
-};
+use std::collections::{HashMap, HashSet};
 
 pub struct WorldMesh {
     pub meshes: HashMap<(i32, i32, i32), ChunkMesh>,
@@ -32,8 +28,6 @@ impl WorldMesh {
     }
 
     pub fn update(&mut self, renderer: &mut Renderer, world: &World, player: &Player) {
-        let _world_mesh_make_start = Instant::now();
-
         let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = player.get_rendered_chunk_range();
         let mut needed_rendered_keys: Vec<(i32, i32, i32)> = Vec::new();
 
@@ -77,10 +71,5 @@ impl WorldMesh {
                 }
             }
         }
-
-        // let elapsed = _world_mesh_make_start.elapsed().as_millis();
-        // if elapsed > 3 {
-        //     println!("WorldMesh update took {}ms.", elapsed);
-        // }
     }
 }

@@ -3,10 +3,7 @@ use wgpu::{wgt::DrawIndirectArgs, BufferUsages, Device, Queue};
 use crate::{
     common::geometry::vertex::Vertex,
     engine::render::{
-        mesh::{
-            manager::{MeshEntry, MeshManager},
-            mesh::MeshId,
-        },
+        mesh::manager::{MeshEntry, MeshId, MeshManager},
         utils::smart_buffer::SmartBuffer,
     },
 };

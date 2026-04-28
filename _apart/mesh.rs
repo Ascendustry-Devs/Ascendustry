@@ -3,8 +3,6 @@ use wgpu::{Buffer, BufferUsages, Device, IndexFormat, Queue};
 
 use crate::{common::geometry::vertex::Vertex, engine::render::utils::smart_buffer::SmartBuffer};
 
-pub type MeshId = u32;
-
 pub struct Mesh {
     vertices: SmartBuffer,
     indices: Option<SmartBuffer>,

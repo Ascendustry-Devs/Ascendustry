@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use crate::engine::render::{camera::RenderCamera, mesh::mesh::MeshId};
+use crate::engine::render::{camera::RenderCamera, mesh::manager::MeshId};
 
 pub struct EngineFrameData {
     pub dt: f32,

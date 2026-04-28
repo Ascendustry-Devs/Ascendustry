@@ -2,7 +2,6 @@ use crate::parallel::{Parallelizable, QueueFull, WorkResult, WorkerPool};
 use crate::world::data::chunk::{Chunk, ChunkData};
 use crate::world::generation::chunk::ChunkWithChecksum;
 use noise::{NoiseFn, Perlin, Seedable};
-use std::cmp::{max, min};
 use std::sync::Arc;
 
 pub const CAVE_SCALE: f64 = 0.025;

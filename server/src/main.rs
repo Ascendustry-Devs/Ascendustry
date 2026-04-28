@@ -92,7 +92,7 @@ async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::
     }
 
     GAME_STATE.remove_player(&player_id);
-    log_server!("Joueur {} deconnecte", player_id);
+    log_server!("Joueur {} déconnecté", player_id);
     Ok(())
 }
 
@@ -106,7 +106,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // time!(format!("Temps pris par la prégénération"), {
     //     GAME_STATE.generate_chunks_in_radius(p1, 12);
     // });
-    log_server!("Fin de la prégénération du monde");
+    // log_server!("Fin de la prégénération du monde");
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:5000").await?;
     log_server!("Serveur demarre sur 127.0.0.1:5000");

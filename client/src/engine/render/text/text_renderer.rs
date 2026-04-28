@@ -1,10 +1,13 @@
 use wgpu_text::{glyph_brush::ab_glyph::FontRef, BrushBuilder, TextBrush};
 
+pub const FPS_UPDATE_DELAY: f32 = 0.25;
+
 pub struct TextRenderer {
     brush: TextBrush<FontRef<'static>>,
     width: u32,
     height: u32,
     current_text: String,
+    pub timer: f32,
 }
 
 impl TextRenderer {
@@ -21,6 +24,7 @@ impl TextRenderer {
             width: 1024,
             height: 1024,
             current_text: String::new(),
+            timer: 0.0,
         }
     }
 
@@ -29,8 +33,8 @@ impl TextRenderer {
         self.height = height;
     }
 
-    pub fn update_text(&mut self, fps: u32) {
-        self.current_text = format!("FPS: {}\n", fps);
+    pub fn update_text(&mut self, fps_avg: u32, fps_last: u32, dt: f32) {
+        self.current_text = format!("FPS\navg {}\nlast {}\ndt {}ms", fps_avg, fps_last, dt * 1000.0);
     }
 
     pub fn render<'a>(&'a mut self, device: &wgpu::Device, queue: &wgpu::Queue, render_pass: &mut wgpu::RenderPass<'a>) {
