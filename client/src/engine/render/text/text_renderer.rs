@@ -34,7 +34,7 @@ impl TextRenderer {
     }
 
     pub fn update_text(&mut self, fps_avg: u32, fps_last: u32, dt: f32) {
-        self.current_text = format!("FPS\navg {}\nlast {}\ndt {}ms", fps_avg, fps_last, dt * 1000.0);
+        self.current_text = format!("FPS\navg {}\nlast {}\ndt {:.3}ms", fps_avg, fps_last, dt * 1000.0);
     }
 
     pub fn render<'a>(&'a mut self, device: &wgpu::Device, queue: &wgpu::Queue, render_pass: &mut wgpu::RenderPass<'a>) {

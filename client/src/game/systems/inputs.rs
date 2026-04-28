@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 use winit::keyboard::KeyCode;
 
@@ -29,5 +29,14 @@ impl InputState {
 
     pub fn get_mouse_delta(&self) -> (f64, f64) {
         return self.mouse_delta;
+    }
+
+    pub fn take_mouse_delta(&mut self) -> (f64, f64) {
+        mem::replace(&mut self.mouse_delta, (0.0, 0.0))
+    }
+
+    pub fn take_mouse_delta_f32(&mut self) -> (f32, f32) {
+        let (dx, dy) = mem::replace(&mut self.mouse_delta, (0.0, 0.0));
+        (dx as f32, dy as f32)
     }
 }

@@ -18,9 +18,9 @@ use crate::{
     game::{
         network::NetworkManager,
         player::{
-            camera::{Camera, CameraController},
-            player::Player,
+            controllers::free::{FreeCameraController, FreePlayerController}, player::Player
         },
+        systems::inputs::InputState,
         render::meshing::world::WorldMesh,
         world::world::World,
     },
@@ -40,10 +40,11 @@ pub struct GameState {
     pub world: World,
     pub world_mesh: WorldMesh,
     pub player: Player,
-    pub camera: Camera,
-    pub camera_controller: CameraController,
+    // pub camera: Camera,
+    // pub camera_controller: CameraController,
     pub delay_ms: f32,
     pub network: Option<NetworkManager>,
+    inputs: InputState,
     last_ping: Instant,
 }
 
@@ -58,11 +59,13 @@ impl GameState {
             .expect("La seed est vide");
 
         Self {
-            player: Player::new(),
+            player: Player::new(
+                Box::new(FreeCameraController::new(1.0)),
+                Box::new(FreePlayerController::new(16.0)),
+            ),
             world: World::new(server_seed),
             world_mesh: WorldMesh::new(),
-            camera: Camera::new(cgmath::Point3::new(16.0, 32.0, 16.0), 1.0),
-            camera_controller: CameraController::new(16.0, 0.004),
+            inputs: InputState::new(),
             delay_ms: 0.0,
             network: Some(network),
             last_ping: Instant::now(),
@@ -109,12 +112,12 @@ impl AppState for GameState {
         }
 
         // LOGIC
-        self.player.update(frame.dt, &mut self.camera, &mut self.camera_controller);
+        self.player.update(frame.dt, &mut self.inputs);
 
         if let Some(ref mut net) = self.network {
             if net.is_connected() && self.player.has_moved() {
                 let pos = self.player.get_pos();
-                let (rx, ry) = self.camera_controller.get_rotation(&self.camera);
+                let (rx, ry) = self.player.camera.get_rotation();
                 if let Err(e) = net.send_position(pos.x, pos.y, pos.z, rx, ry) {
                     log_err_client!("Erreur envoi position: {}", e);
                 }
@@ -155,12 +158,12 @@ impl AppState for GameState {
         self.world_mesh.update(renderer, &self.world, &self.player);
 
         // RENDER
-        let view_proj = self.camera.get_view_proj();
+        let view_proj = self.player.camera.get_view_proj();
         data.camera.update_view_proj(view_proj);
 
-        self.camera.aspect = render_options.aspect;
-        let cam_position = self.camera.eye.to_vec();
-        let cam_forward = self.camera.forward();
+        self.player.camera.aspect = render_options.aspect;
+        let cam_position = self.player.camera.eye.to_vec();
+        let cam_forward = self.player.camera.forward();
         let cam_frustum = extract_camera_frustum_planes(view_proj);
 
         let chunks_to_render = self.player.get_rendered_chunk_keys();
@@ -194,11 +197,11 @@ impl AppState for GameState {
     fn fixed_update(&mut self, _frame: &EngineFrameData, _render_options: &RenderOptions, _data: &mut GameFrameData) {}
 
     fn on_mouse_move(&mut self, dx: f64, dy: f64) {
-        self.camera_controller.process_mouse(dx, dy);
+        self.inputs.set_mouse_delta((dx, dy));
     }
 
     fn on_key(&mut self, code: KeyCode, is_pressed: bool) {
-        self.camera_controller.handle_key(code, is_pressed);
+        self.inputs.set_key_press(code, is_pressed);
     }
 }
 

@@ -1,77 +1,57 @@
 use crate::common::utils::updatable::Updatable;
 use crate::game::player::camera::{Camera, CameraController};
-use cgmath::{num_traits::ToPrimitive, InnerSpace, Point3, Vector3};
+use crate::game::systems::inputs::InputState;
+use cgmath::{num_traits::ToPrimitive, Point3, Vector3};
 use shared::world::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use shared::world::data::chunk::CHUNK_SIZE;
+use shared::world::data::chunk::{CHUNK_SIZE, CHUNK_SIZE_F};
 use shared::*;
-use std::f32::consts::PI;
+
+pub trait PlayerController {
+    fn update(&self, dt: f32, inputs: &mut InputState, player_pos: &mut Point3<f32>, camera: &Camera);
+}
 
 pub struct Player {
     uuid: i32,
     pub pos: Updatable<cgmath::Point3<f32>>,
     pub cpos: Updatable<cgmath::Point3<i32>>,
     pub vel: cgmath::Vector3<f32>,
-    yaw: f32,
     pub horizontal_render_distance: u16,
     pub vertical_render_distance: u16,
     pub horizontal_simulation_distance: u16,
     pub vertical_simulation_distance: u16,
+    pub camera_controller: Box<dyn CameraController>,
+    pub player_controller: Box<dyn PlayerController>,
+    pub camera: Camera,
 }
 
 impl Player {
-    pub fn new() -> Player {
+    pub fn new(
+        camera_controller: Box<dyn CameraController>,
+        player_controller: Box<dyn PlayerController>,
+    ) -> Player {
         return Player {
             uuid: -1,
-            pos: Updatable::new(cgmath::Point3::new(0.0, 0.0, 0.0)),
-            cpos: Updatable::new(cgmath::Point3::new(0, 0, 0)),
-            vel: cgmath::Vector3::new(0.0, 0.0, 0.0),
-            yaw: 0.0,
+            pos: Updatable::new(Point3::new(0.0, 0.0, 0.0)),
+            cpos: Updatable::new(Point3::new(0, 0, 0)),
+            vel: Vector3::new(0.0, 0.0, 0.0),
             horizontal_render_distance: HORIZONTAL_RENDER_DISTANCE,
             vertical_render_distance: VERTICAL_RENDER_DISTANCE,
             horizontal_simulation_distance: HORIZONTAL_SIMULATION_DISTANCE,
             vertical_simulation_distance: VERTICAL_SIMULATION_DISTANCE,
+            camera_controller: camera_controller,
+            player_controller: player_controller,
+            camera: Camera::new(Point3::new(16.0, 32.0, 16.0), 1.0),
         };
     }
 
-    pub fn update(&mut self, dt: f32, camera: &mut Camera, camera_controller: &mut CameraController) {
-        let forward = camera.forward();
-        let right = camera.right();
-        let up = cgmath::Vector3::unit_y();
-        let mut direction = Vector3::new(0.0, 0.0, 0.0);
-
-        if camera_controller.is_forward_pressed {
-            direction += forward;
-        }
-        if camera_controller.is_backward_pressed {
-            direction -= forward
-        }
-        if camera_controller.is_right_pressed {
-            direction += right;
-        }
-        if camera_controller.is_left_pressed {
-            direction -= right;
-        }
-        if camera_controller.is_up_pressed {
-            direction += up;
-        }
-        if camera_controller.is_down_pressed {
-            direction -= up;
-        }
-
-        if direction.magnitude2() > 0.0 {
-            self.vel = direction.normalize() * (camera_controller.speed * dt);
-        } else {
-            self.vel = Vector3::new(0.0, 0.0, 0.0);
-        }
-
-        self.pos.update(self.pos.current() + self.vel);
-        self.cpos
-            .update(self.pos.current().map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32));
-        self.yaw = camera.yaw % (2.0 * PI);
-        // log_client!("Player pos: {:?}", self.get_pos());
-        camera_controller.update_camera(camera, self);
+    pub fn update(&mut self, dt: f32, inputs: &mut InputState) {
+        let pos: &Point3<f32> = &self.get_pos();
+        self.set_pos(self.get_pos());
+        self.camera_controller.update(dt, inputs, &mut self.camera, pos);
+        self.player_controller.update(dt, inputs, self.pos.current_mut(), &self.camera);
+        self.cpos.update(self.pos.current().map(|coord| coord.div_euclid(CHUNK_SIZE_F).floor() as i32));
     }
 
     pub fn set_render_distance(&mut self, horizontal: u16, vertical: u16) {

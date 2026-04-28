@@ -27,6 +27,11 @@ impl<T: Clone> Updatable<T> {
     pub fn current(&self) -> &T {
         &self.current
     }
+
+    #[inline(always)]
+    pub fn current_mut(&mut self) -> &mut T {
+        &mut self.current
+    }
 }
 
 impl<T: Clone + PartialEq> Updatable<T> {
