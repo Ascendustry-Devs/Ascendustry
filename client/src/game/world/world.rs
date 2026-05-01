@@ -1,9 +1,9 @@
 use crate::engine::render::manager::RenderManager;
 use shared::world::{
-    constants::{max_chunks_in_queue, CHUNK_PRIORITY_DISTANCE},
+    constants::{CHUNK_PRIORITY_DISTANCE, max_chunks_in_queue},
     data::{
         block::{BlockData, BlockInstance, BlockManager},
-        chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE},
+        chunk::{CHUNK_SIZE, CHUNK_SIZE_HALFED, Chunk, ChunkData, ChunkState},
     },
     generation::chunk_generator::ChunkGenerator,
 };
@@ -126,9 +126,9 @@ impl World {
             let mut normal_chunks: Vec<(i32, i32, i32)> = Vec::new();
 
             for key in missing_keys {
-                let wx = key.0 as f32 * CHUNK_SIZE as f32 + CHUNK_SIZE as f32 / 2.0;
-                let wy = key.1 as f32 * CHUNK_SIZE as f32 + CHUNK_SIZE as f32 / 2.0;
-                let wz = key.2 as f32 * CHUNK_SIZE as f32 + CHUNK_SIZE as f32 / 2.0;
+                let wx = (key.0 * CHUNK_SIZE + CHUNK_SIZE_HALFED) as f32;
+                let wy = (key.1 * CHUNK_SIZE + CHUNK_SIZE_HALFED) as f32;
+                let wz = (key.2 * CHUNK_SIZE + CHUNK_SIZE_HALFED) as f32;
 
                 let dx = wx - player_pos.x;
                 let dy = wy - player_pos.y;

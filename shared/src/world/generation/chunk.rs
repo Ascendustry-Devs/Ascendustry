@@ -27,6 +27,10 @@ impl Chunk {
         let cwy = cy * CHUNK_SIZE;
         let cwz = cz * CHUNK_SIZE;
 
+        let grass_id = ctx.block_manager.get_block_by_string(String::from("grass")).expect("Did not find block 'grass' in block manager").get_id();
+        let dirt_id = ctx.block_manager.get_block_by_string(String::from("dirt")).expect("Did not find block 'dirt' in block manager").get_id();
+        let stone_id = ctx.block_manager.get_block_by_string(String::from("stone")).expect("Did not find block 'stone' in block manager").get_id();
+
         let blocks = vec![BlockInstance::air(); CHUNK_BLOCK_NUMBER];
         
         let mut chunk = Chunk {
@@ -60,9 +64,9 @@ impl Chunk {
                     // "if is_cave" branch is not needed. Blocks are by default air.
                     if !is_cave {
                         let block_id = match wy {
-                            y if y == terrain_y - 1 => BlockType::Grass.to_u32(),
-                            y if y >= terrain_y - 4 => BlockType::Dirt.to_u32(),
-                            _ => BlockType::Stone.to_u32(),
+                            y if y == terrain_y - 1 => grass_id,
+                            y if y >= terrain_y - 4 => dirt_id,
+                            _ => stone_id,
                         };
                         chunk.set_block_from_xyz(x, y, z, BlockInstance::new(block_id));
                     }

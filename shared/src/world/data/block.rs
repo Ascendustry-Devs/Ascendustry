@@ -79,6 +79,14 @@ impl BlockData {
             id_str: id.to_owned(),
         }
     }
+
+    pub fn get_id(&self) -> u32 {
+        self.id.expect(&format!("BlockData with id_str \"{}\" was not registered.", self.id_str))
+    }
+
+    pub fn get_id_str(&self) -> &str {
+        &self.id_str
+    }
 }
 
 pub struct BlockManager {

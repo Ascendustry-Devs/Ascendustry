@@ -1,5 +1,5 @@
 use anyhow::*;
-use image::GenericImageView;
+use image::{DynamicImage, GenericImageView};
 
 pub struct Texture {
     #[allow(unused)]
@@ -76,13 +76,37 @@ pub struct TextureArrayManager {
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
     pub layer_count: u32,
+    texture_count: u32,
 }
 
-type TextureID = u32;
+struct TextureID {
+    data: u32,
+}
+
+impl TextureID {
+    pub fn new(data: u32) -> Self {
+        Self {
+            data
+        }
+    }
+
+
+}
 
 impl TextureArrayManager {
-    pub fn register() -> TextureID {
-        todo!()
+    pub fn next_id(&mut self) -> TextureID {
+        let id = self.texture_count;
+        self.texture_count += 1;
+        TextureID::new(id)
+    }
+
+    pub fn register(&mut self, texture: &[u8], dimensions: (u32, u32)) -> TextureID {
+        if texture.len() != (dimensions.0 * dimensions.1 * 4) as usize {
+            panic!("Texture data length does not match expected size for given dimensions.");
+        }
+        let image = image::load_from_memory(texture).expect("Failed to load image.");
+        
+        self.next_id()
     }
 
     pub fn make_array(device: &wgpu::Device, queue: &wgpu::Queue, textures: Vec<&[u8]>, width: u32, height: u32) -> Self {
@@ -146,6 +170,7 @@ impl TextureArrayManager {
             view,
             sampler,
             layer_count,
+            texture_count: textures.len() as u32
         }
     }
 }
