@@ -176,12 +176,13 @@ impl NetworkManager {
         }
     }
 
-    /// Reçoit un paquet du serveur.
+    /// Reçoit un paquet du serveur (non-bloquant).
     ///
-    /// Cette méthode peut être utilisée pour recevoir des mises à jour
-    /// du serveur (actuellement non utilisée car le serveur pousse
-    /// les mises à jour).
-    pub fn receive_packet(&mut self) -> Result<Paquet, String> {
+    /// Cette méthode retourne immédiatement :
+    /// - `Ok(Some(Paquet))` si un paquet a été reçu
+    /// - `Ok(None)` si aucun paquet n'est disponible
+    /// - `Err(String)` en cas d'erreur
+    pub fn receive_packet(&mut self) -> Result<Option<Paquet>, String> {
         self.connection.receive_packet()
     }
 }

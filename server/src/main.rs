@@ -61,37 +61,41 @@ async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::
         log_server!("Seed envoyée au joueur {} !", player_id);
     }
 
-    let mut interval = interval(Duration::from_millis(50));
+    let mut interval = interval(Duration::from_millis(1000));
 
     // Loop de check
-    loop {
-        // Waiting (this-time manager)
-        interval.tick().await;
 
-        // Packet Reception
-        match conn.receive_packet(&mut stream).await {
-            Ok(packet) => {
-                if let Some(response) = packet_handler.handle_packet(packet) {
-                    conn.send_packet(&mut stream, &response).await?;
-                } else {
-                    log_server!("Joueur {}: éjection.", player_id);
-                    break;
+    loop {
+        tokio::select! {
+            result = conn.receive_packet(&mut stream) => {
+                match result {
+                    Ok(packet) => {
+                        if let Some(response) = packet_handler.handle_packet(packet) {
+                            conn.send_packet(&mut stream, &response).await?;
+                        } else {
+                            log_server!("Joueur {}: éjection.", player_id);
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        log_err_server!("Échec de la réception du paquet. Erreur : {}", e);
+                        break;
+                    }
                 }
             }
-            Err(e) => {
-                log_err_server!("Échec de la réception du paquet.\nErreur : {}", e);
-                break;
-            }
-        }
-
-        // Packet Sending each iteration
-        // Update pub player's info packet handler
-        match packet_handler.get_players_position_packet() {
-            Ok(packet) => {
-                conn.send_packet(&mut stream, &packet).await.unwrap();
-            }
-            Err(e) => {
-                log_err_server!("Échec de la génération/envoi du packet.\nErreur : {}", e);
+            _ = interval.tick() => {
+                match packet_handler.get_players_position_packet() {
+                    Ok(packet) => {
+                        if let Err(e) = conn.send_packet(&mut stream, &packet).await {
+                            log_err_server!("Erreur lors de l'envoi du packet MultiplePlayerTransformation: {}", e);
+                            break;
+                        }
+                        log_server!("Envoi du paquet MultiplePlayerTransformation réussi");
+                    }
+                    Err(e) => {
+                        log_err_server!("Échec de la génération/envoi du packet. Erreur : {}", e);
+                    }
+                }
             }
         }
     }
@@ -105,13 +109,6 @@ async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::
 async fn main() -> Result<(), anyhow::Error> {
     log_server!("Serveur: lancement.");
     GAME_STATE.init_random_seed();
-
-    // log_server!("Début de la prégénération du monde");
-    // let p1 = Point3::new(0, 0, 1);
-    // time!(format!("Temps pris par la prégénération"), {
-    //     GAME_STATE.generate_chunks_in_radius(p1, 12);
-    // });
-    // log_server!("Fin de la prégénération du monde");
 
     const IP: &'static str = "127.0.0.1:5000";
     let listener = tokio::net::TcpListener::bind(IP).await?;

@@ -43,27 +43,27 @@ macro_rules! log_err {
 #[macro_export]
 macro_rules! log_server {
     ($($args:tt)*) => {
-        println!("[SERVER]$> {}", format_args!($($args)*));
+        println!("[INFSRV]$> {}", format_args!($($args)*));
     };
 }
 
 #[macro_export]
 macro_rules! log_err_server {
     ($($args:tt)*) => {
-        eprintln!("[SERVER]$> {}", format_args!($($args)*));
+        eprintln!("[ERRSRV]$> {}", format_args!($($args)*));
     };
 }
 
 #[macro_export]
 macro_rules! log_client {
     ($($args:tt)*) => {
-        println!("[CLIENT]$> {}", format_args!($($args)*));
+        println!("[INFCLI]$> {}", format_args!($($args)*));
     };
 }
 
 #[macro_export]
 macro_rules! log_err_client {
     ($($args:tt)*) => {
-        eprintln!("[CLIENT]$> {}", format_args!($($args)*));
+        eprintln!("[ERRCLI]$> {}", format_args!($($args)*));
     };
 }

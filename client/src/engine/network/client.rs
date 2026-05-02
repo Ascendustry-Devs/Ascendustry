@@ -5,6 +5,7 @@
 //! - Le runtime Tokio pour les opérations async
 //! - Le codec chiffré pour la communication
 //! - Une file d'attente pour séquentialiser les envois
+//! - Une file d'attente pour recevoir les paquets (non-bloquant)
 //!
 //! ## Architecture de connexion
 //!
@@ -14,6 +15,7 @@
 //! ├── stream: Arc<Mutex<TcpStream>> (connexion TCP)
 //! ├── codec: EncryptedCodec (chiffrement)
 //! ├── sender: mpsc::UnboundedSender<Paquet> (file d'attente d'envoi)
+//! ├── receiver: mpsc::UnboundedReceiver<Paquet> (file d'attente de réception)
 //! └── player_id: ID attribué par le serveur
 //! ```
 //!
@@ -26,6 +28,13 @@
 //! - `send_packet()` met le paquet dans le channel (non-bloquant)
 //! - Une seule tâche (`start_sender_task`) lit les paquets et les envoie
 //! - Cela garantit l'ordre FIFO et élimine les écritures concurrentes
+//!
+//! ## File d'attente de réception (Non-bloquante)
+//!
+//! Pour éviter que la réception ne bloque le thread principal :
+//! - Une tâche d'arrière-plan reçoit continuellement les paquets
+//! - Les paquets reçus sont placés dans un channel
+//! - `receive_packet()` récupère les paquets depuis ce channel (non-bloquant)
 
 use shared::network::crypto::compute_shared_secret;
 use shared::network::messages::{ContenuPaquet, Paquet, CURRENT_VERSION};
@@ -45,6 +54,7 @@ use tokio::sync::{mpsc, Mutex};
 /// - Connexion TCP
 /// - Handshake initial
 /// - Envoi de paquets (via file d'attente)
+/// - Réception de paquets (via file d'attente, non-bloquante)
 ///
 /// # Utilisation
 ///
@@ -53,6 +63,9 @@ use tokio::sync::{mpsc, Mutex};
 /// conn.connect("127.0.0.1:5000")?;
 /// let (player_id, seed) = conn.perform_handshake("MonJoueur")?;
 /// conn.send_packet(packet)?;
+/// if let Some(packet) = conn.receive_packet()? {
+///     // Traiter le paquet
+/// }
 /// ```
 pub struct ClientConnection {
     /// Runtime Tokio pour exécuter les opérations async
@@ -67,6 +80,8 @@ pub struct ClientConnection {
     connected: bool,
     /// Channel pour l'envoi séquentialisé des paquets
     sender: Option<mpsc::UnboundedSender<Paquet>>,
+    /// Channel pour la réception des paquets (non-bloquante)
+    receiver: Option<mpsc::UnboundedReceiver<Paquet>>,
     /// Dernier instant de communication avec le serveur (pour ping)
     last_communication: Instant,
 }
@@ -77,11 +92,11 @@ impl ClientConnection {
         Ok(Self {
             runtime: None,
             stream: None,
-            // Codec initial avec une clé nulle (sera remplacé après handshake)
             codec: Arc::new(create_codec([0u8; 32])),
             player_id: None,
             connected: false,
             sender: None,
+            receiver: None,
             last_communication: Instant::now(),
         })
     }
@@ -112,12 +127,9 @@ impl ClientConnection {
     /// * `Ok(())` si la connexion a réussi
     /// * `Err(String)` si la connexion a échoué
     pub fn connect(&mut self, server_addr: &str) -> Result<(), String> {
-        // Créer un nouveau runtime Tokio
         let runtime = Runtime::new().map_err(|e| e.to_string())?;
 
-        // Bloquer pour établir la connexion TCP
-        let stream =
-            runtime.block_on(async { Ok::<TcpStream, String>(TcpStream::connect(server_addr).await.map_err(|e| e.to_string())?) })?;
+        let stream = runtime.block_on(TcpStream::connect(server_addr)).map_err(|e| e.to_string())?;
 
         self.runtime = Some(runtime);
         self.stream = Some(Arc::new(Mutex::new(stream)));
@@ -125,19 +137,6 @@ impl ClientConnection {
     }
 
     /// Effectue le handshake avec le serveur.
-    ///
-    /// # Flux de handshake
-    ///
-    /// 1. Recevoir le server_id (16 octets, non chiffré)
-    /// 2. Calculer la clé partagée avec le server_id
-    /// 3. Envoyer le paquet Handshake (chiffré)
-    /// 4. Recevoir Confirmation (contient player_id)
-    /// 5. Recevoir ServerSeed
-    ///
-    /// # Returns
-    ///
-    /// * `Ok((player_id, server_seed))` si le handshake a réussi
-    /// * `Err(String)` si une erreur est survenue
     pub fn perform_handshake(&mut self, username: &str) -> Result<(u64, u32), String> {
         let runtime = self.runtime.as_ref().ok_or("No runtime")?;
 
@@ -145,14 +144,11 @@ impl ClientConnection {
         let (player_id, server_seed, codec) = runtime.block_on(async {
             let mut stream = self.stream.as_mut().ok_or("Not connected")?.lock().await;
 
-            // Étape 1: Recevoir le server_id
             let mut server_id_buf = [0u8; 16];
             stream.read_exact(&mut server_id_buf).await.map_err(|e| e.to_string())?;
 
-            // Étape 2: Créer le codec avec la clé partagée
             let codec = Arc::new(create_codec(compute_shared_secret(&server_id_buf, b"server")));
 
-            // Étape 3: Envoyer le paquet de handshake
             let packet = Paquet::new(
                 shared::network::messages::TypePaquet::Handshake,
                 ContenuPaquet::DonneesConnexion {
@@ -163,14 +159,12 @@ impl ClientConnection {
 
             codec.send_packet(&mut *stream, &packet).await.map_err(|e| e.to_string())?;
 
-            // Étape 4: Recevoir la confirmation
             let confirmation_packet = codec.receive_packet(&mut *stream).await.map_err(|e| e.to_string())?;
             let player_id = match confirmation_packet.contenu {
                 ContenuPaquet::Confirmation { player_id, .. } => player_id,
                 _ => return Err("Échec de la réception du paquet de confirmation.".to_string()),
             };
 
-            // Étape 5: Recevoir la seed du serveur
             let seed_packet = codec.receive_packet(&mut *stream).await.map_err(|e| e.to_string())?;
             let server_seed = match seed_packet.contenu {
                 ContenuPaquet::ServerSeed { seed } => seed,
@@ -181,63 +175,75 @@ impl ClientConnection {
             Ok((player_id, server_seed as u32, codec))
         })?;
 
-        // Mettre à jour l'état de la connexion
         self.codec = codec;
         self.player_id = Some(player_id);
         self.connected = true;
 
-        // Démarrer la tâche d'envoi en arrière-plan
         self.start_sender_task();
+        self.start_receiver_task();
 
         Ok((player_id, server_seed))
     }
 
-    /// Démarre la tâche d'envoi en arrière-plan.
-    ///
-    /// Cette méthode crée le channel et lance la tâche Tokio pour l'envoi des paquets.
-    /// Les paquets sont envoyés séquentiellement pour éviter la concurrence.
     fn start_sender_task(&mut self) {
         let stream = self.stream.clone();
         let codec = self.codec.clone();
 
-        // Channel pour l'envoi (unbounded)
         let (tx, mut rx) = mpsc::unbounded_channel();
         self.sender = Some(tx);
 
-        if let Some(stream) = stream {
-            if let Some(runtime) = self.runtime.as_ref() {
-                // Lancer une tâche qui traite les paquets dans l'ordre
-                runtime.spawn(async move {
-                    while let Some(packet) = rx.recv().await {
-                        let guard = stream.lock().await;
-                        let mut stream = guard;
-                        // Envoyer le paquet (séquentiel, pas de concurrence)
-                        if let Err(e) = codec.send_packet(&mut *stream, &packet).await {
-                            log_err_client!("Échec de l'envoi du packet.\nErreur : {}", e);
-                        }
+        if let Some(runtime) = self.runtime.as_ref() {
+            runtime.spawn(async move {
+                while let Some(packet) = rx.recv().await {
+                    let mut guard = stream.as_ref().unwrap().lock().await;
+                    if let Err(e) = codec.send_packet(&mut *guard, &packet).await {
+                        log_err_client!("Échec de l'envoi du packet.\nErreur : {}", e);
                     }
-                });
-            }
+                }
+            });
         }
     }
 
-    /// Envoie un paquet au serveur.
-    ///
-    /// Cette méthode est non-bloquante : elle ajoute simplement le paquet
-    /// dans la file d'attente. La tâche d'arrière-plan se charge de l'envoyer.
-    ///
-    /// # Avantages de cette approche
-    ///
-    /// - Non-bloquant : l'appel retourne immédiatement
-    /// - Séquentiel : les paquets sont envoyés dans l'ordre
-    /// - Sans concurrence : une seule tâche écrit sur le stream
+    fn start_receiver_task(&mut self) {
+        let stream = self.stream.clone();
+        let codec = self.codec.clone();
+
+        let (tx, rx) = mpsc::unbounded_channel();
+        self.receiver = Some(rx);
+
+        if let Some(runtime) = self.runtime.as_ref() {
+            runtime.spawn(async move {
+                loop {
+                    let mut guard = stream.as_ref().unwrap().lock().await;
+                    match codec.receive_packet(&mut *guard).await {
+                        Ok(packet) => {
+                            match packet.contenu.clone() {
+                                ContenuPaquet::MultiplePlayerTransformation { data } => {
+                                    for i in data {
+                                        log_client!("Données du joueur {} reçues: {:?}", i.player_id, i.position);
+                                    }
+                                }
+                                _ => {}
+                            }
+                            drop(guard);
+                            if tx.send(packet).is_err() {
+                                break;
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+        }
+    }
+
+    /// Envoie un paquet au serveur (non-bloquant).
     pub fn send_packet(&mut self, packet: Paquet) -> Result<(), String> {
         if !self.connected {
-            return Ok(());
+            return Err("Not connected".to_string());
         }
 
         if let Some(sender) = &self.sender {
-            // Ajouter le paquet dans la file d'attente (non-bloquant)
             sender.send(packet).map_err(|e| e.to_string())?;
         }
 
@@ -246,21 +252,32 @@ impl ClientConnection {
         Ok(())
     }
 
-    /// Reçoit un paquet du serveur (méthode bloquante).
-    pub fn receive_packet(&mut self) -> Result<Paquet, String> {
+    /// Reçoit un paquet du serveur (méthode non-bloquante).
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(Paquet))` si un paquet a été reçu
+    /// * `Ok(None)` si aucun paquet n'est disponible
+    /// * `Err(String)` en cas d'erreur
+    pub fn receive_packet(&mut self) -> Result<Option<Paquet>, String> {
         if !self.connected {
             return Err("Not connected".to_string());
         }
 
-        let runtime = self.runtime.as_ref().ok_or("No runtime")?;
-        let stream = self.stream.as_mut().ok_or("No stream")?;
-        let codec = self.codec.clone();
-
-        runtime.block_on(async {
-            let mut stream = stream.lock().await;
-            let result = codec.receive_packet(&mut *stream).await.map_err(|e| e.to_string());
-            self.last_communication = Instant::now();
-            result
-        })
+        if let Some(receiver) = &mut self.receiver {
+            match receiver.try_recv() {
+                Ok(packet) => {
+                    self.last_communication = Instant::now();
+                    Ok(Some(packet))
+                }
+                Err(mpsc::error::TryRecvError::Empty) => Ok(None),
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    self.connected = false;
+                    Err("Connexion fermée par le serveur".to_string())
+                }
+            }
+        } else {
+            Err("Receiver not initialized".to_string())
+        }
     }
 }
