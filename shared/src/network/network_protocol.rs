@@ -103,6 +103,10 @@ impl EncryptedCodec {
         Self { cipher }
     }
 
+    pub fn get_codec(&self) -> EncryptedCodec {
+        self.clone()
+    }
+
     /// Encode un paquet pour l'envoi.
     ///
     /// Étapes :
@@ -154,11 +158,7 @@ impl PacketCodec for EncryptedCodec {
     /// Envoie un paquet sur le flux TCP.
     ///
     /// Écrit d'abord la longueur (4 octets), puis les données chiffrées.
-    async fn send_packet<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
-        &self,
-        stream: &mut S,
-        packet: &Paquet,
-    ) -> Result<(), NetworkError> {
+    async fn send_packet<S: tokio::io::AsyncWrite + Unpin>(&self, stream: &mut S, packet: &Paquet) -> Result<(), NetworkError> {
         // Encode le paquet (sérialisation + chiffrement + préfixe)
         let data = self.encode(packet);
         let len = data.len() as u32;
@@ -174,10 +174,7 @@ impl PacketCodec for EncryptedCodec {
     /// Reçoit un paquet du flux TCP.
     ///
     /// Lit d'abord la longueur (4 octets), puis les données chiffrées.
-    async fn receive_packet<S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin>(
-        &self,
-        stream: &mut S,
-    ) -> Result<Paquet, NetworkError> {
+    async fn receive_packet<S: tokio::io::AsyncRead + Unpin>(&self, stream: &mut S) -> Result<Paquet, NetworkError> {
         // Lecture de la longueur
         let mut len_buf = [0u8; 4];
         stream.read_exact(&mut len_buf).await?;

@@ -40,7 +40,7 @@ pub trait PacketCodec: Clone + Send + Sync {
     ///
     /// * `Ok(())` si l'envoi a réussi
     /// * `Err(NetworkError)` en cas d'erreur
-    async fn send_packet<S: AsyncRead + AsyncWrite + Unpin>(&self, stream: &mut S, packet: &Paquet) -> Result<(), NetworkError>;
+    async fn send_packet<S: AsyncWrite + Unpin>(&self, stream: &mut S, packet: &Paquet) -> Result<(), NetworkError>;
 
     /// Reçoit un paquet du flux fourni.
     ///
@@ -52,5 +52,5 @@ pub trait PacketCodec: Clone + Send + Sync {
     ///
     /// * `Ok(Paquet)` si la réception a réussi
     /// * `Err(NetworkError)` en cas d'erreur (connexion fermée, données invalides, etc.)
-    async fn receive_packet<S: AsyncRead + AsyncWrite + Unpin>(&self, stream: &mut S) -> Result<Paquet, NetworkError>;
+    async fn receive_packet<S: AsyncRead + Unpin>(&self, stream: &mut S) -> Result<Paquet, NetworkError>;
 }
