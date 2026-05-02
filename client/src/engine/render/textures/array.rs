@@ -10,13 +10,7 @@ pub struct Texture2DArray {
 }
 
 impl Texture2DArray {
-    pub fn new(
-        label: &str,
-        device: &wgpu::Device,
-        width: u32,
-        height: u32,
-        depth: u32,
-    ) -> Self {
+    pub fn new(label: &str, device: &wgpu::Device, width: u32, height: u32, depth: u32) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some(label),
             size: wgpu::Extent3d {
@@ -63,7 +57,11 @@ impl Texture2DArray {
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d { x: 0, y: 0, z: layer as u32 },
+                origin: wgpu::Origin3d {
+                    x: 0,
+                    y: 0,
+                    z: layer as u32,
+                },
                 aspect: wgpu::TextureAspect::All,
             },
             data,
@@ -78,7 +76,6 @@ impl Texture2DArray {
                 depth_or_array_layers: 1,
             },
         );
-        
     }
 
     pub fn view(&self) -> &TextureView {

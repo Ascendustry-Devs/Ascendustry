@@ -1,9 +1,9 @@
 use crate::engine::render::manager::RenderManager;
 use shared::world::{
-    constants::{CHUNK_PRIORITY_DISTANCE, max_chunks_in_queue},
+    constants::{max_chunks_in_queue, CHUNK_PRIORITY_DISTANCE},
     data::{
         block::{BlockData, BlockInstance, BlockManager},
-        chunk::{CHUNK_SIZE, CHUNK_SIZE_HALFED, Chunk, ChunkData, ChunkState},
+        chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_SIZE_HALFED},
     },
     generation::chunk_generator::ChunkGenerator,
 };
@@ -258,22 +258,14 @@ impl World {
     }
 
     pub fn are_all_neighbors_ready(&self, cx: i32, cy: i32, cz: i32) -> bool {
-        const DIRECT_NEIGHBORS: [(i32, i32, i32); 6] = [
-            (-1, 0, 0),
-            (1, 0, 0),
-            (0, -1, 0),
-            (0, 1, 0),
-            (0, 0, -1),
-            (0, 0, 1),
-        ];
+        const DIRECT_NEIGHBORS: [(i32, i32, i32); 6] = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)];
 
         for (dx, dy, dz) in DIRECT_NEIGHBORS {
             if let Some(neighbor) = self.chunks.get(&(cx + dx, cy + dy, cz + dz)) {
                 if neighbor.state != ChunkState::Ready {
                     return false;
                 }
-            }
-            else {
+            } else {
                 return false;
             }
         }

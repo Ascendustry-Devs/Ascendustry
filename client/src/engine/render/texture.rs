@@ -85,12 +85,8 @@ struct TextureID {
 
 impl TextureID {
     pub fn new(data: u32) -> Self {
-        Self {
-            data
-        }
+        Self { data }
     }
-
-
 }
 
 impl TextureArrayManager {
@@ -105,7 +101,7 @@ impl TextureArrayManager {
             panic!("Texture data length does not match expected size for given dimensions.");
         }
         let image = image::load_from_memory(texture).expect("Failed to load image.");
-        
+
         self.next_id()
     }
 
@@ -170,7 +166,7 @@ impl TextureArrayManager {
             view,
             sampler,
             layer_count,
-            texture_count: textures.len() as u32
+            texture_count: textures.len() as u32,
         }
     }
 }

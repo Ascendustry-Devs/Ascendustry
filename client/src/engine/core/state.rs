@@ -12,10 +12,10 @@ use crate::engine::render::text::TextRenderer;
 use crate::engine::render::texture::TextureArrayManager;
 use crate::engine::render::textures::array::Texture2DArray;
 use shared::world::data::chunk::CHUNK_SIZE_F;
-use wgpu::Limits;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 use wgpu::wgt::BufferDescriptor;
+use wgpu::Limits;
 use winit::window::Window;
 
 pub struct State {
@@ -131,14 +131,8 @@ impl State {
 
         let textures: Vec<&[u8]> = textures_data.iter().map(|d| d.as_ref()).collect();
 
-        let mut block_texture_array = Texture2DArray::new(
-            "Texture2DArray: Block",
-            &device,
-            32,
-            32,
-            limits.max_texture_array_layers
-        );
-        
+        let mut block_texture_array = Texture2DArray::new("Texture2DArray: Block", &device, 32, 32, limits.max_texture_array_layers);
+
         for texture in textures.iter().enumerate() {
             block_texture_array.write_at(&queue, texture.0 as u16, texture.1);
         }

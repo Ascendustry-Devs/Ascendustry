@@ -77,7 +77,7 @@ impl AppState for GameState {
 
     fn update(&mut self, frame: &EngineFrameData, render_options: &RenderOptions, data: &mut GameFrameData, renderer: &mut Renderer) {
         self.delay_ms += frame.dt;
-        
+
         if self.delay_ms < DT_CAP {
             sleep(Duration::from_micros(((DT_CAP - self.delay_ms) * 1_000_000.0) as u64));
         }

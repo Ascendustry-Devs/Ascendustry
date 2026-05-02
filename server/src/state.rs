@@ -108,7 +108,7 @@ impl GameStateInner {
 
             Arc::new(block_manager)
         };
-        
+
         Self {
             seed: 0,
             players: HashMap::new(),

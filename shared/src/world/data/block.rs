@@ -68,7 +68,7 @@ impl BlockInstance {
 pub struct BlockData {
     pub id: Option<u32>,
     pub id_str: String, // e.g.: "base:dirt"
-    // properties: solid, hardness, resistance, ...
+                        // properties: solid, hardness, resistance, ...
 }
 
 impl BlockData {
@@ -80,7 +80,8 @@ impl BlockData {
     }
 
     pub fn get_id(&self) -> u32 {
-        self.id.expect(&format!("BlockData with id_str \"{}\" was not registered.", self.id_str))
+        self.id
+            .expect(&format!("BlockData with id_str \"{}\" was not registered.", self.id_str))
     }
 
     pub fn get_id_str(&self) -> &str {

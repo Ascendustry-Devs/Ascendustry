@@ -13,6 +13,7 @@ use shared::network::messages::{self, new_server_seed_paquet};
 use shared::*;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::*;
+use tokio::time::{interval, Duration};
 
 static NEXT_PLAYER_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -23,9 +24,7 @@ async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::
     log_server!("Joueur {}: connexion (ID serveur: {:02x?}).", player_id, server_id);
 
     let conn = ServerConnection::new(player_id, server_id);
-
     conn.send_server_id(&mut stream).await?;
-
     let packet = match conn.receive_packet(&mut stream).await {
         Ok(p) => p,
         Err(e) => {
@@ -48,7 +47,6 @@ async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::
     let mut packet_handler = PacketHandler::new();
 
     packet_handler.handle_packet(packet);
-
     let ack = messages::create_handshake_ack(player_id, 0);
     if let Err(e) = conn.send_packet(&mut stream, &ack).await {
         log_err_server!("Échec de l'envoi du handshake ack.\nErreur : {}", e);
@@ -63,8 +61,14 @@ async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::
         log_server!("Seed envoyée au joueur {} !", player_id);
     }
 
+    let mut interval = interval(Duration::from_millis(50));
+
     // Loop de check
     loop {
+        // Waiting (this-time manager)
+        interval.tick().await;
+
+        // Packet Reception
         match conn.receive_packet(&mut stream).await {
             Ok(packet) => {
                 if let Some(response) = packet_handler.handle_packet(packet) {
@@ -80,13 +84,14 @@ async fn handle_client(mut stream: TcpStream) -> Result<(), Box<dyn std::error::
             }
         }
 
+        // Packet Sending each iteration
         // Update pub player's info packet handler
         match packet_handler.get_players_position_packet() {
             Ok(packet) => {
                 conn.send_packet(&mut stream, &packet).await.unwrap();
             }
             Err(e) => {
-                log_err_server!("Échec de la génération du packet.\nErreur : {}", e);
+                log_err_server!("Échec de la génération/envoi du packet.\nErreur : {}", e);
             }
         }
     }

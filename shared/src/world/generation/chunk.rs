@@ -27,9 +27,21 @@ impl Chunk {
         let cwy = cy * CHUNK_SIZE;
         let cwz = cz * CHUNK_SIZE;
 
-        let grass_id = ctx.block_manager.get_block_by_string(String::from("grass")).expect("Did not find block 'grass' in block manager").get_id();
-        let dirt_id = ctx.block_manager.get_block_by_string(String::from("dirt")).expect("Did not find block 'dirt' in block manager").get_id();
-        let stone_id = ctx.block_manager.get_block_by_string(String::from("stone")).expect("Did not find block 'stone' in block manager").get_id();
+        let grass_id = ctx
+            .block_manager
+            .get_block_by_string(String::from("grass"))
+            .expect("Did not find block 'grass' in block manager")
+            .get_id();
+        let dirt_id = ctx
+            .block_manager
+            .get_block_by_string(String::from("dirt"))
+            .expect("Did not find block 'dirt' in block manager")
+            .get_id();
+        let stone_id = ctx
+            .block_manager
+            .get_block_by_string(String::from("stone"))
+            .expect("Did not find block 'stone' in block manager")
+            .get_id();
 
         let blocks = vec![BlockInstance::air(); CHUNK_BLOCK_NUMBER];
 

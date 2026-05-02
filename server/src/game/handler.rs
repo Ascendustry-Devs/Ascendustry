@@ -1,4 +1,4 @@
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 
 use crate::state::GAME_STATE;
 use shared::network::messages::*;
@@ -24,12 +24,18 @@ impl PacketHandler {
             }
 
             ContenuPaquet::Ping { timestamp } => {
-                log_server!("Ping d'il y a {}s reçu.", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() - *timestamp);
+                log_server!(
+                    "Ping d'il y a {}s reçu.",
+                    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() - *timestamp
+                );
                 Some(new_pong_paquet(*timestamp))
             }
 
             ContenuPaquet::Pong { timestamp } => {
-                log_server!("Pong d'il y a {}s reçu.", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() - *timestamp);
+                log_server!(
+                    "Pong d'il y a {}s reçu.",
+                    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() - *timestamp
+                );
                 Some(packet)
             }
 
