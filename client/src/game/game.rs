@@ -3,14 +3,14 @@ use std::{net::Ipv4Addr, thread::sleep, time::Duration};
 use cgmath::{dot, EuclideanSpace, Matrix4, Vector3};
 
 use crate::{
-    common::geometry::plane::Plane,
+    common::geometry::{plane::Plane, vertex::generate_cube},
     engine::{
         audio::GameAudioManager,
         core::{
             application::AppState,
             frame::{EngineFrameData, GameFrameData},
         },
-        render::render::{RenderOptions, Renderer},
+        render::{mesh::manager::DataEntry, render::{RenderOptions, Renderer}},
     },
     game::{
         network::NetworkManager,
@@ -140,7 +140,28 @@ impl AppState for GameState {
         }
 
         // Update renderer with remote player positions
-        renderer.remote_players = self.remote_players.get_all().iter().map(|p| p.position).collect();
+        for p in self.remote_players.get_all_mut().iter_mut() {
+            let player_data = generate_cube(p.position.0, p.position.1, p.position.2);
+            let raw_data = bytemuck::cast_slice(&player_data);
+            if let Some(mesh_id) = p.mesh_id {
+                renderer.render_manager.mesh_manager.update_data(
+                    &renderer.gpu_context.device,
+                    &renderer.gpu_context.queue,
+                    &mut renderer.frame_encoder.as_mut().unwrap(),
+                    DataEntry::new(mesh_id, raw_data)
+                );
+            }
+            else {
+                p.mesh_id = renderer.render_manager.mesh_manager.add_data(
+                    &renderer.gpu_context.device,
+                    &renderer.gpu_context.queue,
+                    &mut renderer.frame_encoder.as_mut().unwrap(),
+                    raw_data
+                );
+            }
+            data.visible_meshes.push(p.mesh_id.unwrap());
+            println!("Remote player {} position updated to ({}, {}, {})", p.player_id, p.position.0, p.position.1, p.position.2);
+        }
 
         // MESHING
         self.world_mesh.update(renderer, &self.world, &self.player);

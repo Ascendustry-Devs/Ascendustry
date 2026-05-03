@@ -255,7 +255,7 @@ impl Renderer {
 
             let _start = Instant::now();
 
-            // World
+            // World & Player meshes (other than local player)
             if _rendered_mesh_count > 0 {
                 render_pass.set_vertex_buffer(0, self.render_manager.mesh_manager.get_buffer().slice(..));
 
@@ -281,17 +281,6 @@ impl Renderer {
                 if self.show_chunk_borders {
                     render_pass.set_vertex_buffer(0, self.chunk_borders_buffer.slice(..));
                     render_pass.draw(0..self.chunk_borders_vertices.len() as u32, 0..1);
-                }
-
-                // Player mesh
-                render_pass.set_vertex_buffer(0, self.player_mesh.slice(..));
-                render_pass.draw(0..36, 0..1);
-
-                // Remote players meshes
-                for player_pos in &self.remote_players {
-                    let remote_cube: Vec<Vertex> = generate_cube(player_pos.0, player_pos.1, player_pos.2);
-                    queue.write_buffer(&self.player_mesh, 0, bytemuck::cast_slice(&remote_cube));
-                    render_pass.draw(0..36, 0..1);
                 }
             }
         }

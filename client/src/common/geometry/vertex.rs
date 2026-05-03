@@ -26,14 +26,15 @@ impl Vertex {
         };
     }
 
-    pub fn new_simplified(x: f32, y: f32, z: f32) -> Vertex {
+    pub fn player_vertex(pos: (f32, f32, f32), u: f32, v: f32) -> Vertex {
+        let (x, y, z) = pos;
         Vertex {
             position: [x, y, z],
-            color: 4294967295,
+            color: 0x00FFFFFF,
             tex_layer: 1,
             ao: 3.0,
-            u: 0.0,
-            v: 1.0,
+            u,
+            v,
         }
     }
 
@@ -100,78 +101,78 @@ impl Vertex {
 }
 
 pub fn generate_cube(x: f32, y: f32, z: f32) -> Vec<Vertex> {
-    let h = 0.5;
+    let h = 0.5; // Cube de 1x1x1 centrée sur (x,y,z)
 
-    // Coins
-    let p000 = (x - h, y - h, z - h);
-    let p001 = (x - h, y - h, z + h);
-    let p010 = (x - h, y + h, z - h);
-    let p011 = (x - h, y + h, z + h);
-    let p100 = (x + h, y - h, z - h);
-    let p101 = (x + h, y - h, z + h);
-    let p110 = (x + h, y + h, z - h);
-    let p111 = (x + h, y + h, z + h);
+    // 8 coins du cube
+    let p0 = (x - h, y - h, z - h); // -x,-y,-z
+    let p1 = (x - h, y - h, z + h); // -x,-y,+z
+    let p2 = (x - h, y + h, z + h); // -x,+y,+z
+    let p3 = (x - h, y + h, z - h); // -x,+y,-z
+    let p4 = (x + h, y - h, z + h); // +x,-y,+z
+    let p5 = (x + h, y - h, z - h); // +x,-y,-z
+    let p6 = (x + h, y + h, z - h); // +x,+y,-z
+    let p7 = (x + h, y + h, z + h); // +x,+y,+z
 
     let mut v = Vec::with_capacity(36);
 
-    // 🔻 -X
+    // -X (gauche)
     v.extend_from_slice(&[
-        Vertex::new_simplified(p000.0, p000.1, p000.2),
-        Vertex::new_simplified(p010.0, p010.1, p010.2),
-        Vertex::new_simplified(p011.0, p011.1, p011.2),
-        Vertex::new_simplified(p000.0, p000.1, p000.2),
-        Vertex::new_simplified(p011.0, p011.1, p011.2),
-        Vertex::new_simplified(p001.0, p001.1, p001.2),
+        Vertex::player_vertex(p0, 0.0, 0.0),
+        Vertex::player_vertex(p1, 1.0, 0.0),
+        Vertex::player_vertex(p2, 1.0, 1.0),
+        Vertex::player_vertex(p0, 0.0, 0.0),
+        Vertex::player_vertex(p2, 1.0, 1.0),
+        Vertex::player_vertex(p3, 0.0, 1.0),
     ]);
 
-    // 🔻 +X
+    // +X (droite)
     v.extend_from_slice(&[
-        Vertex::new_simplified(p100.0, p100.1, p100.2),
-        Vertex::new_simplified(p101.0, p101.1, p101.2),
-        Vertex::new_simplified(p111.0, p111.1, p111.2),
-        Vertex::new_simplified(p100.0, p100.1, p100.2),
-        Vertex::new_simplified(p111.0, p111.1, p111.2),
-        Vertex::new_simplified(p110.0, p110.1, p110.2),
+        Vertex::player_vertex(p4, 0.0, 0.0),
+        Vertex::player_vertex(p5, 1.0, 0.0),
+        Vertex::player_vertex(p6, 1.0, 1.0),
+        Vertex::player_vertex(p4, 0.0, 0.0),
+        Vertex::player_vertex(p6, 1.0, 1.0),
+        Vertex::player_vertex(p7, 0.0, 1.0),
     ]);
 
-    // 🔻 -Y
+    // -Y (bas)
     v.extend_from_slice(&[
-        Vertex::new_simplified(p000.0, p000.1, p000.2),
-        Vertex::new_simplified(p001.0, p001.1, p001.2),
-        Vertex::new_simplified(p101.0, p101.1, p101.2),
-        Vertex::new_simplified(p000.0, p000.1, p000.2),
-        Vertex::new_simplified(p101.0, p101.1, p101.2),
-        Vertex::new_simplified(p100.0, p100.1, p100.2),
+        Vertex::player_vertex(p0, 0.0, 0.0),
+        Vertex::player_vertex(p5, 1.0, 0.0),
+        Vertex::player_vertex(p1, 1.0, 1.0),
+        Vertex::player_vertex(p5, 0.0, 1.0),
+        Vertex::player_vertex(p4, 1.0, 1.0),
+        Vertex::player_vertex(p1, 0.0, 1.0),
     ]);
 
-    // 🔻 +Y
+    // +Y (haut)
     v.extend_from_slice(&[
-        Vertex::new_simplified(p010.0, p010.1, p010.2),
-        Vertex::new_simplified(p110.0, p110.1, p110.2),
-        Vertex::new_simplified(p111.0, p111.1, p111.2),
-        Vertex::new_simplified(p010.0, p010.1, p010.2),
-        Vertex::new_simplified(p111.0, p111.1, p111.2),
-        Vertex::new_simplified(p011.0, p011.1, p011.2),
+        Vertex::player_vertex(p3, 0.0, 0.0),
+        Vertex::player_vertex(p2, 1.0, 0.0),
+        Vertex::player_vertex(p7, 1.0, 1.0),
+        Vertex::player_vertex(p3, 0.0, 0.0),
+        Vertex::player_vertex(p7, 1.0, 1.0),
+        Vertex::player_vertex(p6, 0.0, 1.0),
     ]);
 
-    // 🔻 -Z
+    // -Z (arrière)
     v.extend_from_slice(&[
-        Vertex::new_simplified(p000.0, p000.1, p000.2),
-        Vertex::new_simplified(p100.0, p100.1, p100.2),
-        Vertex::new_simplified(p110.0, p110.1, p110.2),
-        Vertex::new_simplified(p000.0, p000.1, p000.2),
-        Vertex::new_simplified(p110.0, p110.1, p110.2),
-        Vertex::new_simplified(p010.0, p010.1, p010.2),
+        Vertex::player_vertex(p0, 0.0, 0.0),
+        Vertex::player_vertex(p3, 1.0, 0.0),
+        Vertex::player_vertex(p5, 1.0, 1.0),
+        Vertex::player_vertex(p3, 0.0, 1.0),
+        Vertex::player_vertex(p6, 1.0, 1.0),
+        Vertex::player_vertex(p5, 0.0, 1.0),
     ]);
 
-    // 🔻 +Z
+    // +Z (avant)
     v.extend_from_slice(&[
-        Vertex::new_simplified(p001.0, p001.1, p001.2),
-        Vertex::new_simplified(p011.0, p011.1, p011.2),
-        Vertex::new_simplified(p111.0, p111.1, p111.2),
-        Vertex::new_simplified(p001.0, p001.1, p001.2),
-        Vertex::new_simplified(p111.0, p111.1, p111.2),
-        Vertex::new_simplified(p101.0, p101.1, p101.2),
+        Vertex::player_vertex(p1, 0.0, 0.0),
+        Vertex::player_vertex(p4, 1.0, 0.0),
+        Vertex::player_vertex(p7, 1.0, 1.0),
+        Vertex::player_vertex(p1, 0.0, 0.0),
+        Vertex::player_vertex(p7, 1.0, 1.0),
+        Vertex::player_vertex(p2, 0.0, 1.0),
     ]);
 
     v

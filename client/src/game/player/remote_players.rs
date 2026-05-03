@@ -5,6 +5,7 @@ pub struct RemotePlayer {
     pub player_id: u64,
     pub position: (f32, f32, f32),
     pub rotation: (f32, f32),
+    pub mesh_id: Option<u32>,
 }
 
 pub struct RemotePlayersManager {
@@ -19,12 +20,14 @@ impl RemotePlayersManager {
     pub fn update(&mut self, transforms: Vec<PlayerTransformation>, my_id: u64) {
         for t in transforms {
             if t.player_id != my_id {
+                println!("Updating remote player {}: position=({:.2}, {:.2}, {:.2}), rotation=({:.2}, {:.2})", t.player_id, t.position.x, t.position.y, t.position.z, t.rotation.x, t.rotation.y);
                 self.players.insert(
                     t.player_id,
                     RemotePlayer {
                         player_id: t.player_id,
                         position: (t.position.x, t.position.y, t.position.z),
                         rotation: (t.rotation.x, t.rotation.y),
+                        mesh_id: None,
                     },
                 );
             }
@@ -33,5 +36,9 @@ impl RemotePlayersManager {
 
     pub fn get_all(&self) -> Vec<&RemotePlayer> {
         self.players.values().collect()
+    }
+
+    pub fn get_all_mut(&mut self) -> Vec<&mut RemotePlayer> {
+        self.players.values_mut().collect()
     }
 }
