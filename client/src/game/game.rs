@@ -160,7 +160,6 @@ impl AppState for GameState {
                 );
             }
             data.visible_meshes.push(p.mesh_id.unwrap());
-            println!("Remote player {} position updated to ({}, {}, {})", p.player_id, p.position.0, p.position.1, p.position.2);
         }
 
         // MESHING
