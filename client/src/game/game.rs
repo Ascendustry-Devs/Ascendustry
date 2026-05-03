@@ -27,7 +27,7 @@ use crate::{
 use shared::{log_client, log_err_client, world::data::chunk::CHUNK_SIZE_F};
 use winit::keyboard::KeyCode;
 
-const FPS_CAP: u32 = 1_000_000;
+const FPS_CAP: u32 = 60;
 const DT_CAP: f32 = 1.0 / (FPS_CAP as f32);
 const PING_INTERVAL: Duration = Duration::from_secs(10);
 
@@ -80,6 +80,7 @@ impl AppState for GameState {
     }
 
     fn update(&mut self, frame: &EngineFrameData, render_options: &RenderOptions, data: &mut GameFrameData, renderer: &mut Renderer) {
+        // UPDATE DELAY
         self.delay_ms += frame.dt;
 
         if self.delay_ms < DT_CAP {
@@ -93,38 +94,32 @@ impl AppState for GameState {
         self.world.update(&mut renderer.render_manager, &mut self.world_mesh, &self.player);
 
         // NETWORK
-
-        // Envoi un ping si aucun échange n'a eu lieu depuis PING_INTERVAL
-        if let Some(ref mut net) = self.network {
-            if net.is_connected() && net.get_last_communication().elapsed() >= PING_INTERVAL {
-                let timestamp = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs();
-                if let Err(e) = net.send_ping(timestamp) {
-                    log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
-                } else {
-                    log_client!("Ping envoyé !");
-                }
-            }
-        }
-
-        // Envoi la position et rotation du joueur au serveur si elles ont changés
-        if let Some(ref mut net) = self.network {
-            if net.is_connected() && self.player.has_moved() {
-                let pos = self.player.get_pos();
-                let (rx, ry) = self.player.camera.get_rotation();
-                if let Err(e) = net.send_position(pos.x, pos.y, pos.z, rx, ry) {
-                    log_err_client!("Échec de l'envoi de la position.\nErreur : {}", e);
-                } else {
-                    // log_client!("Position envoyée: ({}, {}, {})", pos.x, pos.y, pos.z);
-                }
-            }
-        }
-
-        // Réception des positions des autres joueurs
-        if let Some(ref mut net) = self.network {
+        {
+            let net = self.network.as_mut().expect("NetworkManager: uninitialized.");
             if net.is_connected() {
+                // Envoi un ping si aucun échange n'a eu lieu depuis PING_INTERVAL
+                if net.get_last_communication().elapsed() >= PING_INTERVAL {
+                    let timestamp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs();
+                    if let Err(e) = net.send_ping(timestamp) {
+                        log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
+                    } else {
+                        log_client!("Ping envoyé !");
+                    }
+                }
+                // Envoi la position et rotation du joueur au serveur si elles ont changés
+                if self.player.has_moved() {
+                    let pos = self.player.get_pos();
+                    let (rx, ry) = self.player.camera.get_rotation();
+                    if let Err(e) = net.send_position(pos.x, pos.y, pos.z, rx, ry) {
+                        log_err_client!("Échec de l'envoi de la position.\nErreur : {}", e);
+                    } else {
+                        // log_client!("Position envoyée: ({}, {}, {})", pos.x, pos.y, pos.z);
+                    }
+                }
+                // Réception des positions des autres joueurs
                 if let Ok(Some(packet)) = net.receive_packet() {
                     use shared::network::messages::ContenuPaquet;
                     match packet.contenu {
@@ -136,65 +131,67 @@ impl AppState for GameState {
                         _ => {}
                     }
                 }
-            }
-        }
-
-        // Update renderer with remote player positions
-        for p in self.remote_players.get_all_mut().iter_mut() {
-            let player_data = generate_cube(p.position.0, p.position.1, p.position.2);
-            let raw_data = bytemuck::cast_slice(&player_data);
-            if let Some(mesh_id) = p.mesh_id {
-                renderer.render_manager.mesh_manager.update_data(
-                    &renderer.gpu_context.device,
-                    &renderer.gpu_context.queue,
-                    &mut renderer.frame_encoder.as_mut().unwrap(),
-                    DataEntry::new(mesh_id, raw_data)
-                );
-            }
-            else {
-                p.mesh_id = renderer.render_manager.mesh_manager.add_data(
-                    &renderer.gpu_context.device,
-                    &renderer.gpu_context.queue,
-                    &mut renderer.frame_encoder.as_mut().unwrap(),
-                    raw_data
-                );
-            }
-            data.visible_meshes.push(p.mesh_id.unwrap());
+            }            
         }
 
         // MESHING
         self.world_mesh.update(renderer, &self.world, &self.player);
 
         // RENDER
-        let view_proj = self.player.camera.get_view_proj();
-        data.camera.update_view_proj(view_proj);
+        {
+            let view_proj = self.player.camera.get_view_proj();
+            data.camera.update_view_proj(view_proj);
 
-        self.player.camera.aspect = render_options.aspect;
-        let cam_position = self.player.camera.eye.to_vec();
-        let cam_forward = self.player.camera.forward();
-        let cam_frustum = extract_camera_frustum_planes(view_proj);
+            self.player.camera.aspect = render_options.aspect;
+            let cam_position = self.player.camera.eye.to_vec();
+            let cam_forward = self.player.camera.forward();
+            let cam_frustum = extract_camera_frustum_planes(view_proj);
 
-        let chunks_to_render = self.player.get_rendered_chunk_keys();
+            let chunks_to_render = self.player.get_rendered_chunk_keys();
 
-        for (key, mesh) in self.world_mesh.meshes.iter() {
-            if mesh.id.is_none() || !chunks_to_render.contains(key) {
-                continue;
+            for (key, mesh) in self.world_mesh.meshes.iter() {
+                if mesh.id.is_none() || !chunks_to_render.contains(key) {
+                    continue;
+                }
+
+                let chunk_vector = Vector3::new(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F);
+                let min = Vector3::new((key.0) as f32, (key.1) as f32, (key.2) as f32) * CHUNK_SIZE_F;
+                let max = min + chunk_vector;
+
+                // First, we check simply if the chunk to render is behind the camera.
+                // Second, we check if the chunk is within the field of view of the camera.
+                // If any of the above is true, we do not render the chunk.
+                // We do the frustum check after the first one because it is more expansive,
+                // and the first one would already eliminate ~50% of the chunks very quickly.
+                if is_chunk_behind_camera(&min, &max, &cam_forward, &cam_position) || !is_chunk_in_camera_frustum(&min, &max, &cam_frustum) {
+                    continue;
+                }
+
+                data.visible_meshes.push(mesh.id.unwrap());
             }
 
-            let chunk_vector = Vector3::new(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F);
-            let min = Vector3::new((key.0) as f32, (key.1) as f32, (key.2) as f32) * CHUNK_SIZE_F;
-            let max = min + chunk_vector;
-
-            // First, we check simply if the chunk to render is behind the camera.
-            // Second, we check if the chunk is within the field of view of the camera.
-            // If any of the above is true, we do not render the chunk.
-            // We do the frustum check after the first one because it is more expansive,
-            // and the first one would already eliminate ~50% of the chunks very quickly.
-            if is_chunk_behind_camera(&min, &max, &cam_forward, &cam_position) || !is_chunk_in_camera_frustum(&min, &max, &cam_frustum) {
-                continue;
+            // Update renderer with remote player positions
+            for p in self.remote_players.get_all_mut().iter_mut() {
+                let player_data = generate_cube(p.position.0, p.position.1, p.position.2);
+                let raw_data = bytemuck::cast_slice(&player_data);
+                if let Some(mesh_id) = p.mesh_id {
+                    renderer.render_manager.mesh_manager.update_data(
+                        &renderer.gpu_context.device,
+                        &renderer.gpu_context.queue,
+                        &mut renderer.frame_encoder.as_mut().unwrap(),
+                        DataEntry::new(mesh_id, raw_data)
+                    );
+                }
+                else {
+                    p.mesh_id = renderer.render_manager.mesh_manager.add_data(
+                        &renderer.gpu_context.device,
+                        &renderer.gpu_context.queue,
+                        &mut renderer.frame_encoder.as_mut().unwrap(),
+                        raw_data
+                    );
+                }
+                data.visible_meshes.push(p.mesh_id.unwrap());
             }
-
-            data.visible_meshes.push(mesh.id.unwrap());
         }
     }
 
