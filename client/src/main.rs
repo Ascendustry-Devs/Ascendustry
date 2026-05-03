@@ -12,18 +12,15 @@ use crate::{engine::core::application::App, game::game::GameState};
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t=Ipv4Addr::from_str("127.0.0.1").unwrap())]
-    ip: Ipv4Addr,
-    #[arg(short, long, default_value_t = 42677)]
-    port: u16,
+    #[arg(short, long, default_value_t = String::from("127.0.0.1:42677"))]
+    address: String,
 }
 
 fn main() {
     env_logger::init();
     let args = Args::parse();
-
     let event_loop = EventLoop::with_user_event().build().expect("Failed starting event loop");
-    let game_state = GameState::new(args.ip, args.port);
+    let game_state = GameState::new(args.address);
     let mut app = App::new(game_state);
 
     event_loop.run_app(&mut app).expect("Failed starting app");

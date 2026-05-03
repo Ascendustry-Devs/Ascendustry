@@ -44,9 +44,8 @@ pub struct GameState {
 }
 
 impl GameState {
-    pub fn new(ip: Ipv4Addr, port: u16) -> Self {
+    pub fn new(addr: String) -> Self {
         let mut network = NetworkManager::new();
-        let addr = format!("{}:{}", ip, port);
 
         network.connect(&addr);
         let server_seed = network
