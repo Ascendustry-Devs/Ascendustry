@@ -13,8 +13,6 @@ use shared::network::crypto::generate_server_id;
 use shared::network::messages::{self, new_server_seed_paquet};
 use shared::network::traits::PacketCodec;
 use shared::*;
-use std::net::Ipv4Addr;
-use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::split;
 use tokio::net::*;

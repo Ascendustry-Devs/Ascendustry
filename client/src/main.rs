@@ -3,8 +3,6 @@ mod engine;
 mod game;
 
 use clap::Parser;
-use std::net::Ipv4Addr;
-use std::str::FromStr;
 use winit::event_loop::EventLoop;
 
 use crate::{engine::core::application::App, game::game::GameState};

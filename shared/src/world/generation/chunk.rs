@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::world::data::block::{BlockInstance, BlockManager, BlockType};
+use crate::world::data::block::{BlockInstance, BlockManager};
 use crate::world::data::chunk::{Chunk, CHUNK_BLOCK_NUMBER, CHUNK_SIZE};
 use crate::world::generation::chunk_generator::ChunkGenContext;
 use noise::NoiseFn;

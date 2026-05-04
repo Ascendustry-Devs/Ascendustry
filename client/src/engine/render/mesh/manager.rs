@@ -404,26 +404,4 @@ impl MeshManager {
         self.data.remove(data_index);
         self.write_operations.retain(|element| element.mesh_id != id);
     }
-
-    fn merge_gaps(&mut self) {
-        if self.gaps.is_empty() {
-            return;
-        }
-
-        self.gaps.sort_by_key(|g| g.position);
-
-        let mut merged: Vec<Gap> = Vec::with_capacity(self.gaps.len());
-
-        for gap in self.gaps.drain(..) {
-            if let Some(last) = merged.last_mut() {
-                if last.position + last.length == gap.position {
-                    last.length += gap.length;
-                    continue;
-                }
-            }
-            merged.push(gap);
-        }
-
-        self.gaps = merged;
-    }
 }

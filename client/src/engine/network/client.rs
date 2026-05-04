@@ -37,10 +37,9 @@
 //! - `receive_packet()` récupère les paquets depuis ce channel (non-bloquant)
 
 use shared::network::crypto::compute_shared_secret;
-use shared::network::messages::{ContenuPaquet, Paquet, TypePaquet, CURRENT_VERSION};
+use shared::network::messages::{ContenuPaquet, Paquet, CURRENT_VERSION};
 use shared::network::network_protocol::{create_codec, EncryptedCodec};
 use shared::network::traits::PacketCodec;
-use shared::network::NetworkError;
 use shared::{log_client, log_err_client};
 use std::sync::Arc;
 use std::time::Instant;

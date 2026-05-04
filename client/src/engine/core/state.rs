@@ -9,13 +9,11 @@ use crate::engine::render::manager::RenderManager;
 use crate::engine::render::render::{GpuContext, RenderOptions, Renderer};
 use crate::engine::render::text::text_renderer::FPS_UPDATE_DELAY;
 use crate::engine::render::text::TextRenderer;
-use crate::engine::render::texture::TextureArrayManager;
-use crate::engine::render::textures::array::Texture2DArray;
+use crate::engine::render::texture::TextureManager;
 use shared::world::data::chunk::CHUNK_SIZE_F;
 use std::time::Instant;
 use wgpu::util::DeviceExt;
 use wgpu::wgt::BufferDescriptor;
-use wgpu::Limits;
 use winit::window::Window;
 
 pub struct State {
@@ -131,24 +129,25 @@ impl State {
 
         let textures: Vec<&[u8]> = textures_data.iter().map(|d| d.as_ref()).collect();
 
-        let mut block_texture_array = Texture2DArray::new("Texture2DArray: Block", &device, 32, 32, limits.max_texture_array_layers);
+        let mut texture_manager = TextureManager::new(
+            limits.max_texture_dimension_2d,
+            limits.max_texture_array_layers
+        );
 
-        for texture in textures.iter().enumerate() {
-            block_texture_array.write_at(&queue, texture.0 as u16, texture.1);
+        for (_, texture) in textures.iter().enumerate() {
+            texture_manager.register(&device, &queue, texture, 32, 32);
         }
-
-        let texture_array = TextureArrayManager::make_array(&device, &queue, textures, width, height);
 
         let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture_array.view),
+                    resource: wgpu::BindingResource::TextureView(&texture_manager.arrays.first().unwrap().view()),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture_array.sampler),
+                    resource: wgpu::BindingResource::Sampler(&texture_manager.arrays.first().unwrap().sampler()),
                 },
             ],
             label: Some("diffuse_bind_group"),
@@ -436,7 +435,7 @@ impl State {
             wireframe_render_pipeline,
             render_pipeline,
             diffuse_bind_group,
-            texture_array,
+            texture_manager,
             camera_buffer,
             camera_bind_group,
             gizmo_render_pipeline,

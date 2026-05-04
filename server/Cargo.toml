@@ -3,16 +3,9 @@ name = "server"
 version.workspace = true
 edition.workspace = true
 
-
-[profile.dev]
-opt-level = 1
-incremental = true
-codegen-units = 256
-
 [[bin]]
 name = "server"
 path = "src/main.rs"
-
 
 [features]
 default = ["server"]
@@ -23,7 +16,6 @@ noise = "0.9.0"
 cgmath = "0.18.0"
 num_cpus = "1.17.0"
 
-shared = { path = "../shared" }
 tokio = { workspace = true }
 serde = { workspace = true }
 bincode = { workspace = true }
@@ -33,3 +25,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0.102"
 rand = "0.10.1"
 lazy_static = "1.4"
+
+shared = { path = "../shared" }

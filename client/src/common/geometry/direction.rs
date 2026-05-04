@@ -23,11 +23,6 @@ impl Direction {
     }
 
     #[inline(always)]
-    pub const fn to_u8(self) -> u8 {
-        self as u8
-    }
-
-    #[inline(always)]
     pub const fn to_usize(self) -> usize {
         self as usize
     }

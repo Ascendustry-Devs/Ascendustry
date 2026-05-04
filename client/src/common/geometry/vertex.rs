@@ -26,6 +26,12 @@ impl Vertex {
         };
     }
 
+    pub fn copy_with_pos(&self, x: f32, y: f32, z: f32) -> Self {
+        let mut copy = self.clone();
+        copy.position = [x, y, z];
+        copy
+    }
+
     pub fn player_vertex(pos: (f32, f32, f32), u: f32, v: f32) -> Vertex {
         let (x, y, z) = pos;
         Vertex {

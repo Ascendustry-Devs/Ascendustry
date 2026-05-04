@@ -7,12 +7,13 @@ pub struct Texture2DArray {
     width: u16,
     height: u16,
     depth: u16,
+    next_depth: u16,
 }
 
 impl Texture2DArray {
-    pub fn new(label: &str, device: &wgpu::Device, width: u32, height: u32, depth: u32) -> Self {
+    pub fn new(label: String, device: &wgpu::Device, width: u32, height: u32, depth: u32) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
+            label: Some(label.as_str()),
             size: wgpu::Extent3d {
                 width,
                 height,
@@ -48,10 +49,17 @@ impl Texture2DArray {
             width: width as u16,
             height: height as u16,
             depth: depth as u16,
+            next_depth: 0
         }
     }
 
-    pub fn write_at(&mut self, queue: &wgpu::Queue, layer: u16, data: &[u8]) {
+    pub fn next_id(&mut self) -> u16 {
+        let depth = self.next_depth;
+        self.next_depth += 1;
+        depth
+    }
+
+    pub fn write_at(&mut self, queue: &wgpu::Queue, depth: u16, data: &[u8]) {
         assert_eq!(data.len(), (self.width as u32 * self.height as u32 * 4) as usize);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -60,7 +68,7 @@ impl Texture2DArray {
                 origin: wgpu::Origin3d {
                     x: 0,
                     y: 0,
-                    z: layer as u32,
+                    z: depth as u32,
                 },
                 aspect: wgpu::TextureAspect::All,
             },

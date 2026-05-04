@@ -6,7 +6,7 @@ use shared::world::data::block::{BlockData, BlockManager};
 use shared::world::data::chunk::CHUNK_SIZE_F;
 use shared::world::generation::chunk::ChunkWithChecksum;
 use shared::world::generation::chunk_generator::generate_chunks_sequential;
-use shared::{log_server, time};
+use shared::log_server;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 

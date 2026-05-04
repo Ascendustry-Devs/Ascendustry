@@ -1,16 +1,15 @@
-use std::{time::Instant, u32::MAX};
+use std::time::Instant;
 
-use cgmath::{SquareMatrix, Vector3, Vector4};
+use shared::world::data::chunk::CHUNK_SIZE_F;
 use wgpu::{
     wgt::{CommandEncoderDescriptor, DrawIndirectArgs},
     BindGroup, Buffer, CommandEncoder, RenderPipeline, TextureView,
 };
 
 use crate::{
-    common::geometry::vertex::{generate_cube, Vertex},
-    engine::render::{camera::RenderCamera, manager::RenderManager, text::TextRenderer, texture::TextureArrayManager},
+    common::geometry::vertex::Vertex,
+    engine::render::{camera::RenderCamera, manager::RenderManager, text::TextRenderer, texture::TextureManager},
 };
-use shared::world::data::chunk::{CHUNK_SIZE, CHUNK_SIZE_F};
 
 const WIREFRAME: bool = false;
 const SHOW_CHUNK_BORDERS: bool = false;
@@ -33,7 +32,7 @@ pub struct Renderer {
     pub world_wireframe_render_pipeline: RenderPipeline,
     pub world_render_pipeline: RenderPipeline,
     pub diffuse_bind_group: BindGroup,
-    pub diffuse_texture_array: TextureArrayManager,
+    pub diffuse_texture_array: TextureManager,
 
     pub camera_buffer: Buffer,
     pub camera_bind_group: BindGroup,
@@ -76,7 +75,7 @@ impl Renderer {
         world_wireframe_render_pipeline: RenderPipeline,
         world_render_pipeline: RenderPipeline,
         diffuse_bind_group: BindGroup,
-        diffuse_texture_array: TextureArrayManager,
+        texture_manager: TextureManager,
 
         camera_buffer: Buffer,
         camera_bind_group: BindGroup,
@@ -106,7 +105,7 @@ impl Renderer {
             world_wireframe_render_pipeline,
             world_render_pipeline,
             diffuse_bind_group,
-            diffuse_texture_array,
+            diffuse_texture_array: texture_manager,
 
             camera_buffer,
             camera_bind_group,
@@ -152,58 +151,29 @@ impl Renderer {
             self.render_manager.mesh_manager.process_pending_destructions();
         }
 
-        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&camera.get_view_proj_raw()));
+        queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&camera.get_view_proj()));
 
-        // TODO: CODE SERVANT À DESSINER LE DEBUG CHUNK - VIRER CETTE MERDE AU PLUS VITE (la rendre meilleure et extraire)
-
-        // vp = projection * view
-        let inv_vp = camera.get_view_proj().invert().expect("VP matrix is not invertible");
-
-        // clip space du centre de l'écran
-        // z = 0 pour le near plane (wgpu utilise NDC z ∈ 0..1)
-        // w = 1 pour homogène
-        let clip_pos = Vector4::new(0.0, 0.0, 0.0, 1.0);
-
-        // world position
-        let world_pos_h = inv_vp * clip_pos;
-        let world_pos = Vector3::new(
-            world_pos_h.x / world_pos_h.w,
-            world_pos_h.y / world_pos_h.w,
-            world_pos_h.z / world_pos_h.w,
-        );
-
+        let (x, y, z) = camera.get_pos();
         let player_chunk_pos = [
-            (world_pos.x / CHUNK_SIZE_F).floor() as i32 * CHUNK_SIZE,
-            (world_pos.y / CHUNK_SIZE_F).floor() as i32 * CHUNK_SIZE,
-            (world_pos.z / CHUNK_SIZE_F).floor() as i32 * CHUNK_SIZE,
+            (x / CHUNK_SIZE_F).floor() * CHUNK_SIZE_F,
+            (y / CHUNK_SIZE_F).floor() * CHUNK_SIZE_F,
+            (z / CHUNK_SIZE_F).floor() * CHUNK_SIZE_F,
         ];
 
-        let debug_vertices: Vec<Vertex> = self
-            .chunk_borders_vertices
+        let chunk_borders_vertices: Vec<Vertex> = self.chunk_borders_vertices
             .iter()
-            .map(|v| {
-                Vertex::new_with_color(
-                    v.position[0] + player_chunk_pos[0] as f32,
-                    v.position[1] + player_chunk_pos[1] as f32,
-                    v.position[2] + player_chunk_pos[2] as f32,
-                    v.color,
-                    MAX,
-                    3.0,
-                    0.0,
-                    0.0,
+            .map(|v|
+                v.copy_with_pos(
+                    v.position[0] + player_chunk_pos[0],
+                    v.position[1] + player_chunk_pos[1],
+                    v.position[2] + player_chunk_pos[2],
                 )
-            })
+            )
             .collect();
 
-        queue.write_buffer(&self.chunk_borders_buffer, 0, bytemuck::cast_slice(&debug_vertices));
-
-        // FIN CODE DEBUG CHUNK
-
-        let player_mesh_cube: Vec<Vertex> = generate_cube(world_pos.x, world_pos.y, world_pos.z);
-        queue.write_buffer(&self.player_mesh, 0, bytemuck::cast_slice(&player_mesh_cube));
+        queue.write_buffer(&self.chunk_borders_buffer, 0, bytemuck::cast_slice(&chunk_borders_vertices));
 
         let output = surface.get_current_texture().unwrap();
-
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

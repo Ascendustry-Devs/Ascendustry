@@ -6,7 +6,7 @@ use crate::{
         world::world::World,
     },
 };
-use shared::{parallel::{WorkResult, WorkerPool}, world::data::chunk::Chunk};
+use shared::parallel::{WorkResult, WorkerPool};
 use std::collections::{HashMap, HashSet};
 
 pub struct WorldMesh {

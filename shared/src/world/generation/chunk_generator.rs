@@ -1,4 +1,3 @@
-use crate::log_server;
 use crate::parallel::{Parallelizable, QueueFull, WorkResult, WorkerPool};
 use crate::world::data::block::BlockManager;
 use crate::world::data::chunk::{Chunk, ChunkData};

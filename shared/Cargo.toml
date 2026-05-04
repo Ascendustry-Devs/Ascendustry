@@ -3,11 +3,6 @@ name = "shared"
 version.workspace = true
 edition.workspace = true
 
-[profile.dev]
-opt-level = 1
-incremental = true
-codegen-units = 256
-
 [features]
 server = []
 client = []

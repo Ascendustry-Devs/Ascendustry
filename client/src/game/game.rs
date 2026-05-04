@@ -1,4 +1,4 @@
-use std::{net::Ipv4Addr, thread::sleep, time::Duration};
+use std::{thread::sleep, time::Duration};
 
 use cgmath::{dot, EuclideanSpace, Matrix4, Vector3};
 
@@ -27,7 +27,7 @@ use crate::{
 use shared::{log_client, log_err_client, world::data::chunk::CHUNK_SIZE_F};
 use winit::keyboard::KeyCode;
 
-const FPS_CAP: u32 = 60;
+const FPS_CAP: u32 = 1_000_000;
 const DT_CAP: f32 = 1.0 / (FPS_CAP as f32);
 const PING_INTERVAL: Duration = Duration::from_secs(10);
 
@@ -141,7 +141,11 @@ impl AppState for GameState {
         // RENDER
         {
             let view_proj = self.player.camera.get_view_proj();
-            data.camera.update_view_proj(view_proj);
+            let (cam_x, cam_y, cam_z) = {
+                let pos = self.player.camera.eye;
+                (pos.x, pos.y, pos.z)
+            };
+            data.camera.update(cam_x, cam_y, cam_z, view_proj.into());
 
             self.player.camera.aspect = render_options.aspect;
             let cam_position = self.player.camera.eye.to_vec();
@@ -239,8 +243,8 @@ impl GameState {
 }
 
 fn is_chunk_behind_camera(min: &Vector3<f32>, max: &Vector3<f32>, cam_forward: &Vector3<f32>, cam_eye: &Vector3<f32>) -> bool {
-    let center = min + (max - min) * 0.5;
     let extent = (max - min) * 0.5;
+    let center = min + extent;
 
     let radius = extent.x * cam_forward.x.abs() + extent.y * cam_forward.y.abs() + extent.z * cam_forward.z.abs();
 

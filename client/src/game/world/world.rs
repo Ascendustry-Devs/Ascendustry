@@ -98,14 +98,22 @@ impl World {
         if player.cpos.has_changed() {
             let needed_simulation_keys: Vec<(i32, i32, i32)> = player.get_simulation_chunk_keys();
 
-            let current_keys: Vec<_> = self.chunks.keys().cloned().collect();
-            for key in current_keys {
-                if !needed_simulation_keys.contains(&key) {
-                    self.chunks.remove(&key);
-                    if let Some(mesh) = world_mesh.meshes.remove(&key) {
-                        if let Some(id) = mesh.id {
-                            render_manager.mesh_manager.free_data(id);
-                        }
+            let cpos = player.get_cpos().into();
+
+            let radii_h_squared = (player.horizontal_render_distance * player.horizontal_render_distance) as i32;
+            let radii_v_squared = (player.vertical_render_distance * player.vertical_render_distance) as i32;
+
+            let keys_to_remove: Vec<_> = self.chunks
+                .keys()
+                .filter(|key| !is_chunk_in_range(*key, &cpos, radii_h_squared, radii_v_squared))
+                .cloned()
+                .collect();
+
+            for k in keys_to_remove.iter() {
+                self.chunks.remove(&k);
+                if let Some(mesh) = world_mesh.meshes.remove(&k) {
+                    if let Some(id) = mesh.id {
+                        render_manager.mesh_manager.free_data(id);
                     }
                 }
             }
@@ -280,4 +288,13 @@ impl World {
         }
         true
     }
+}
+
+#[inline(always)]
+fn is_chunk_in_range(c: &(i32, i32, i32), center: &(i32, i32, i32), radius_h_squared: i32, radius_v_squared: i32) -> bool {
+    let dx = c.0 - center.0;
+    let dy = c.1 - center.1;
+    let dz = c.2 - center.2;
+
+    (dx * dx) / radius_h_squared + (dy * dy) / radius_v_squared + (dz * dz) / radius_h_squared <= 1
 }

@@ -1,4 +1,3 @@
-
 [workspace]
 members = ["shared", "client", "server"]
 resolver = "2"
@@ -16,11 +15,21 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros",
 rand = "0.8"
 
 [profile.dev]
+debug = true
 opt-level = 1
-incremental = true
 codegen-units = 256
+incremental = true
+lto = false
+strip = false
 
 [profile.release]
-debug = true
+debug = false
 opt-level = 3
+codegen-units = 1
+incremental = false
 lto = true
+strip = true
+
+[profile.flamegraph]
+inherits = "dev"
+opt-level = 3

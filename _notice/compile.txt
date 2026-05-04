@@ -3,3 +3,7 @@ cargo run -p client --bin client -r
 
 cargo run -p server --bin server
 cargo run -p server --bin server -r
+
+PROFILER
+
+cargo flamegraph --profile flamegraph -p client --bin client
