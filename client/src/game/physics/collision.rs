@@ -58,7 +58,7 @@ pub fn get_colliding_blocks(world: &World, aabb: &AABB) -> Vec<(i32, i32, i32)> 
     blocks
 }
 
-/// Résout les collisions joueur/monde avec séparation des axes + glissement.
+/// Résout les collisions joueur/monde avec séparation des axes.
 /// Algorithme classique des voxel games : on traite X, Y, Z indépendamment
 /// pour que le joueur glisse naturellement le long des murs.
 ///
