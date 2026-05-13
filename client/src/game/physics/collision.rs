@@ -7,10 +7,10 @@ use crate::game::{
 use shared::world::data::chunk::CHUNK_SIZE;
 
 // Petit epsilon pour éviter les micro-interpénétrations flottantes
-const EPSILON: f32 = 1e-6;
+const EPSILON: f32 = 1e-3;
 
 // Hitbox légèrement plus petite que 1.0 pour pouvoir passer dans des trous 1×1
-const PLAYER_HALF_SIZE: f32 = 0.49;
+const PLAYER_HALF_SIZE: f32 = 0.4;
 
 /// Construit l'AABB du joueur à partir de sa position aux pieds.
 /// Le centre de la hitbox est à (x, y + half_size, z) pour que le pied soit en y.

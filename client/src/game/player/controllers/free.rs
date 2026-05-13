@@ -88,7 +88,7 @@ impl CameraController for FreeCameraController {
         const CLAMP_TOP: f32 = FRAC_PI_2 - 0.01;
 
         // La caméra est placée à la hauteur des yeux (y + 0.8) au-dessus des pieds
-        camera.set_position(*player_pos + Vector3::new(0.0, 0.8, 0.0));
+        camera.set_position(*player_pos + Vector3::new(0.0, 0.6, 0.0));
 
         let (dx, dy) = inputs.take_mouse_delta_f32();
 
