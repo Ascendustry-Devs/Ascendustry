@@ -7,7 +7,7 @@ use shared::world::{
     },
     generation::chunk_generator::ChunkGenerator,
 };
-use std::{cmp::min, collections::HashMap, ops::Deref, sync::Arc, time::Instant};
+use std::{cmp::min, collections::HashMap, sync::Arc, time::Instant};
 
 use crate::{
     // engine::render::mesh::manager::RenderManager,

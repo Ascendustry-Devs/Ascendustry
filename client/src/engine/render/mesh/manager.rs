@@ -1,6 +1,3 @@
-use std::{time::Instant, usize};
-
-use shared::log_client;
 use wgpu::{Buffer, BufferUsages, CommandEncoder, Device, Queue};
 
 use crate::engine::render::utils::smart_buffer::SmartBuffer;

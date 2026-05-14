@@ -1,8 +1,9 @@
+use std::sync::Arc;
+
 use anyhow::*;
 use image::GenericImageView;
-use wgpu::{Device, Queue};
 
-use crate::engine::render::{render::GpuResources, textures::array::Texture2DArray};
+use crate::engine::render::{render::GpuTools, textures::array::Texture2DArray};
 
 pub struct Texture {
     #[allow(unused)]
@@ -90,7 +91,7 @@ impl Texture {
 }
 
 pub struct TextureManager {
-    gpu_resources: GpuResources,
+    gpu_resources: Arc<GpuTools>,
     arrays: Vec<Texture2DArray>,
     max_texture_size: u32,
     max_array_depth: u32,
@@ -121,7 +122,7 @@ impl TextureID {
 }
 
 impl TextureManager {
-    pub fn new(gpu_resources: GpuResources, max_texture_size: u32, max_array_depth: u32) -> Self {
+    pub fn new(gpu_resources: Arc<GpuTools>, max_texture_size: u32, max_array_depth: u32) -> Self {
         let size = max_texture_size.min(32) as u16;
 
         let mut instance = Self {
@@ -154,7 +155,7 @@ impl TextureManager {
 
         let id = self.arrays.len();
         let depth = self.max_array_depth;
-        let array = Texture2DArray::new(label, self.gpu_resources.device_mut(), width, height, depth);
+        let array = Texture2DArray::new(label, self.gpu_resources.device(), width, height, depth);
 
         self.arrays.push(array);
 
@@ -196,7 +197,7 @@ impl TextureManager {
             return;
         };
 
-        array.write_at(self.gpu_resources.queue_mut(), id.depth, texture);
+        array.write_at(self.gpu_resources.queue(), id.depth, texture);
     }
 
     pub fn get_array(&self, index: TextureArrayIndex) -> &Texture2DArray {

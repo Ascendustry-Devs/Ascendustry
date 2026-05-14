@@ -1,11 +1,11 @@
-use std::{sync::Arc, time::Instant};
+use std::{iter, mem, sync::Arc};
 
 use shared::world::data::chunk::CHUNK_SIZE_F;
 use wgpu::{
     wgt::{CommandEncoderDescriptor, DeviceDescriptor, DrawIndirectArgs},
-    Adapter, Backends, BindGroup, Buffer, CommandEncoder, Device, ExperimentalFeatures, Features, Instance, InstanceDescriptor, Limits,
-    PowerPreference, PresentMode, Queue, RenderPipeline, RequestAdapterOptions, Surface, SurfaceConfiguration, Texture, TextureUsages,
-    TextureView, Trace,
+    Backends, BindGroup, Buffer, CommandEncoder, Device, ExperimentalFeatures, Features, Instance, InstanceDescriptor, Limits,
+    PowerPreference, PresentMode, Queue, RenderPass, RenderPipeline, RequestAdapterOptions, Surface, SurfaceConfiguration, Texture,
+    TextureUsages, TextureView, Trace,
 };
 use winit::window::Window;
 
@@ -35,26 +35,28 @@ impl RenderOptions {
 pub struct Renderer {
     pub is_surface_configured: bool,
 
-    pub pipelines: Pipelines,
-
-    pub diffuse_bind_group: BindGroup,
-    pub diffuse_texture_array: TextureManager,
-
-    pub camera_buffer: Buffer,
-    pub camera_bind_group: BindGroup,
-
-    pub gizmo_render_pipeline: RenderPipeline,
-    pub gizmo_buffer: Buffer,
-
-    pub wireframe: bool,
-    pub show_chunk_borders: bool,
-
-    pub chunk_borders_buffer: Buffer,
+    pub render_manager: RenderManager,
+    pub render_options: RenderOptions,
+    pub texture_manager: TextureManager,
 
     pub gpu_context: GpuContext,
-    pub render_manager: RenderManager,
+    pub gpu_resources: GpuResources,
 
-    pub render_options: RenderOptions,
+    pub debug: DebugRenderResources,
+}
+
+pub struct GpuTools {
+    device: Device,
+    queue: Queue,
+}
+
+pub struct GpuResources {
+    pub pipelines: Pipelines,
+
+    pub camera_bind_group: BindGroup,
+    pub texture_bind_group: BindGroup,
+
+    pub camera_buffer: Buffer,
 
     pub depth_texture: Texture,
     pub depth_view: TextureView,
@@ -62,12 +64,33 @@ pub struct Renderer {
     pub frame_encoder: Option<CommandEncoder>,
 }
 
-pub struct GpuResources {
-    device: Device,
-    queue: Queue,
+impl GpuResources {
+    pub fn new(
+        pipelines: Pipelines,
+
+        camera_bind_group: BindGroup,
+        texture_bind_group: BindGroup,
+
+        camera_buffer: Buffer,
+
+        depth_texture: Texture,
+        depth_view: TextureView,
+
+        frame_encoder: Option<CommandEncoder>,
+    ) -> Self {
+        Self {
+            pipelines,
+            camera_bind_group,
+            texture_bind_group,
+            camera_buffer,
+            depth_texture,
+            depth_view,
+            frame_encoder,
+        }
+    }
 }
 
-impl GpuResources {
+impl GpuTools {
     pub fn new(device: Device, queue: Queue) -> Self {
         Self { device, queue }
     }
@@ -76,42 +99,17 @@ impl GpuResources {
         &self.device
     }
 
-    pub fn device_mut(&mut self) -> &mut Device {
-        &mut self.device
-    }
-
     pub fn queue(&self) -> &Queue {
         &self.queue
-    }
-
-    pub fn queue_mut(&mut self) -> &mut Queue {
-        &mut self.queue
-    }
-
-    pub fn device_queue(&self) -> (&Device, &Queue) {
-        (&self.device, &self.queue)
-    }
-
-    pub fn device_queue_mut(&mut self) -> (&mut Device, &mut Queue) {
-        (&mut self.device, &mut self.queue)
     }
 }
 
 pub struct GpuContext {
     pub surface: Surface<'static>,
-    pub resources: GpuResources,
+    pub tools: Arc<GpuTools>,
     pub config: SurfaceConfiguration,
     pub limits: Limits,
     pub features: Features,
-}
-
-impl From<&GpuContext> for GpuResources {
-    fn from(ctx: &GpuContext) -> Self {
-        Self {
-            device: ctx.resources.device().clone(),
-            queue: ctx.resources.queue().clone(),
-        }
-    }
 }
 
 impl GpuContext {
@@ -151,10 +149,10 @@ impl GpuContext {
             trace: Trace::Off,
         }))?;
 
-        let resources = GpuResources::new(device, queue);
+        let tools = Arc::new(GpuTools::new(device, queue));
 
-        let limits = resources.device().limits();
-        let features = resources.device().features().intersection(adapter.features());
+        let limits = tools.device().limits();
+        let features = tools.device().features().intersection(adapter.features());
 
         let surface_caps = surface.get_capabilities(&adapter);
 
@@ -177,11 +175,51 @@ impl GpuContext {
 
         Ok(Self {
             surface,
-            resources,
+            tools,
             config,
             limits,
             features,
         })
+    }
+
+    pub fn get_tools(&mut self) -> Arc<GpuTools> {
+        Arc::clone(&self.tools)
+    }
+}
+
+pub struct DebugRenderResources {
+    pub wireframe: bool,
+    pub pipelines: Pipelines,
+    pub gizmo_render_pipeline: RenderPipeline,
+    pub gizmo_buffer: Buffer,
+    pub show_chunk_borders: bool,
+    pub chunk_borders_buffer: Buffer,
+}
+
+impl DebugRenderResources {
+    pub fn new(pipelines: Pipelines, gizmo_render_pipeline: RenderPipeline, gizmo_buffer: Buffer, chunk_borders_buffer: Buffer) -> Self {
+        Self {
+            wireframe: false,
+            pipelines,
+            gizmo_render_pipeline,
+            gizmo_buffer,
+            show_chunk_borders: false,
+            chunk_borders_buffer,
+        }
+    }
+
+    pub fn pass(&mut self, render_pass: &mut RenderPass) {
+        if self.wireframe || self.show_chunk_borders {
+            render_pass.set_pipeline(&self.gizmo_render_pipeline);
+            if self.wireframe {
+                render_pass.set_vertex_buffer(0, self.gizmo_buffer.slice(..));
+                render_pass.draw(0..6, 0..1);
+            }
+            if self.show_chunk_borders {
+                render_pass.set_vertex_buffer(0, self.chunk_borders_buffer.slice(..));
+                render_pass.draw(0..24, 0..1);
+            }
+        }
     }
 }
 
@@ -189,63 +227,50 @@ impl Renderer {
     pub fn new(
         is_surface_configured: bool,
 
-        pipelines: Pipelines,
-
-        diffuse_bind_group: BindGroup,
+        render_manager: RenderManager,
+        render_options: RenderOptions,
         texture_manager: TextureManager,
 
-        camera_buffer: Buffer,
-        camera_bind_group: BindGroup,
-
-        gizmo_render_pipeline: RenderPipeline,
-        gizmo_buffer: Buffer,
-
-        chunk_borders_buffer: Buffer,
-
         gpu_context: GpuContext,
-        render_manager: RenderManager,
+        gpu_resources: GpuResources,
 
-        render_options: RenderOptions,
-
-        depth_texture: Texture,
-        depth_view: TextureView,
+        debug: DebugRenderResources,
     ) -> Self {
-        let frame_encoder = gpu_context.resources.device().create_command_encoder(&CommandEncoderDescriptor {
-            label: Some("Frame encoder"),
-        });
         Self {
             is_surface_configured,
 
-            pipelines,
-
-            diffuse_bind_group,
-            diffuse_texture_array: texture_manager,
-
-            camera_buffer,
-            camera_bind_group,
-
-            gizmo_render_pipeline,
-            gizmo_buffer,
-
-            wireframe: WIREFRAME,
-            show_chunk_borders: SHOW_CHUNK_BORDERS,
-
-            chunk_borders_buffer,
+            render_manager,
+            render_options,
+            texture_manager,
 
             gpu_context,
-            render_manager,
+            gpu_resources,
 
-            render_options,
+            debug,
+        }
+    }
 
-            depth_texture,
-            depth_view,
+    fn world_pass(&self, render_pass: &mut RenderPass) {
+        // World & Player meshes (other than local player)
+        let mesh_count = self.render_manager.get_meshes_to_render().len() as u32;
+        if mesh_count > 0 {
+            render_pass.set_vertex_buffer(0, self.render_manager.mesh_manager.get_buffer().slice(..));
 
-            frame_encoder: Some(frame_encoder),
+            let can_multidraw = self.gpu_context.features.contains(Features::MULTI_DRAW_INDIRECT_COUNT); // TODO: detect if the device supports multi-draw indirect
+
+            if can_multidraw {
+                render_pass.multi_draw_indirect(&self.render_manager.indirect_buffer.buffer(), 0, mesh_count);
+            } else {
+                const CMD_SIZE: u64 = mem::size_of::<DrawIndirectArgs>() as u64;
+                for i in 0..mesh_count {
+                    render_pass.draw_indirect(&self.render_manager.indirect_buffer.buffer(), i as u64 * CMD_SIZE);
+                }
+            }
         }
     }
 
     pub fn render<'a>(&'a mut self, camera: &RenderCamera, text_renderer: Option<&'a mut TextRenderer>) {
-        let chunk_borders = vec![
+        const CHUNK_BORDERS: [Vertex; 24] = [
             Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
             Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
             Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
@@ -276,21 +301,22 @@ impl Renderer {
             return;
         }
 
-        let surface = &self.gpu_context.surface;
-        let device = &self.gpu_context.resources.device();
-        let queue = &self.gpu_context.resources.queue();
+        let chunk_borders = CHUNK_BORDERS.to_vec();
 
+        let device = self.gpu_context.tools.device();
+        let queue = self.gpu_context.tools.queue();
         self.render_manager.update_indirect_buffer(device, queue);
 
-        let mut encoder = self
-            .frame_encoder
-            .take()
-            .unwrap_or(device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            }));
+        let mut encoder =
+            self.gpu_resources
+                .frame_encoder
+                .take()
+                .unwrap_or(device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                }));
 
         if let Some(view_proj) = camera.view_proj().change() {
-            queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(view_proj));
+            queue.write_buffer(&self.gpu_resources.camera_buffer, 0, bytemuck::cast_slice(view_proj));
         }
 
         if let Some(cw) = camera.cw().change() {
@@ -299,12 +325,13 @@ impl Renderer {
                 .map(|v| v.copy_with_pos(v.position[0] + cw[0], v.position[1] + cw[1], v.position[2] + cw[2]))
                 .collect();
 
-            queue.write_buffer(&self.chunk_borders_buffer, 0, bytemuck::cast_slice(&chunk_borders_vertices));
+            queue.write_buffer(&self.debug.chunk_borders_buffer, 0, bytemuck::cast_slice(&chunk_borders_vertices));
         };
 
-        let output = surface.get_current_texture().unwrap();
+        let output = self.gpu_context.surface.get_current_texture().unwrap();
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
+        // World pass
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
@@ -323,7 +350,7 @@ impl Renderer {
                     },
                 })],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_view,
+                    view: &self.gpu_resources.depth_view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
@@ -335,51 +362,21 @@ impl Renderer {
                 multiview_mask: None,
             });
 
-            if self.wireframe {
-                render_pass.set_pipeline(self.pipelines.opaque());
-            } else {
-                render_pass.set_pipeline(self.pipelines.opaque());
-            }
+            let pipelines = match self.debug.wireframe {
+                true => &self.debug.pipelines,
+                false => &self.gpu_resources.pipelines,
+            };
 
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
-            render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+            render_pass.set_pipeline(pipelines.opaque());
 
-            let meshes = self.render_manager.get_meshes_to_render();
+            render_pass.set_bind_group(0, &self.gpu_resources.texture_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.gpu_resources.camera_bind_group, &[]);
 
-            let mut _rendered_mesh_count = meshes.len();
-
-            let _start = Instant::now();
-
-            // World & Player meshes (other than local player)
-            if _rendered_mesh_count > 0 {
-                render_pass.set_vertex_buffer(0, self.render_manager.mesh_manager.get_buffer().slice(..));
-
-                const CAN_MULTIDRAW: bool = true; // TODO: detect if the device supports multi-draw indirect
-
-                if CAN_MULTIDRAW {
-                    render_pass.multi_draw_indirect(&self.render_manager.indirect_buffer.buffer(), 0, meshes.len() as u32);
-                } else {
-                    const CMD_SIZE: u64 = std::mem::size_of::<DrawIndirectArgs>() as u64;
-                    for i in 0.._rendered_mesh_count as u32 {
-                        render_pass.draw_indirect(&self.render_manager.indirect_buffer.buffer(), i as u64 * CMD_SIZE);
-                    }
-                }
-            }
-
-            // Debug
-            if self.wireframe || self.show_chunk_borders {
-                render_pass.set_pipeline(&self.gizmo_render_pipeline);
-                if self.wireframe {
-                    render_pass.set_vertex_buffer(0, self.gizmo_buffer.slice(..));
-                    render_pass.draw(0..6, 0..1);
-                }
-                if self.show_chunk_borders {
-                    render_pass.set_vertex_buffer(0, self.chunk_borders_buffer.slice(..));
-                    render_pass.draw(0..chunk_borders.len() as u32, 0..1);
-                }
-            }
+            self.world_pass(&mut render_pass);
+            self.debug.pass(&mut render_pass);
         }
 
+        // UI Pass
         if let Some(text_renderer) = text_renderer {
             let mut text_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Text Render Pass"),
@@ -400,26 +397,25 @@ impl Renderer {
             text_renderer.render(device, queue, &mut text_render_pass);
         }
 
-        queue.submit(std::iter::once(encoder.finish()));
+        queue.submit(iter::once(encoder.finish()));
         output.present();
 
-        self.render_manager.mesh_manager.process_pending_destructions();
-
-        self.frame_encoder = Some(device.create_command_encoder(&CommandEncoderDescriptor {
+        self.gpu_resources.frame_encoder = Some(device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Frame encoder"),
         }));
 
+        self.render_manager.mesh_manager.process_pending_destructions();
         self.render_manager.clear_render_queue();
     }
 
     pub fn dispose(&mut self) {
         self.is_surface_configured = false;
 
-        self.camera_buffer.destroy();
-        self.chunk_borders_buffer.destroy();
-        self.depth_texture.destroy();
+        self.gpu_resources.camera_buffer.destroy();
+        self.debug.chunk_borders_buffer.destroy();
+        self.gpu_resources.depth_texture.destroy();
         // TODO: faire fonctionner -> self.diffuse_texture_array.dispose();
-        self.gizmo_buffer.destroy();
+        self.debug.gizmo_buffer.destroy();
         // TODO: faire fonctionner -> self.gpu_context.dispose();
         // TODO: faire fonctionner -> self.render_manager.dispose();
     }

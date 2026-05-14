@@ -1,17 +1,19 @@
+use std::sync::Arc;
+
 use wgpu::{
     BindGroupLayout, DepthStencilState, FragmentState, PipelineLayout, PipelineLayoutDescriptor, PrimitiveState, RenderPipeline,
-    ShaderModule, VertexState,
+    VertexState,
 };
 
-use crate::engine::render::render::GpuResources;
+use crate::engine::render::render::GpuTools;
 
 pub struct PipelineLayoutFactory {
-    gpu_resources: GpuResources,
+    gpu_tools: Arc<GpuTools>,
 }
 
 impl PipelineLayoutFactory {
-    pub fn new(gpu_resources: GpuResources) -> Self {
-        Self { gpu_resources }
+    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+        Self { gpu_tools }
     }
 
     pub fn make(&self, label: Option<&str>, bind_group_layouts: &[&BindGroupLayout]) -> PipelineLayout {
@@ -20,17 +22,17 @@ impl PipelineLayoutFactory {
             bind_group_layouts: bind_group_layouts,
             immediate_size: 0,
         };
-        self.gpu_resources.device().create_pipeline_layout(&descriptor)
+        self.gpu_tools.device().create_pipeline_layout(&descriptor)
     }
 }
 
 pub struct PipelineFactory {
-    gpu_resources: GpuResources,
+    gpu_tools: Arc<GpuTools>,
 }
 
 impl PipelineFactory {
-    pub fn new(gpu_resources: GpuResources) -> Self {
-        Self { gpu_resources }
+    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+        Self { gpu_tools }
     }
 
     pub fn make(
@@ -57,7 +59,7 @@ impl PipelineFactory {
             multiview_mask: None,
             cache: None,
         };
-        self.gpu_resources.device().create_render_pipeline(&descriptor)
+        self.gpu_tools.device().create_render_pipeline(&descriptor)
     }
 }
 

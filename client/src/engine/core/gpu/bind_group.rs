@@ -1,21 +1,23 @@
+use std::sync::Arc;
+
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource,
     BindingType, Buffer, SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension,
 };
 
-use crate::engine::render::{render::GpuResources, textures::array::Texture2DArray};
+use crate::engine::render::{render::GpuTools, textures::array::Texture2DArray};
 
 pub struct BindGroupLayoutFactory {
-    gpu_resources: GpuResources,
+    gpu_tools: Arc<GpuTools>,
 }
 
 impl BindGroupLayoutFactory {
-    pub fn new(gpu_resources: GpuResources) -> Self {
-        Self { gpu_resources }
+    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+        Self { gpu_tools }
     }
 
     pub fn make(&self, label: Option<&str>, entries: &[BindGroupLayoutEntry]) -> BindGroupLayout {
-        self.gpu_resources
+        self.gpu_tools
             .device()
             .create_bind_group_layout(&BindGroupLayoutDescriptor { label, entries })
     }
@@ -58,16 +60,16 @@ impl BindGroupLayoutFactory {
 }
 
 pub struct BindGroupFactory {
-    gpu_resources: GpuResources,
+    gpu_tools: Arc<GpuTools>,
 }
 
 impl BindGroupFactory {
-    pub fn new(gpu_resources: GpuResources) -> Self {
-        Self { gpu_resources }
+    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+        Self { gpu_tools }
     }
 
     pub fn make(&self, label: Option<&str>, layout: &BindGroupLayout, entries: &[BindGroupEntry]) -> BindGroup {
-        self.gpu_resources
+        self.gpu_tools
             .device()
             .create_bind_group(&BindGroupDescriptor { label, layout, entries })
     }

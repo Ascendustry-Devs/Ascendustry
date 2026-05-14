@@ -138,10 +138,10 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
                     event_loop.exit();
                     return;
                 } else if code == KeyCode::Digit1 && key_state.is_pressed() {
-                    state.renderer.wireframe = !state.renderer.wireframe;
+                    state.renderer.debug.wireframe = !state.renderer.debug.wireframe;
                     state.window.request_redraw();
                 } else if code == KeyCode::Digit2 && key_state.is_pressed() {
-                    state.renderer.show_chunk_borders = !state.renderer.show_chunk_borders;
+                    state.renderer.debug.show_chunk_borders = !state.renderer.debug.show_chunk_borders;
                     state.window.request_redraw();
                 } else {
                     self.app_state.on_key(code, key_state.is_pressed());

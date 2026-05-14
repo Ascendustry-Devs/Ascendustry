@@ -724,9 +724,9 @@ impl ChunkMesh {
 
             // Updates new data.
             renderer.render_manager.mesh_manager.update_data(
-                &renderer.gpu_context.resources.device(),
-                &renderer.gpu_context.resources.queue(),
-                renderer.frame_encoder.as_mut().unwrap(),
+                &renderer.gpu_context.tools.device(),
+                &renderer.gpu_context.tools.queue(),
+                renderer.gpu_resources.frame_encoder.as_mut().unwrap(),
                 DataEntry::new(mesh_id, bytemuck::cast_slice(vertices)),
             );
             return Ok(());
@@ -739,9 +739,9 @@ impl ChunkMesh {
 
         // Create mesh, update it with new data and associate it with the chunk mesh.
         self.id = Some(renderer.render_manager.mesh_manager.add_data(
-            &renderer.gpu_context.resources.device(),
-            &renderer.gpu_context.resources.queue(),
-            renderer.frame_encoder.as_mut().unwrap(),
+            &renderer.gpu_context.tools.device(),
+            &renderer.gpu_context.tools.queue(),
+            renderer.gpu_resources.frame_encoder.as_mut().unwrap(),
             bytemuck::cast_slice(&vertices),
         )?);
 

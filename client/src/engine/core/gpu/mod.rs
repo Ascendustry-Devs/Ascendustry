@@ -3,7 +3,7 @@ use crate::engine::{
         bind_group::{BindGroupFactory, BindGroupLayoutFactory},
         pipeline::{PipelineFactory, PipelineLayoutFactory},
     },
-    render::render::{GpuContext, GpuResources},
+    render::render::GpuContext,
 };
 
 pub mod bind_group;
@@ -17,18 +17,11 @@ pub struct GpuFactory {
 }
 
 impl GpuFactory {
-    pub fn new(ctx: &GpuContext) -> Self {
-        let mut resources_instances = vec![
-            GpuResources::from(ctx),
-            GpuResources::from(ctx),
-            GpuResources::from(ctx),
-            GpuResources::from(ctx),
-        ];
-
-        let bind_group_layout = BindGroupLayoutFactory::new(resources_instances.pop().unwrap());
-        let bind_group = BindGroupFactory::new(resources_instances.pop().unwrap());
-        let pipeline_layout = PipelineLayoutFactory::new(resources_instances.pop().unwrap());
-        let pipeline = PipelineFactory::new(resources_instances.pop().unwrap());
+    pub fn new(ctx: &mut GpuContext) -> Self {
+        let bind_group_layout = BindGroupLayoutFactory::new(ctx.get_tools());
+        let bind_group = BindGroupFactory::new(ctx.get_tools());
+        let pipeline_layout = PipelineLayoutFactory::new(ctx.get_tools());
+        let pipeline = PipelineFactory::new(ctx.get_tools());
 
         Self {
             bind_group_layout,

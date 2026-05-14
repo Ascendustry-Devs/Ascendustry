@@ -8,7 +8,7 @@ use crate::engine::core::gpu::pipeline::Pipelines;
 use crate::engine::core::gpu::GpuFactory;
 use crate::engine::render::camera::RenderCamera;
 use crate::engine::render::manager::RenderManager;
-use crate::engine::render::render::{GpuContext, GpuResources, RenderOptions, Renderer};
+use crate::engine::render::render::{DebugRenderResources, GpuContext, GpuResources, RenderOptions, Renderer};
 use crate::engine::render::text::text_renderer::FPS_UPDATE_DELAY;
 use crate::engine::render::text::TextRenderer;
 use crate::engine::render::texture::{TextureArrayIndex, TextureManager};
@@ -17,8 +17,8 @@ use shared::world::data::chunk::CHUNK_SIZE_F;
 use std::time::Instant;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::{
-    BlendState, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Face, Features,
-    FragmentState, FrontFace, PipelineCache, PolygonMode, PrimitiveState, PrimitiveTopology, ShaderSource, TextureFormat, VertexState,
+    BlendState, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Face, FragmentState,
+    FrontFace, PolygonMode, PrimitiveState, PrimitiveTopology, ShaderSource, TextureFormat, VertexState,
 };
 use winit::window::Window;
 
@@ -72,23 +72,20 @@ impl State {
         let audio_manager = GameAudioManager::new(&window).ok();
 
         let size = window.inner_size();
-        let gpu_context = GpuContext::new(Arc::clone(&window)).unwrap();
+        let mut gpu_context = GpuContext::new(Arc::clone(&window)).unwrap();
 
-        let mut texture_manager = {
-            let gpu_resources = GpuResources::from(&gpu_context);
-            TextureManager::new(
-                gpu_resources,
-                gpu_context.limits.max_texture_dimension_2d,
-                gpu_context.limits.max_texture_array_layers,
-            )
-        };
+        let mut texture_manager = TextureManager::new(
+            gpu_context.get_tools(),
+            gpu_context.limits.max_texture_dimension_2d,
+            gpu_context.limits.max_texture_array_layers,
+        );
 
-        let gpu_factory = GpuFactory::new(&gpu_context);
+        let gpu_factory = GpuFactory::new(&mut gpu_context);
 
         let texture_bind_group_layout = gpu_factory.bind_group_layout().make_texture_array(Some("Texture array layout"));
 
         let blocks_array = texture_manager.get_array(TextureArrayIndex::BLOCKS);
-        let blocks_array_bind_group =
+        let texture_bind_group =
             gpu_factory
                 .bind_group()
                 .make_texture_array(&texture_bind_group_layout, &blocks_array, Some("Texture array"));
@@ -130,7 +127,7 @@ impl State {
 
         let render_camera = RenderCamera::new();
 
-        let camera_buffer = gpu_context.resources.device().create_buffer_init(&BufferInitDescriptor {
+        let camera_buffer = gpu_context.tools.device().create_buffer_init(&BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: cast_slice(render_camera.view_proj().current()),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
@@ -139,8 +136,8 @@ impl State {
         let camera_bind_group_layout = gpu_factory.bind_group_layout().make_camera();
         let camera_bind_group = gpu_factory.bind_group().make_camera(&camera_bind_group_layout, &camera_buffer);
 
-        let device = gpu_context.resources.device();
-        let queue = gpu_context.resources.queue();
+        let device = gpu_context.tools.device();
+        let queue = gpu_context.tools.queue();
         let config = &gpu_context.config;
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -301,31 +298,36 @@ impl State {
         );
 
         // TODO (wireframe)
-        // let debug_pipelines = Pipelines::new(
-        //     render_pipeline.clone(),
-        //     render_pipeline.clone(),
-        //     render_pipeline.clone(),
-        //     render_pipeline.clone(),
-        //     render_pipeline.clone(),
-        // );
+        let debug_pipelines = Pipelines::new(
+            wireframe_render_pipeline.clone(),
+            wireframe_render_pipeline.clone(),
+            wireframe_render_pipeline.clone(),
+            wireframe_render_pipeline.clone(),
+            wireframe_render_pipeline.clone(),
+        );
 
         let render_options = RenderOptions::new((size.width as f32) / (size.height as f32), 0.1, 1000.0);
 
-        let renderer = Renderer::new(
-            false,
+        let gpu_tools = GpuResources::new(
             pipelines,
-            blocks_array_bind_group,
-            texture_manager,
-            camera_buffer,
             camera_bind_group,
-            gizmo_render_pipeline,
-            gizmo_buffer,
-            chunk_borders_buffer,
-            gpu_context,
-            render_manager,
-            render_options,
+            texture_bind_group,
+            camera_buffer,
             depth_texture,
             depth_view,
+            None,
+        );
+
+        let debug = DebugRenderResources::new(debug_pipelines, gizmo_render_pipeline, gizmo_buffer, chunk_borders_buffer);
+
+        let renderer = Renderer::new(
+            false,
+            render_manager,
+            render_options,
+            texture_manager,
+            gpu_context,
+            gpu_tools,
+            debug,
         );
 
         Ok(Self {
@@ -350,32 +352,31 @@ impl State {
             self.renderer
                 .gpu_context
                 .surface
-                .configure(&self.renderer.gpu_context.resources.device(), &self.renderer.gpu_context.config);
+                .configure(&self.renderer.gpu_context.tools.device(), &self.renderer.gpu_context.config);
             self.renderer.is_surface_configured = true;
             self.text_renderer.resize(width, height);
-            self.renderer.depth_texture = self
+            self.renderer.gpu_resources.depth_texture = self.renderer.gpu_context.tools.device().create_texture(&wgpu::TextureDescriptor {
+                size: wgpu::Extent3d {
+                    width: width,
+                    height: height,
+                    depth_or_array_layers: 1,
+                },
+                ..wgpu::TextureDescriptor {
+                    label: Some("Depth Texture"),
+                    view_formats: &[wgpu::TextureFormat::Depth32Float],
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Depth32Float,
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                    size: Default::default(),
+                }
+            });
+            self.renderer.gpu_resources.depth_view = self
                 .renderer
-                .gpu_context
-                .resources
-                .device()
-                .create_texture(&wgpu::TextureDescriptor {
-                    size: wgpu::Extent3d {
-                        width: width,
-                        height: height,
-                        depth_or_array_layers: 1,
-                    },
-                    ..wgpu::TextureDescriptor {
-                        label: Some("Depth Texture"),
-                        view_formats: &[wgpu::TextureFormat::Depth32Float],
-                        mip_level_count: 1,
-                        sample_count: 1,
-                        dimension: wgpu::TextureDimension::D2,
-                        format: wgpu::TextureFormat::Depth32Float,
-                        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-                        size: Default::default(),
-                    }
-                });
-            self.renderer.depth_view = self.renderer.depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+                .gpu_resources
+                .depth_texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
         }
     }
 
@@ -416,7 +417,7 @@ impl State {
         self.renderer
             .render_manager
             .mesh_manager
-            .flush(&self.renderer.gpu_context.resources.queue());
+            .flush(&self.renderer.gpu_context.tools.queue());
         self.renderer.render(&self.game_frame_data.camera, Some(&mut self.text_renderer));
 
         Ok(())
