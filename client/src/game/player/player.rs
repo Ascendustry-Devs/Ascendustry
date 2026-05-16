@@ -11,7 +11,8 @@ use crate::game::{
 use cgmath::{num_traits::ToPrimitive, Point3};
 use shared::network::messages::{PlayerGameMode, Position, Rotation};
 use shared::world::constants::{
-    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
+    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
+    VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
 use shared::world::data::chunk::{CHUNK_SIZE, CHUNK_SIZE_F};
 use shared::*;
@@ -228,7 +229,7 @@ pub struct Player {
 
 impl Player {
     pub fn new(camera_controller: Box<dyn CameraController>, player_controller: Box<dyn PlayerController>) -> Player {
-        let spawn_pos = Point3::new(0.5, 68.0, 0.5);
+        let spawn_pos = Point3::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
         Player {
             state: PlayerState::new(camera_controller, player_controller, spawn_pos),
             physics_body: PhysicsBody::new(spawn_pos, 0.49),

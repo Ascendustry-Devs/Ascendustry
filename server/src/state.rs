@@ -1,6 +1,7 @@
 use crate::player::PlayerRegistry;
 use crate::world::WorldState;
 use shared::network::messages::{ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet};
+use shared::world::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use std::sync::RwLock;
 use tokio::sync::broadcast;
 
@@ -39,7 +40,9 @@ impl AppState {
     pub fn add_player(&self, id: u64, username: String) {
         let mut state = self.inner.write().unwrap();
         state.players.add(id, username);
-        let safe_position = state.world.find_safe_spawn_point(0.5, 64.0, 0.5);
+        let safe_position = state
+            .world
+            .find_safe_spawn_point(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
         let safe_rotation = Rotation { x: 0.0, y: 0.0 };
         state.players.update_position(id, safe_position.clone(), safe_rotation.clone());
         state.players.set_last_valid_transformation(id, safe_position, safe_rotation);

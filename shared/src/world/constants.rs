@@ -28,3 +28,12 @@ pub const JUMP_SPEED: f32 = 8.0;
 
 /// Vitesse de marche maximale (m/s)
 pub const WALK_SPEED: f32 = 4.3;
+
+/// Position de spawn initiale du joueur (axe X)
+pub const SPAWN_POSITION_X: f32 = 0.5;
+
+/// Position de spawn initiale du joueur (axe Y) — hauteur de départ pour la recherche de spawn safe
+pub const SPAWN_POSITION_Y: f32 = 64.0;
+
+/// Position de spawn initiale du joueur (axe Z)
+pub const SPAWN_POSITION_Z: f32 = 0.5;

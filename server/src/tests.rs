@@ -12,6 +12,7 @@ use crate::state::AppState;
 use crate::world::WorldState;
 use cgmath::Point3;
 use shared::network::messages::*;
+use shared::world::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use tokio::sync::broadcast;
 
 // ---------------------------------------------------------------------------
@@ -27,9 +28,9 @@ fn player_add_player() {
     let player = registry.get(&1).unwrap();
     assert_eq!(player.id, 1);
     assert_eq!(player.username, "Alice");
-    assert_eq!(player.position.x, 0.0);
-    assert_eq!(player.position.y, 64.0);
-    assert_eq!(player.position.z, 0.0);
+    assert_eq!(player.position.x, SPAWN_POSITION_X);
+    assert_eq!(player.position.y, SPAWN_POSITION_Y);
+    assert_eq!(player.position.z, SPAWN_POSITION_Z);
 }
 
 /// Vérifie la suppression d'un joueur et la préservation des autres.

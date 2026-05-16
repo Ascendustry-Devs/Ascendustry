@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use shared::network::messages::{PlayerGameMode, Position, Rotation};
+use shared::world::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -27,7 +28,11 @@ impl PlayerRegistry {
     }
 
     pub fn add(&mut self, id: u64, username: String) {
-        let position = Position { x: 0.0, y: 64.0, z: 0.0 };
+        let position = Position {
+            x: SPAWN_POSITION_X,
+            y: SPAWN_POSITION_Y,
+            z: SPAWN_POSITION_Z,
+        };
         let rotation = Rotation { x: 0.0, y: 0.0 };
         let player = Player {
             id,
