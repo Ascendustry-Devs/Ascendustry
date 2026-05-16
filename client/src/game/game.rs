@@ -130,13 +130,16 @@ impl AppState for GameState {
                     match packet.contenu {
                         ContenuPaquet::MultiplePlayerTransformation { data } => {
                             if let Some(my_id) = net.player_id() {
+                                self.remote_players.update(data, my_id);
+                            }
+                        }
+                        ContenuPaquet::GuardCorrection { data } => {
+                            if let Some(my_id) = net.player_id() {
                                 for t in &data {
-                                    // Mettre à jour la position et la rotation du joueur local si nécessaire
                                     if t.player_id == my_id {
                                         self.player.state.set_position_and_rotation(t.position, t.rotation);
                                     }
                                 }
-                                self.remote_players.update(data, my_id);
                             }
                         }
                         _ => {}

@@ -110,9 +110,9 @@ impl Chunk {
 }
 
 pub fn global_position_to_chunk_pos(gx: i32, gy: i32, gz: i32) -> ((i32, i32, i32), IntraChunkCoords) {
-    let cx = gx / CHUNK_SIZE;
-    let cy = gy / CHUNK_SIZE;
-    let cz = gz / CHUNK_SIZE;
+    let cx = gx.div_euclid(CHUNK_SIZE);
+    let cy = gy.div_euclid(CHUNK_SIZE);
+    let cz = gz.div_euclid(CHUNK_SIZE);
 
     let ix = (gx.rem_euclid(CHUNK_SIZE)) as u8;
     let iy = (gy.rem_euclid(CHUNK_SIZE)) as u8;

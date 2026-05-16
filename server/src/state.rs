@@ -1,6 +1,8 @@
 use crate::player::PlayerRegistry;
 use crate::world::WorldState;
+use shared::log_server;
 use shared::network::messages::{ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet};
+use shared::world::constants::{COLLISION_EPSILON, PLAYER_HALF_SIZE};
 use std::sync::RwLock;
 use tokio::sync::broadcast;
 
@@ -39,7 +41,7 @@ impl AppState {
     pub fn add_player(&self, id: u64, username: String) {
         let mut state = self.inner.write().unwrap();
         state.players.add(id, username);
-        let safe_position = state.world.find_safe_spawn_point(0.0, 64.0, 0.0);
+        let safe_position = state.world.find_safe_spawn_point(0.5, 64.0, 0.5);
         let safe_rotation = Rotation { x: 0.0, y: 0.0 };
         state.players.update_position(id, safe_position.clone(), safe_rotation.clone());
         state.players.set_last_valid_transformation(id, safe_position, safe_rotation);
@@ -151,10 +153,7 @@ impl AppState {
         }
 
         if !corrections.is_empty() {
-            let packet = Paquet::new(
-                TypePaquet::MultiplePlayerTransformation,
-                ContenuPaquet::MultiplePlayerTransformation { data: corrections },
-            );
+            let packet = Paquet::new(TypePaquet::GuardCorrection, ContenuPaquet::GuardCorrection { data: corrections });
             let _ = broadcaster.send(packet);
         }
     }

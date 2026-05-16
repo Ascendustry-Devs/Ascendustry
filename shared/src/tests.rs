@@ -711,13 +711,13 @@ fn chunk_global_position_to_chunk_pos() {
     assert_eq!(chunk, (1, 1, 1));
 
     let (chunk, _intra) = global_position_to_chunk_pos(-1, -1, -1);
-    assert_eq!(chunk, (0, 0, 0));
+    assert_eq!(chunk, (-1, -1, -1));
 
     let (chunk, _intra) = global_position_to_chunk_pos(-32, -32, -32);
     assert_eq!(chunk, (-1, -1, -1));
 
     let (chunk, _intra) = global_position_to_chunk_pos(-33, -33, -33);
-    assert_eq!(chunk, (-1, -1, -1));
+    assert_eq!(chunk, (-2, -2, -2));
 }
 
 /// Vérifie que `ChunkData::new` initialise correctement les champs.

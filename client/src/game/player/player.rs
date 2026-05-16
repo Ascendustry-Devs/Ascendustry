@@ -228,7 +228,7 @@ pub struct Player {
 
 impl Player {
     pub fn new(camera_controller: Box<dyn CameraController>, player_controller: Box<dyn PlayerController>) -> Player {
-        let spawn_pos = Point3::new(16.0, 32.0, 16.0);
+        let spawn_pos = Point3::new(0.5, 68.0, 0.5);
         Player {
             state: PlayerState::new(camera_controller, player_controller, spawn_pos),
             physics_body: PhysicsBody::new(spawn_pos, 0.49),
