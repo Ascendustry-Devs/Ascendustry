@@ -65,6 +65,10 @@ impl RenderManager {
     }
 
     pub fn update_indirect_buffer(&mut self, device: &Device, queue: &Queue) {
+        // TODO:
+        // - retirer les 2 memory heap allocations
+        // - itérer sur mesh_manager.data directement
+        // - réutiliser self.indirect_commands, .clear(), .push()
         let mesh_regions: Vec<(usize, usize)> = self
             .mesh_manager
             .data
@@ -79,14 +83,14 @@ impl RenderManager {
         }
 
         let mut commands: Vec<DrawIndirectArgs> = Vec::with_capacity(mesh_regions.len());
-        let vertex_size = std::mem::size_of::<Vertex>() as u32;
+        const VERTEX_SIZE: u32 = std::mem::size_of::<Vertex>() as u32;
 
         for (offset, length) in &mesh_regions {
-            let vertex_count = length / vertex_size as usize;
+            let vertex_count = length / VERTEX_SIZE as usize;
             commands.push(DrawIndirectArgs {
                 vertex_count: vertex_count as u32,
                 instance_count: 1,
-                first_vertex: (offset / vertex_size as usize) as u32,
+                first_vertex: (offset / VERTEX_SIZE as usize) as u32,
                 first_instance: 0,
             });
         }

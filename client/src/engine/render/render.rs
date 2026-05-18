@@ -301,8 +301,6 @@ impl Renderer {
             return;
         }
 
-        let chunk_borders = CHUNK_BORDERS.to_vec();
-
         let device = self.gpu_context.tools.device();
         let queue = self.gpu_context.tools.queue();
         self.render_manager.update_indirect_buffer(device, queue);
@@ -320,7 +318,7 @@ impl Renderer {
         }
 
         if let Some(cw) = camera.cw().change() {
-            let chunk_borders_vertices: Vec<Vertex> = chunk_borders
+            let chunk_borders_vertices: Vec<Vertex> = CHUNK_BORDERS
                 .iter()
                 .map(|v| v.copy_with_pos(v.position[0] + cw[0], v.position[1] + cw[1], v.position[2] + cw[2]))
                 .collect();

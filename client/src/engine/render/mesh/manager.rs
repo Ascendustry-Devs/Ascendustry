@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use wgpu::{Buffer, BufferUsages, CommandEncoder, Device, Queue};
 
 use crate::engine::render::utils::smart_buffer::SmartBuffer;
@@ -24,6 +26,15 @@ impl<'a> DataEntry<'a> {
 pub enum AllocError {
     InvalidId = 0,
     NotEnoughSpace = 1,
+}
+
+impl Display for AllocError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match (*self) {
+            Self::InvalidId => "InvalidId",
+            Self::NotEnoughSpace => "NotEnoughSpace",
+        })
+    }
 }
 
 pub struct MeshEntry {
@@ -55,6 +66,22 @@ pub struct MeshManager {
     write_operations: Vec<WriteOperation>,
     schedule_batch: bool,
     arena: Vec<u8>,
+}
+
+const LOG_ALLOCATOR: bool = false;
+
+macro_rules! log_allocator {
+    () => {
+        if LOG_ALLOCATOR {
+            println!();
+        }
+    };
+
+    ($($arg:tt)*) => {
+        if LOG_ALLOCATOR {
+            println!($($arg)*);
+        }
+    };
 }
 
 impl Gap {
@@ -97,9 +124,14 @@ impl MeshManager {
         let data_length = self.total_data_length() as u32;
         let (len_mb, len_kb, len_b) = bytes_conversion(data_length);
         let (cap_mb, cap_kb, cap_b) = bytes_conversion(self.buffer.capacity());
-        println!(
+        log_allocator!(
             "Mesh buffer\nLen: {:3}Mb | {:6}Kb | {:9}b\nCap: {:3}Mb | {:6}Kb | {:9}b",
-            len_mb, len_kb, len_b, cap_mb, cap_kb, cap_b,
+            len_mb,
+            len_kb,
+            len_b,
+            cap_mb,
+            cap_kb,
+            cap_b,
         );
     }
 
@@ -112,7 +144,7 @@ impl MeshManager {
     }
 
     fn reallocate_defragment(&mut self, device: &Device, queue: &Queue, encoder: &mut CommandEncoder, needed: usize) {
-        println!(
+        log_allocator!(
             "Reallocate and defragment because current buffer has {} bytes of capacity but we need {} bytes.",
             self.total_data_length(),
             needed
@@ -149,7 +181,7 @@ impl MeshManager {
 
         // Update gaps
         self.gaps.clear();
-        println!(
+        log_allocator!(
             "new realloc gap: {} {}",
             current_position,
             new_buffer.capacity() as usize - current_position
@@ -164,21 +196,23 @@ impl MeshManager {
     }
 
     fn find_place(&self, needed: usize) -> Option<usize> {
-        println!("Finding place for {} bytes.", needed);
+        log_allocator!("Finding place for {} bytes.", needed);
         self.gaps.iter().position(|x| x.length >= needed)
     }
 
     fn get_data_next_gap(&self, entry: &MeshEntry) -> Option<usize> {
-        println!(
+        log_allocator!(
             "Getting data next gap for Mesh(id: {}, pos: {}, len: {}).",
-            entry.id, entry.position, entry.length
+            entry.id,
+            entry.position,
+            entry.length
         );
         let position = entry.position + entry.length;
         self.gaps.iter().position(|gap| gap.position == position)
     }
 
     fn write_at(&mut self, position: usize, data: &[u8], mesh_id: MeshId) {
-        println!("Writing at {} data of len {} and of Mesh(id: {})", position, data.len(), mesh_id);
+        log_allocator!("Writing at {} data of len {} and of Mesh(id: {})", position, data.len(), mesh_id);
         let arena_offset = self.arena.len();
         self.arena.extend_from_slice(data);
         self.write_operations.push(WriteOperation {
@@ -210,18 +244,18 @@ impl MeshManager {
         let new_length = self.write_operations.len();
         let diff = base_length - new_length;
         if diff > 0 {
-            println!("Successfully batched {} gpu commands!", diff);
+            log_allocator!("Successfully batched {} gpu commands!", diff);
         } else {
-            println!("Nothing to batch.");
+            log_allocator!("Nothing to batch.");
         }
-        println!("Commands count: {}.", new_length);
+        log_allocator!("Commands count: {}.", new_length);
     }
 
     pub fn flush(&mut self, queue: &Queue) {
         if self.write_operations.is_empty() {
             return;
         }
-        println!("Flushing!");
+        log_allocator!("Flushing!");
 
         if self.schedule_batch {
             self.batch_commands();
@@ -240,7 +274,7 @@ impl MeshManager {
     }
 
     fn insert_gap_after(&mut self, gap: Gap, position: usize) {
-        println!("Inserting Gap(pos: {}, len: {}) after pos: {}.", gap.position, gap.length, position);
+        log_allocator!("Inserting Gap(pos: {}, len: {}) after pos: {}.", gap.position, gap.length, position);
         let gap_index = self.gaps.iter().position(|x| x.position > position).unwrap_or(self.gaps.len());
 
         self.gaps.insert(gap_index, gap);
@@ -250,14 +284,14 @@ impl MeshManager {
         if self.pending_destruction.is_empty() {
             return;
         }
-        println!("Process pending destructions.");
+        log_allocator!("Process pending destructions.");
         for mut buf in self.pending_destruction.drain(..) {
             buf.destroy();
         }
     }
 
     fn consume_gap_for(&mut self, gap_index: usize, entry: &DataEntry) {
-        println!(
+        log_allocator!(
             "Consume Gap(index: {}) for DataEntry(id: {}, len: {}).",
             gap_index,
             entry.id,
@@ -284,7 +318,7 @@ impl MeshManager {
         encoder: &mut CommandEncoder,
         entry: DataEntry,
     ) -> Result<(), AllocError> {
-        println!("Updating data for DataEntry(id: {}, len: {}).", entry.id, entry.data.len());
+        log_allocator!("Updating data for DataEntry(id: {}, len: {}).", entry.id, entry.data.len());
         let Some(index) = self.data.iter().position(|x| x.id == entry.id) else {
             return Err(AllocError::InvalidId);
         };
@@ -386,7 +420,7 @@ impl MeshManager {
     }
 
     pub fn add_data(&mut self, device: &Device, queue: &Queue, encoder: &mut CommandEncoder, data: &[u8]) -> Result<MeshId, AllocError> {
-        println!("Adding data for data of len: {}.", data.len());
+        log_allocator!("Adding data for data of len: {}.", data.len());
         let mut index = self.find_place(data.len());
 
         if index.is_none() {
@@ -438,7 +472,7 @@ impl MeshManager {
     }
 
     fn try_merge_gap(&mut self, position: usize) {
-        println!("Trying to merge gap of pos: {}.", position);
+        log_allocator!("Trying to merge gap of pos: {}.", position);
         let Some(mut current_index) = self.gaps.iter().position(|x| x.position == position) else {
             return;
         };
@@ -466,7 +500,7 @@ impl MeshManager {
     }
 
     pub fn free_data(&mut self, id: MeshId) -> Result<(), AllocError> {
-        println!("Freeing data of mesh id: {}.", id);
+        log_allocator!("Freeing data of mesh id: {}.", id);
         let Some(data_index) = self.data.iter().position(|x| x.id == id) else {
             return Err(AllocError::InvalidId);
         };

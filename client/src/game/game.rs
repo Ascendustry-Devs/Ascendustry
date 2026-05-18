@@ -31,7 +31,7 @@ use shared::{log_client, log_err_client, world::data::chunk::CHUNK_SIZE_F};
 use winit::keyboard::KeyCode;
 
 const FPS_CAP: u32 = 60;
-const DT_CAP: f32 = 1.0 / (FPS_CAP as f32);
+const DT_CAP: f32 = 1.0 / (FPS_CAP as f32 + 0.125);
 const PING_INTERVAL: Duration = Duration::from_secs(10);
 
 pub struct GameState {
@@ -39,7 +39,7 @@ pub struct GameState {
     pub world_mesh: WorldMesh,
     pub player: Player,
     pub remote_players: RemotePlayersManager,
-    pub delay_ms: f32,
+    pub delay_s: f32,
     pub network: Option<NetworkManager>,
     inputs: InputState,
 }
@@ -64,7 +64,7 @@ impl GameState {
             world_mesh: WorldMesh::new(),
             remote_players: RemotePlayersManager::new(),
             inputs: InputState::new(),
-            delay_ms: 0.0,
+            delay_s: 0.0,
             network: Some(network),
         }
     }
@@ -85,13 +85,15 @@ impl AppState for GameState {
 
     fn update(&mut self, frame: &EngineFrameData, data: &mut GameFrameData, renderer: &mut Renderer) {
         // UPDATE DELAY
-        self.delay_ms += frame.dt;
+        self.delay_s += frame.dt;
 
-        if self.delay_ms < DT_CAP {
-            sleep(Duration::from_micros(((DT_CAP - self.delay_ms) * 1_000_000.0) as u64));
+        // println!("Frame took {:.3}ms", self.delay_s * 1000.0);
+
+        if self.delay_s < DT_CAP {
+            sleep(Duration::from_micros(((DT_CAP - self.delay_s) * 1_000_000.0) as u64));
         }
 
-        self.delay_ms -= DT_CAP;
+        self.delay_s -= DT_CAP;
 
         // LOGIC
         self.update_debug_commands();
@@ -189,12 +191,19 @@ impl AppState for GameState {
                     let player_data = generate_cube(new_pos.0, new_pos.1, new_pos.2);
                     let raw_data = bytemuck::cast_slice(&player_data);
                     if let Some(mesh_id) = p.mesh_id {
-                        renderer.render_manager.mesh_manager.update_data(
-                            &renderer.gpu_context.tools.device(),
-                            &renderer.gpu_context.tools.queue(),
-                            &mut renderer.gpu_resources.frame_encoder.as_mut().unwrap(),
-                            DataEntry::new(mesh_id, raw_data),
-                        );
+                        if let Some(update_err) = renderer
+                            .render_manager
+                            .mesh_manager
+                            .update_data(
+                                &renderer.gpu_context.tools.device(),
+                                &renderer.gpu_context.tools.queue(),
+                                &mut renderer.gpu_resources.frame_encoder.as_mut().unwrap(),
+                                DataEntry::new(mesh_id, raw_data),
+                            )
+                            .err()
+                        {
+                            println!("Failed to update mesh id {}.\nError: {}", mesh_id, update_err);
+                        };
                     } else {
                         p.mesh_id = renderer
                             .render_manager

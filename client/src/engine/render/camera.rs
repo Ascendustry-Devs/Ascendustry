@@ -51,12 +51,13 @@ impl RenderCamera {
             self.z = z;
             self.cz = z.div_euclid(CHUNK_SIZE_F).floor() as i32;
         }
-        self.cw.update([
+        let new_cw = [
             (self.cx * CHUNK_SIZE) as f32,
             (self.cy * CHUNK_SIZE) as f32,
             (self.cz * CHUNK_SIZE) as f32,
-        ]);
-        self.view_proj.update(view_proj);
+        ];
+        self.cw.update_by_copy(new_cw);
+        self.view_proj.update_by_copy(view_proj);
     }
 
     #[inline(always)]

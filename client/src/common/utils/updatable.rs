@@ -1,10 +1,10 @@
 /// A simple yet effective struct to get track of the last 2 values used.
-pub struct Updatable<T: Clone> {
+pub struct Updatable<T: Clone + PartialEq> {
     last: T,
     current: T,
 }
 
-impl<T: Clone> Updatable<T> {
+impl<T: Clone + PartialEq> Updatable<T> {
     #[inline(always)]
     pub fn new(value: T) -> Self {
         Self {
@@ -23,6 +23,11 @@ impl<T: Clone> Updatable<T> {
         &self.last
     }
 
+    // #[inline(always)]
+    // pub fn last_mut(&mut self) -> &mut T {
+    //     &mut self.last
+    // }
+
     #[inline(always)]
     pub fn current(&self) -> &T {
         &self.current
@@ -32,12 +37,15 @@ impl<T: Clone> Updatable<T> {
     pub fn current_mut(&mut self) -> &mut T {
         &mut self.current
     }
-}
 
-impl<T: Clone + PartialEq> Updatable<T> {
+    #[inline(always)]
+    pub fn values_mut(&mut self) -> (&mut T, &mut T) {
+        (&mut self.current, &mut self.last)
+    }
+
     #[inline(always)]
     pub fn has_changed(&self) -> bool {
-        self.current != self.last
+        self.current.ne(&self.last)
     }
 
     #[inline(always)]
@@ -47,5 +55,14 @@ impl<T: Clone + PartialEq> Updatable<T> {
         } else {
             None
         }
+    }
+}
+
+impl<T: Copy + PartialEq> Updatable<T> {
+    #[inline(always)]
+    pub fn update_by_copy(&mut self, value: T) {
+        let old = self.current;
+        self.current = value;
+        self.last = old;
     }
 }

@@ -24,7 +24,6 @@ impl GameFrameData {
     }
 
     pub fn reset(&mut self) {
-        self.camera = RenderCamera::new();
         self.visible_meshes.clear();
     }
 }
