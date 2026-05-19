@@ -68,6 +68,7 @@ impl WorldMesh {
                 let needs_processing = self.meshes.get(&key).map_or(true, |mesh: &ChunkMesh| mesh.is_dirty());
 
                 if needs_processing && world.are_all_neighbors_ready(cx, cy, cz) {
+                    println!("yes");
                     let snapshot = world.get_mesh_snapshot(cx, cy, cz);
                     if let Ok(id) = self.mesh_worker.submit((Arc::clone(&chunk_data.chunk), snapshot, cx, cy, cz)) {
                         self.pending.insert(id, key);

@@ -26,6 +26,7 @@ use crate::game::network::protocol::GameProtocol;
 use shared::{
     log_client, log_err_client,
     network::messages::{Paquet, PlayerGameMode},
+    world::data::block::BlockInstance,
 };
 use std::time::{Duration, Instant};
 
@@ -186,6 +187,10 @@ impl NetworkManager {
         } else {
             Ok(())
         }
+    }
+
+    pub fn send_packet(&mut self, packet: Paquet) -> Result<(), String> {
+        self.connection.send_packet(packet)
     }
 
     /// Reçoit un paquet du serveur (non-bloquant).

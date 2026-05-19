@@ -16,7 +16,8 @@ use shared::world::{
 };
 use std::{
     cmp::min,
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
+    i32,
     sync::{Arc, RwLock},
     time::Instant,
 };
@@ -42,6 +43,7 @@ pub struct World {
     seed: u32,
     chunk_generator: ChunkGenerator,
     block_manager: Arc<RwLock<BlockManager>>,
+    dirty_queue: VecDeque<(i32, i32, i32)>,
 }
 
 impl World {
@@ -58,6 +60,7 @@ impl World {
             seed: seed,
             chunk_generator: chunk_generator,
             block_manager: block_manager,
+            dirty_queue: VecDeque::new(),
         };
     }
 
@@ -113,6 +116,30 @@ impl World {
 
     pub fn set_chunk(&mut self, cx: i32, cy: i32, cz: i32, chunk: Chunk) {
         self.chunks.insert((cx, cy, cz), ChunkData::new(chunk));
+    }
+
+    pub fn chunk_coords_from_block(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
+        (x.div_euclid(CHUNK_SIZE), y.div_euclid(CHUNK_SIZE), z.div_euclid(CHUNK_SIZE))
+    }
+
+    pub fn local_block_coords(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
+        (x.rem_euclid(CHUNK_SIZE), y.rem_euclid(CHUNK_SIZE), z.rem_euclid(CHUNK_SIZE))
+    }
+
+    pub fn set_block(&mut self, x: i32, y: i32, z: i32, block: BlockInstance) -> bool {
+        let (cx, cy, cz) = World::chunk_coords_from_block(x, y, z);
+        let (lx, ly, lz) = World::local_block_coords(x, y, z);
+        let Some(chunk) = self.get_chunk_data_mut(cx, cy, cz) else {
+            return false;
+        };
+        println!("lx: {} ly: {} lz: {}", lx, ly, lz);
+        let current_block = chunk.chunk.get_block_from_xyz(lx, ly, lz);
+        if current_block == block {
+            return false;
+        } else {
+            Arc::make_mut(&mut chunk.chunk).set_block_from_xyz(lx, ly, lz, block);
+            return true;
+        }
     }
 
     pub fn update(&mut self, render_manager: &mut RenderManager, world_mesh: &mut WorldMesh, player: &Player) {

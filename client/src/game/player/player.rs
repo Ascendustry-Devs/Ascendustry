@@ -1,6 +1,8 @@
 use crate::common::utils::updatable::Updatable;
+use crate::game::network::protocol::GameProtocol;
 use crate::game::player::controllers::spectator::SpectatorPlayerController;
 use crate::game::player::controllers::walk::WalkPlayerController;
+use crate::game::render::meshing::world::WorldMesh;
 use crate::game::{
     physics::{body::PhysicsBody, collision::resolve_collision},
     player::camera::Camera,
@@ -13,9 +15,12 @@ use shared::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use shared::network::messages::{PlayerGameMode, Position, Rotation};
+use shared::network::messages::{Paquet, PlayerGameMode, Position, Rotation};
+use shared::world::data::block::BlockInstance;
 use shared::world::data::chunk::{CHUNK_SIZE, CHUNK_SIZE_F};
+use shared::world::raycast::voxel_raycast;
 use shared::*;
+use winit::keyboard::KeyCode;
 
 /// État pur du joueur : position, caméra, contrôleurs, distances de rendu.
 /// Séparé de `Player` pour permettre l'ajout d'un corps physique sans tout casser.
@@ -56,9 +61,29 @@ impl PlayerState {
 
     /// Met à jour la caméra (yaw/pitch).
     /// La position et `cpos` sont mis à jour dans `physics_update()` (timestep fixe).
-    pub fn update(&mut self, dt: f32, inputs: &mut InputState) {
+    pub fn update(&mut self, dt: f32, world: &mut World, world_mesh: &mut WorldMesh, inputs: &mut InputState) -> Vec<Paquet> {
         let pos = self.get_pos();
         self.camera_controller.update(dt, inputs, &mut self.camera, &pos);
+
+        let mut commands = Vec::new();
+
+        if inputs.take_key_pressed(KeyCode::KeyB) {
+            let hit = voxel_raycast(self.camera.eye, self.camera.forward(), 12.0, |x, y, z| {
+                world.get_block_from_xyz(x, y, z).is_solid()
+            });
+            if let Some(hit) = hit {
+                let (x, y, z) = hit.block_pos;
+                let air = BlockInstance::air();
+                let success = world.set_block(x, y, z, air);
+                if success {
+                    commands.push(GameProtocol::create_block_modification(x, y, z, air));
+                    let chunk_pos = World::chunk_coords_from_block(x, y, z);
+                    world_mesh.set_dirty(&chunk_pos);
+                }
+            }
+        }
+
+        commands
     }
 
     pub fn set_render_distance(&mut self, horizontal: u16, vertical: u16) {
@@ -237,8 +262,8 @@ impl Player {
     }
 
     /// Délègue la mise à jour de la caméra à `PlayerState` (yaw/pitch).
-    pub fn update(&mut self, dt: f32, inputs: &mut InputState) {
-        self.state.update(dt, inputs);
+    pub fn update(&mut self, dt: f32, world: &mut World, world_mesh: &mut WorldMesh, inputs: &mut InputState) -> Vec<Paquet> {
+        self.state.update(dt, world, world_mesh, inputs)
     }
 
     /// Met à jour la physique à timestep fixe :

@@ -6,7 +6,10 @@
 //! Il fait la ponte entre la logique de jeu (positions, chunks) et le système
 //! de paquets réseau.
 
-use shared::network::messages::{ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet};
+use shared::{
+    network::messages::{ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet},
+    world::data::block::BlockInstance,
+};
 
 /// Protocol de jeu pour le client.
 ///
@@ -72,6 +75,18 @@ impl GameProtocol {
             ContenuPaquet::GamemodeChange {
                 player_id: self.player_id,
                 gamemode,
+            },
+        )
+    }
+
+    pub fn create_block_modification(x: i32, y: i32, z: i32, block: BlockInstance) -> Paquet {
+        Paquet::new(
+            TypePaquet::SetBlock,
+            ContenuPaquet::SetBlock {
+                x,
+                y,
+                z,
+                block_id: block.id,
             },
         )
     }

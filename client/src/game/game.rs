@@ -98,7 +98,9 @@ impl AppState for GameState {
             .physics_update(frame.dt, &mut self.inputs, &self.world, self.player.state.game_mode.clone());
 
         // LOGIC
-        self.player.update(frame.dt, &mut self.inputs);
+        let network_commands = self
+            .player
+            .update(frame.dt, &mut self.world, &mut self.world_mesh, &mut self.inputs);
         self.world.update(&mut renderer.render_manager, &mut self.world_mesh, &self.player);
 
         // NETWORK
@@ -146,6 +148,9 @@ impl AppState for GameState {
                         }
                         _ => {}
                     }
+                }
+                for command in network_commands {
+                    net.send_packet(command);
                 }
 
                 // Nettoyer les joueurs distants qui n'ont pas envoyé de mise à jour depuis 30s

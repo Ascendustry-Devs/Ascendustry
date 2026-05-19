@@ -44,15 +44,15 @@ impl BlockInstance {
         return BlockInstance { id: id };
     }
 
-    pub fn air() -> BlockInstance {
+    pub const fn air() -> BlockInstance {
         return BlockInstance { id: 0 };
     }
 
-    pub fn is_air(&self) -> bool {
+    pub const fn is_air(&self) -> bool {
         return self.id == BlockInstance::air().id;
     }
 
-    pub fn is_solid(&self) -> bool {
+    pub const fn is_solid(&self) -> bool {
         return self.id != BlockInstance::air().id;
     }
 
