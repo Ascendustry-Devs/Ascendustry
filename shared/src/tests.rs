@@ -496,9 +496,9 @@ fn constants_chunk_priority() {
 /// Vérifie que `max_chunks_in_queue` calcule correctement HRD x HRD x VRD = MAX_CHUNKS_IN_QUEUE.
 #[test]
 fn constants_max_chunks_in_queue() {
-    use crate::constants::MAX_CHUNKS_IN_QUEUE;
+    use crate::constants::MAX_GENERATION_CHUNKS_IN_QUEUE;
     let value = (HORIZONTAL_RENDER_DISTANCE * HORIZONTAL_RENDER_DISTANCE * VERTICAL_RENDER_DISTANCE) as u32;
-    assert_eq!(MAX_CHUNKS_IN_QUEUE, value);
+    assert_eq!(MAX_GENERATION_CHUNKS_IN_QUEUE, value);
 }
 
 // ---------------------------------------------------------------------------

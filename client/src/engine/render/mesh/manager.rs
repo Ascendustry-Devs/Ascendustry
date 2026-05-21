@@ -10,7 +10,9 @@ use crate::engine::render::{render::GpuTools, utils::smart_buffer::SmartBuffer};
 const BYTES_PER_FRAME_CAP: usize = 1024 * 1024 * 8;
 const MAX_MILLIS_PER_FRAME_CAP: u128 = 8;
 const MAX_WRITE_OPERATIONS_PER_FRAME: usize = 5;
-const ARENA_MIN_SIZE: usize = 1024 * 1024 * 16;
+const ARENA_MIN_SIZE: usize = 1024 * 1024; // 1mb
+const MESH_BUFFER_BASE_SIZE: usize = 1024 * 1024 * 32; // 32mb
+const MESH_BUFFER_EXPAND_COEF: f32 = 1.25;
 
 pub type MeshId = u32;
 
@@ -102,11 +104,8 @@ pub fn bytes_conversion(b: u32) -> (u32, u32, u32) {
 
 impl MeshManager {
     pub fn new(gpu_tools: Arc<GpuTools>, frame_encoder: Arc<RwLock<CommandEncoder>>) -> Self {
-        let mut arena = Vec::new();
-        arena.reserve(ARENA_MIN_SIZE);
-
         let buffer = SmartBuffer::from_capacity(
-            0,
+            MESH_BUFFER_BASE_SIZE as u32,
             gpu_tools.device(),
             None,
             BufferUsages::COPY_DST | BufferUsages::COPY_SRC | BufferUsages::VERTEX,
@@ -123,16 +122,24 @@ impl MeshManager {
             free_ids: Vec::with_capacity(64),
             write_operations: vec![],
             schedule_batch: false,
-            arena: arena,
+            arena: Vec::with_capacity(ARENA_MIN_SIZE),
         }
     }
 
-    pub fn print_buffer_memory_usage(&self) {
-        let data_length = self.total_data_length() as u32;
-        let (len_mb, len_kb, len_b) = bytes_conversion(data_length);
-        let (cap_mb, cap_kb, cap_b) = bytes_conversion(self.buffer.capacity());
+    pub fn print_debug_infos(&self) {
+        let actual_data_length = self.total_data_length() as u32;
+        let allocated_memory = (self.arena.capacity()
+            + self.free_ids.capacity() * size_of::<u32>()
+            + self.gaps.capacity() * size_of::<Gap>()
+            + self.pending_destruction.capacity() * size_of::<SmartBuffer>()
+            + self.write_operations.capacity() * size_of::<WriteOperation>()) as u32
+            + actual_data_length;
+        let (len_mb, len_kb, len_b) = bytes_conversion(actual_data_length);
+        let (cap_mb, cap_kb, cap_b) = bytes_conversion(allocated_memory);
+        let mesh_count = self.data.len();
         log_allocator!(
-            "Mesh buffer\nLen: {:3}Mb | {:6}Kb | {:9}b\nCap: {:3}Mb | {:6}Kb | {:9}b",
+            "Mesh buffer\nMesh count: {}\nActual Data\n{:3}Mb | {:6}Kb | {:9}b\nAllocated Memory\n{:3}Mb | {:6}Kb | {:9}b",
+            mesh_count,
             len_mb,
             len_kb,
             len_b,
@@ -184,7 +191,7 @@ impl MeshManager {
         let entry = MeshEntry::new(id, position, data.len());
         self.insert_entry(entry);
 
-        self.print_buffer_memory_usage();
+        self.print_debug_infos();
 
         Ok(id)
     }
@@ -283,7 +290,7 @@ impl MeshManager {
         let entry = MeshEntry::new(id, position, new_len);
         self.insert_entry(entry);
 
-        self.print_buffer_memory_usage();
+        self.print_debug_infos();
 
         Ok(())
     }
@@ -307,7 +314,7 @@ impl MeshManager {
 
         self.free_ids.push(id);
 
-        self.print_buffer_memory_usage();
+        self.print_debug_infos();
 
         Ok(())
     }
@@ -387,6 +394,7 @@ impl MeshManager {
             self.total_data_length(),
             needed
         );
+        let needed = needed as f32 * MESH_BUFFER_EXPAND_COEF;
 
         if !self.write_operations.is_empty() {
             self.flush();
@@ -433,7 +441,7 @@ impl MeshManager {
         // Update buffer
         self.pending_destruction.push(std::mem::replace(&mut self.buffer, new_buffer));
 
-        self.print_buffer_memory_usage();
+        self.print_debug_infos();
     }
 
     fn write_at(&mut self, position: usize, data: &[u8], mesh_id: MeshId) {
@@ -476,11 +484,20 @@ impl MeshManager {
         log_allocator!("Commands count: {}.", new_length);
     }
 
-    fn insert_gap_after(&mut self, gap: Gap, position: usize) {
-        log_allocator!("Inserting Gap(pos: {}, len: {}) after pos: {}.", gap.position, gap.length, position);
-        let gap_index = self.gaps.iter().position(|x| x.position > position).unwrap_or(self.gaps.len());
+    fn insert_gap_after(&mut self, new_gap: Gap, position: usize) {
+        log_allocator!(
+            "Inserting Gap(pos: {}, len: {}) after pos: {}.",
+            new_gap.position,
+            new_gap.length,
+            position
+        );
+        let index = self
+            .gaps
+            .iter()
+            .position(|gap| gap.position > new_gap.position)
+            .unwrap_or(self.gaps.len());
 
-        self.gaps.insert(gap_index, gap);
+        self.gaps.insert(index, new_gap);
     }
 
     fn consume_gap_for(&mut self, gap_index: usize, id: u32, data: &[u8]) -> usize {

@@ -107,7 +107,8 @@ impl AppState for GameState {
 
         // LOGIC
         let network_commands = self.player.update(frame.dt, &mut self.world, &mut self.inputs);
-        self.world.update(&mut renderer.render_manager, &mut self.world_mesh, &self.player);
+        let mesh_manager = &mut renderer.render_manager.mesh_manager;
+        self.world.update(mesh_manager, &mut self.world_mesh, &self.player);
 
         // NETWORK
         {
@@ -171,7 +172,6 @@ impl AppState for GameState {
         }
 
         // MESHING
-        let mesh_manager = &mut renderer.render_manager.mesh_manager;
         self.world_mesh.update(mesh_manager, &mut self.world);
 
         // RENDER

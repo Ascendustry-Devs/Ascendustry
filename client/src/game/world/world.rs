@@ -1,16 +1,20 @@
 use crate::{
-    engine::render::{manager::RenderManager, texture::RenderMode},
-    game::api::texture_loader::TextureLoader,
+    engine::render::{mesh::manager::MeshManager, texture::RenderMode},
+    game::{api::texture_loader::TextureLoader, physics::aabb::AABB},
 };
-use shared::world::{
-    data::{
-        block::{BlockInstance, BlockManager},
-        chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE},
-    },
-    generation::chunk_generator::ChunkGenerator,
-};
+use cgmath::Point3;
 use shared::{constants::DIRECT_NORMALS_3D, world::data::block::BlockData};
-use shared::{constants::MAX_CHUNKS_IN_QUEUE, log_err_client};
+use shared::{constants::MAX_GENERATION_CHUNKS_IN_QUEUE, log_err_client};
+use shared::{
+    constants::SIMULATION_DISTANCE_IN_BLOCKS_HALFED_VEC3_F,
+    world::{
+        data::{
+            block::{BlockInstance, BlockManager},
+            chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F},
+        },
+        generation::chunk_generator::ChunkGenerator,
+    },
+};
 use std::{
     cmp::max,
     collections::{HashMap, VecDeque},
@@ -38,6 +42,7 @@ pub struct World {
     chunks: HashMap<(i32, i32, i32), ChunkData>,
     chunk_generator: ChunkGenerator,
     block_manager: Arc<RwLock<BlockManager>>,
+    waiting_to_mesh: VecDeque<(i32, i32, i32)>,
     ready_to_mesh: VecDeque<(i32, i32, i32)>,
 }
 
@@ -46,14 +51,19 @@ impl World {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
 
         let worker_count = max((num_cpus::get() as f32 / 2.0).floor() as usize, 1);
-        let chunk_generator =
-            ChunkGenerator::with_max_pending(worker_count, Arc::clone(&block_manager), seed, MAX_CHUNKS_IN_QUEUE as usize);
+        let chunk_generator = ChunkGenerator::with_max_pending(
+            worker_count,
+            Arc::clone(&block_manager),
+            seed,
+            MAX_GENERATION_CHUNKS_IN_QUEUE as usize,
+        );
 
         return World {
             seed: seed,
             chunks: HashMap::new(),
             chunk_generator: chunk_generator,
             block_manager: block_manager,
+            waiting_to_mesh: VecDeque::new(),
             ready_to_mesh: VecDeque::new(),
         };
     }
@@ -80,26 +90,30 @@ impl World {
         self.generate_missing_chunks(player);
     }
 
-    pub fn update(&mut self, render_manager: &mut RenderManager, world_mesh: &mut WorldMesh, player: &Player) {
+    pub fn update(&mut self, mesh_manager: &mut MeshManager, world_mesh: &mut WorldMesh, player: &Player) {
         if player.state.cpos.has_changed() || self.chunks.is_empty() {
-            self.clean_chunks(render_manager, world_mesh, player);
+            self.clean_chunks(mesh_manager, world_mesh, player);
             self.generate_missing_chunks(player);
         }
-
         self.compute_generated_chunks();
+        self.submit_to_mesh();
     }
 
-    fn clean_chunks(&mut self, render_manager: &mut RenderManager, world_mesh: &mut WorldMesh, player: &Player) {
+    fn clean_chunks(&mut self, mesh_manager: &mut MeshManager, world_mesh: &mut WorldMesh, player: &Player) {
         // Maths
-        let radii_h_squared = (player.state.horizontal_render_distance * player.state.horizontal_render_distance) as i32;
-        let radii_v_squared = (player.state.vertical_render_distance * player.state.vertical_render_distance) as i32;
+        // let radii_h_squared = (player.state.horizontal_render_distance * player.state.horizontal_render_distance) as i32;
+        // let radii_v_squared = (player.state.vertical_render_distance * player.state.vertical_render_distance) as i32;
 
         // Coordonnées du chunk où se trouve le joueur (entiers)
-        let cpos = player.get_cpos().into();
+        let cpos = player.get_cpos().map(|coord| coord as f32);
+        let player_simulation_aabb = AABB::new_sized(cpos, SIMULATION_DISTANCE_IN_BLOCKS_HALFED_VEC3_F);
 
         self.chunks.retain(|key, _| {
+            let (cx, cy, cz) = *key;
+            let key_vec_f = Point3::new(cx as f32, cy as f32, cz as f32);
+            let chunk_aabb = AABB::new_sized(key_vec_f, CHUNK_SIZE_HALFED_VEC3_F);
             // On garde les chunks qui sont à portée du joueur
-            if is_chunk_in_range(key, &cpos, radii_h_squared, radii_v_squared) {
+            if chunk_aabb.overlaps(&player_simulation_aabb) {
                 return true;
             }
             // On supprime proprement ceux qui ne le sont plus
@@ -109,7 +123,7 @@ impl World {
             let Some(id) = mesh.id else {
                 return false;
             };
-            let result = render_manager.mesh_manager.free(id);
+            let result = mesh_manager.free(id);
             match result {
                 Ok(_) => {}
                 Err(err) => {
@@ -156,15 +170,24 @@ impl World {
         });
 
         // On soumet les clés des chunks manquants pour les faire générer
-        for (cx, cy, cz) in missing_keys {
+        let mut removed = 0;
+        for chunk in missing_keys.iter() {
+            let (cx, cy, cz) = *chunk;
             let result = self.chunk_generator.request(cx, cy, cz);
             match result {
-                Ok(_) => {}
+                Ok(_) => {
+                    removed += 1;
+                }
                 Err(_) => {
                     // La file d'attente est pleine, on arrête ici pour l'instant
+                    log_err_client!("World chunk generation: queue is full!");
                     break;
                 }
             }
+        }
+
+        if removed > 0 {
+            missing_keys.drain(0..removed);
         }
     }
 
@@ -176,16 +199,30 @@ impl World {
             let mut chunk = chunk_with_checksum.chunk_data;
             chunk.is_dirty = false;
             self.chunks.insert(key, chunk);
-            if self.are_all_neighbors_ready(cx, cy, cz) && !self.ready_to_mesh.contains(&key) {
-                self.ready_to_mesh.push_back(key);
+            if !self.waiting_to_mesh.contains(&key) {
+                self.waiting_to_mesh.push_back(key);
             }
+        }
+    }
 
-            for (dx, dy, dz) in DIRECT_NORMALS_3D {
-                let key = (cx + dx, cy + dy, cz + dz);
-                if self.are_all_neighbors_ready(key.0, key.1, key.2) && !self.ready_to_mesh.contains(&key) {
-                    self.ready_to_mesh.push_back(key);
+    fn submit_to_mesh(&mut self) {
+        let mut kept_waiting = VecDeque::new();
+
+        for chunk in self.waiting_to_mesh.iter() {
+            let chunk = *chunk;
+            let (cx, cy, cz) = chunk;
+            if self.are_all_neighbors_ready(cx, cy, cz) {
+                if !self.ready_to_mesh.contains(&chunk) {
+                    self.ready_to_mesh.push_back(chunk);
                 }
+            } else {
+                kept_waiting.push_back(chunk);
             }
+        }
+
+        self.waiting_to_mesh.clear();
+        if !kept_waiting.is_empty() {
+            self.waiting_to_mesh.append(&mut kept_waiting);
         }
     }
 
@@ -284,7 +321,7 @@ impl World {
 }
 
 #[inline(always)]
-fn is_chunk_in_range(c: &(i32, i32, i32), center: &(i32, i32, i32), radius_h_squared: i32, radius_v_squared: i32) -> bool {
+fn is_chunk_in_range_radii(c: &(i32, i32, i32), center: &(i32, i32, i32), radius_h_squared: i32, radius_v_squared: i32) -> bool {
     let dx = c.0 - center.0;
     let dy = c.1 - center.1;
     let dz = c.2 - center.2;

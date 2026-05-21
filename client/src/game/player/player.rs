@@ -1,7 +1,6 @@
 use crate::game::network::protocol::GameProtocol;
 use crate::game::player::controllers::spectator::SpectatorPlayerController;
 use crate::game::player::controllers::walk::WalkPlayerController;
-use crate::game::render::meshing::world::WorldMesh;
 use crate::game::{
     physics::{body::PhysicsBody, collision::resolve_collision},
     player::camera::Camera,

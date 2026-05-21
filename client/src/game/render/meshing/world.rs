@@ -5,8 +5,11 @@ use crate::{
         world::world::World,
     },
 };
-use shared::parallel::{WorkResult, WorkerPool};
 use shared::{buffer_pool::BufferPool, world::data::chunk::ChunkState};
+use shared::{
+    constants::MAX_MESHING_CHUNKS_IN_QUEUE,
+    parallel::{WorkResult, WorkerPool},
+};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::{cmp::max, collections::VecDeque};
@@ -25,7 +28,7 @@ impl WorldMesh {
         let buffer_pool = Arc::new(BufferPool::new(1024 * 256));
         WorldMesh {
             meshes: HashMap::new(),
-            mesh_worker: WorkerPool::new(worker_count, buffer_pool),
+            mesh_worker: WorkerPool::with_max_pending(worker_count, buffer_pool, Some(MAX_MESHING_CHUNKS_IN_QUEUE as usize)),
             pending: HashMap::new(),
             pending_keys: HashSet::new(),
             queued: VecDeque::new(),
@@ -38,10 +41,15 @@ impl WorldMesh {
     }
 
     pub fn update(&mut self, mesh_manager: &mut MeshManager, world: &mut World) {
+        // self.clean_meshes();
         self.enqueue_missing_meshes(world);
         self.submit_meshes(world);
         self.compute_generated_meshes(mesh_manager, world);
     }
+
+    // fn clean_meshes(&mut self) {
+    //     self.meshes.iter()
+    // }
 
     fn enqueue_missing_meshes(&mut self, world: &mut World) {
         // Récupérer les chunks prêts à êtres meshés

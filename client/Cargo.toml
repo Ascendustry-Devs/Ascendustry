@@ -24,3 +24,4 @@ tokio = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 
 shared = { path = "../shared" }
+rustc-hash = "2.1.2"
