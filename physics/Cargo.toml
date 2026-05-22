@@ -1,0 +1,11 @@
+[package]
+name = "physics"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+path = "lib.rs"
+
+[features]
+server = []
+client = []

@@ -1,0 +1,24 @@
+[package]
+name = "satiscore"
+version.workspace = true
+edition.workspace = true
+
+[features]
+server = []
+client = []
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true, features = ["io-util"] }
+bincode = "1.3"
+sha2 = { workspace = true}
+getrandom = "0.2"
+noise = "0.9.0"
+num_cpus = "1.17.0"
+aes-gcm = "0.10.3"
+cgmath = "0.18.0"
+bytemuck = { version = "1.25.0", features = ["derive"] }
+rustc-hash = "2.1.2"

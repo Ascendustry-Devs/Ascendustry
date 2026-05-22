@@ -1,6 +1,6 @@
 use crate::launch::LaunchMode;
 use eframe::egui;
-use shared::network::DEFAULT_SERVER_ADDRESS;
+use satiscore::network::DEFAULT_SERVER_ADDRESS;
 use std::sync::mpsc;
 
 pub struct LauncherApp {

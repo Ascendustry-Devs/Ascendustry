@@ -1,5 +1,14 @@
 [workspace]
-members = ["launcher", "shared", "client", "server"]
+members = [
+    "client",
+    "satiscore",
+    "engine",
+    "game",
+    "launcher",
+    "network",
+    "physics",
+    "server"
+]
 resolver = "2"
 
 [workspace.package]

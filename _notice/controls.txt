@@ -1,2 +1,0 @@
-& (1) : wireframe
-é (2) : chunk borders

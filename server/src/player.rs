@@ -1,7 +1,7 @@
+use satiscore::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
+use satiscore::network::messages::{PlayerGameMode, Position, Rotation};
+use satiscore::world::data::chunk::CHUNK_SIZE_F;
 use serde::{Deserialize, Serialize};
-use shared::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
-use shared::network::messages::{PlayerGameMode, Position, Rotation};
-use shared::world::data::chunk::CHUNK_SIZE_F;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Serialize, Deserialize)]

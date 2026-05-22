@@ -8,9 +8,9 @@ pub mod state;
 pub mod world;
 
 use anyhow::Result;
+use satiscore::log_server;
+use satiscore::network::DEFAULT_SERVER_ADDRESS;
 use server::Server;
-use shared::log_server;
-use shared::network::DEFAULT_SERVER_ADDRESS;
 
 pub async fn run_server() -> Result<()> {
     log_server!("Serveur: lancement.");

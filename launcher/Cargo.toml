@@ -17,6 +17,6 @@ launcher = []
 [dependencies]
 server = { path = "../server" }
 client = { path = "../client" }
-shared = { path = "../shared" }
+satiscore = { path = "../satiscore" }
 tokio.workspace = true
 eframe = { version = "0.27", default-features = false, features = ["default_fonts", "wgpu", "x11"] }

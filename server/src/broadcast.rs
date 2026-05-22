@@ -1,4 +1,4 @@
-use shared::network::messages::Paquet;
+use satiscore::network::messages::Paquet;
 use tokio::sync::broadcast;
 
 const BROADCAST_CAPACITY: usize = 512;

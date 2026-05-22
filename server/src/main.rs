@@ -12,9 +12,9 @@ mod tests;
 
 use anyhow::Result;
 use clap::Parser;
+use satiscore::log_server;
+use satiscore::network::DEFAULT_SERVER_ADDRESS;
 use server::Server;
-use shared::log_server;
-use shared::network::DEFAULT_SERVER_ADDRESS;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

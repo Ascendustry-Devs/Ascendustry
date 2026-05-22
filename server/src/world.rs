@@ -1,13 +1,13 @@
 use cgmath::Point3;
-use shared::constants::MAX_SPAWN_SEARCH_HEIGHT;
-use shared::log_warn_server;
-use shared::network::messages::Position;
-use shared::world::data::block::BlockData;
-use shared::world::data::block::{BlockInstance, BlockManager};
-use shared::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE};
-use shared::world::generation::chunk::ChunkWithChecksum;
-use shared::world::generation::chunk_generator::generate_chunks_sequential;
-use shared::world::modified_chunk::ModifiedWorld;
+use satiscore::constants::MAX_SPAWN_SEARCH_HEIGHT;
+use satiscore::log_warn_server;
+use satiscore::network::messages::Position;
+use satiscore::world::data::block::BlockData;
+use satiscore::world::data::block::{BlockInstance, BlockManager};
+use satiscore::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE};
+use satiscore::world::generation::chunk::ChunkWithChecksum;
+use satiscore::world::generation::chunk_generator::generate_chunks_sequential;
+use satiscore::world::modified_chunk::ModifiedWorld;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -95,7 +95,7 @@ impl WorldState {
     }
 
     pub fn is_position_free(&self, x: f32, y: f32, z: f32) -> bool {
-        use shared::constants::{COLLISION_EPSILON, PLAYER_HEIGHT, PLAYER_WIDTH};
+        use satiscore::constants::{COLLISION_EPSILON, PLAYER_HEIGHT, PLAYER_WIDTH};
 
         let half_width = PLAYER_WIDTH / 2.0;
         let min_x = (x - half_width).floor() as i32;
