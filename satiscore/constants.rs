@@ -26,8 +26,8 @@ pub const MAX_MESHING_CHUNKS_IN_QUEUE: u32 = {
 };
 
 pub const MAX_GENERATION_CHUNKS_IN_QUEUE: u32 = {
-    let h_chunks = HORIZONTAL_SIMULATION_DISTANCE as u32;
-    let v_chunks = VERTICAL_SIMULATION_DISTANCE as u32;
+    let h_chunks = HORIZONTAL_RENDER_DISTANCE as u32;
+    let v_chunks = VERTICAL_RENDER_DISTANCE as u32;
     h_chunks * h_chunks * v_chunks
 };
 
