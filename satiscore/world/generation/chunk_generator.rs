@@ -3,6 +3,7 @@ use crate::world::data::block::BlockManager;
 use crate::world::data::chunk::{Chunk, ChunkData};
 use crate::world::generation::chunk::ChunkWithChecksum;
 use noise::{NoiseFn, Perlin, Seedable};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::sync::{Arc, RwLock};
 
 pub const CAVE_SCALE: f64 = 0.025;
@@ -117,4 +118,23 @@ pub fn generate_chunks_sequential(
     }
 
     result_map
+}
+
+/// Génère des chunks de manière parallèle et bloquante.
+pub fn generate_chunks_parallel_blocking(
+    block_manager: Arc<RwLock<BlockManager>>,
+    seed: u32,
+    coords: Vec<(i32, i32, i32)>,
+) -> std::collections::HashMap<(i32, i32, i32), ChunkWithChecksum> {
+    let ctx = ChunkGenContext::new(seed, block_manager);
+
+    coords
+        .par_iter()
+        .map(|(cx, cy, cz)| {
+            let chunk = Chunk::generate_with_context(*cx, *cy, *cz, &ctx);
+            let checksum = chunk.compute_checksum();
+            let chunk_data = ChunkData::new(chunk);
+            ((*cx, *cy, *cz), ChunkWithChecksum { chunk_data, checksum })
+        })
+        .collect()
 }

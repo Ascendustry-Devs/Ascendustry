@@ -6,7 +6,7 @@ use satiscore::world::data::block::BlockData;
 use satiscore::world::data::block::{BlockInstance, BlockManager};
 use satiscore::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE};
 use satiscore::world::generation::chunk::ChunkWithChecksum;
-use satiscore::world::generation::chunk_generator::generate_chunks_sequential;
+use satiscore::world::generation::chunk_generator::{generate_chunks_parallel_blocking, generate_chunks_sequential};
 use satiscore::world::modified_chunk::ModifiedWorld;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -116,7 +116,7 @@ impl WorldState {
         }
         true
     }
-
+    /// Génère les chunks manquants à partir d'une liste de coordonnées.
     pub fn generate_missing(&mut self, coords: &[(i32, i32, i32)]) {
         let missing: Vec<_> = coords
             .iter()
@@ -126,7 +126,7 @@ impl WorldState {
         if missing.is_empty() {
             return;
         }
-        let generated = generate_chunks_sequential(Arc::clone(&self.block_manager), self.seed, missing);
+        let generated = generate_chunks_parallel_blocking(Arc::clone(&self.block_manager), self.seed, missing);
         self.world_generated_chunks.extend(generated);
     }
 
@@ -146,7 +146,7 @@ impl WorldState {
         }
         chunks
     }
-
+    /// /!\ Fonction UNIQUEMENT Itérative et bloquante
     pub fn generate_chunks_between_2_pos(&mut self, p1: Point3<i32>, p2: Point3<i32>) -> HashMap<(i32, i32, i32), ChunkWithChecksum> {
         let min_x = p1.x.min(p2.x);
         let max_x = p1.x.max(p2.x);
@@ -166,7 +166,7 @@ impl WorldState {
 
         generate_chunks_sequential(Arc::clone(&self.block_manager), self.seed, coords)
     }
-
+    /// /!\ Fonction UNIQUEMENT Itérative et bloquante
     pub fn generate_chunks_in_radius(&mut self, center: Point3<i32>, radius: i32) -> HashMap<(i32, i32, i32), ChunkWithChecksum> {
         let radius_sq = (radius as i64) * (radius as i64);
         let mut coords = Vec::new();
