@@ -11,8 +11,8 @@ use crate::player::PlayerRegistry;
 use crate::state::AppState;
 use crate::world::WorldState;
 use cgmath::Point3;
+use network::messages::*;
 use satiscore::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
-use satiscore::network::messages::*;
 use tokio::sync::broadcast;
 
 // ---------------------------------------------------------------------------

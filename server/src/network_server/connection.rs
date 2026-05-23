@@ -3,11 +3,11 @@
 //! Ce module gère la connexion TCP côté serveur et encapsulate le codec de chiffrement.
 //! Il fournit des méthodes de haut niveau pour l'envoi et la réception de paquets.
 
-use satiscore::network::crypto::compute_shared_secret;
-use satiscore::network::error::NetworkError;
-use satiscore::network::messages::Paquet;
-use satiscore::network::network_protocol::{create_codec, EncryptedCodec};
-use satiscore::network::traits::PacketCodec;
+use network::crypto::compute_shared_secret;
+use network::error::NetworkError;
+use network::messages::Paquet;
+use network::network_protocol::{create_codec, EncryptedCodec};
+use network::traits::PacketCodec;
 
 /// Représente une connexion avec un client.
 ///

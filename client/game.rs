@@ -9,7 +9,7 @@ use crate::systems::inputs::InputState;
 use crate::world::world::World;
 use bytemuck::cast_slice;
 use cgmath::{dot, EuclideanSpace, Matrix4, Vector3};
-use satiscore::network::messages::ContenuPaquet;
+use network::messages::ContenuPaquet;
 
 use std::{thread::sleep, time::Duration};
 

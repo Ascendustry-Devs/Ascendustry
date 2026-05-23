@@ -1,5 +1,5 @@
 use clap::Parser;
-use satiscore::network::DEFAULT_SERVER_ADDRESS;
+use network::DEFAULT_SERVER_ADDRESS;
 use winit::event_loop::EventLoop;
 
 use client::game::GameState;

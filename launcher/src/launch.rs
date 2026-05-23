@@ -1,5 +1,5 @@
 use client::run_client;
-use satiscore::network::DEFAULT_SERVER_ADDRESS;
+use network::DEFAULT_SERVER_ADDRESS;
 use server::run_server;
 use tokio::runtime::Runtime;
 

@@ -5,8 +5,8 @@
 
 use std::future::Future;
 
-use crate::network::error::NetworkError;
-use crate::network::messages::Paquet;
+use crate::error::NetworkError;
+use crate::messages::Paquet;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 /// Trait pour l'envoi et la réception de paquets chiffrés.

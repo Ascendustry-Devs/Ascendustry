@@ -18,10 +18,10 @@
 //! 3. Le client envoie un paquet `Handshake` chiffré
 //! 4. Le serveur répond avec `HandshakeAck` et `ServerSeed` chiffrés
 
-use crate::network::crypto::{aes_decrypt, aes_encrypt, compute_shared_secret, generate_server_id, server_id_to_hex};
-use crate::network::error::NetworkError;
-use crate::network::messages::{Paquet, MAX_PAQUET_SIZE};
-use crate::network::traits::PacketCodec;
+use crate::crypto::{aes_decrypt, aes_encrypt, compute_shared_secret, generate_server_id, server_id_to_hex};
+use crate::error::NetworkError;
+use crate::messages::{Paquet, MAX_PAQUET_SIZE};
+use crate::traits::PacketCodec;
 
 use aes_gcm::{aead::KeyInit, Aes256Gcm, Key};
 use std::sync::Arc;

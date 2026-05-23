@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use crate::game::{HandlerContext, PacketHandler};
-use crate::network::ServerConnection;
+use crate::network_server::ServerConnection;
 use crate::state::AppState;
 use anyhow::Result;
+use network::messages::{self, new_server_seed_paquet, ContenuPaquet, Paquet, PlayerTransformation, TypePaquet};
+use network::traits::PacketCodec;
 use satiscore::log_err_server;
 use satiscore::log_server;
-use satiscore::network::messages::{self, new_server_seed_paquet, ContenuPaquet, Paquet, PlayerTransformation, TypePaquet};
-use satiscore::network::traits::PacketCodec;
 use tokio::io::split;
 use tokio::net::TcpStream;
 use tokio::sync::broadcast::error::RecvError;

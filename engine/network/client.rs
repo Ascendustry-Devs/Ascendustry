@@ -42,10 +42,10 @@
 //! Le TcpStream est splitté en deux moitiés (`into_split()`) après le handshake,
 //! permettant à la lecture et l'écriture de se faire simultanément sans mutex.
 
-use satiscore::network::crypto::compute_shared_secret;
-use satiscore::network::messages::{ContenuPaquet, Paquet, CURRENT_VERSION};
-use satiscore::network::network_protocol::{create_codec, EncryptedCodec};
-use satiscore::network::traits::PacketCodec;
+use network::crypto::compute_shared_secret;
+use network::messages::{ContenuPaquet, Paquet, CURRENT_VERSION};
+use network::network_protocol::{create_codec, EncryptedCodec};
+use network::traits::PacketCodec;
 use satiscore::{log_client, log_err_client};
 use std::sync::Arc;
 use std::time::Instant;
@@ -168,7 +168,7 @@ impl ClientConnection {
             let codec = Arc::new(create_codec(compute_shared_secret(&server_id_buf, b"server")));
 
             let packet = Paquet::new(
-                satiscore::network::messages::TypePaquet::Handshake,
+                network::messages::TypePaquet::Handshake,
                 ContenuPaquet::DonneesConnexion {
                     version: CURRENT_VERSION,
                     username: username.to_string(),

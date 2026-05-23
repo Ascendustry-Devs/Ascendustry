@@ -9,12 +9,12 @@ use crate::{
     world::world::World,
 };
 use cgmath::Point3;
+use network::messages::{Paquet, PlayerGameMode, Position, Rotation};
 use satiscore::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
 use satiscore::log_client;
-use satiscore::network::messages::{Paquet, PlayerGameMode, Position, Rotation};
 use satiscore::utils::updatable::Updatable;
 use satiscore::world::data::block::BlockInstance;
 use satiscore::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};

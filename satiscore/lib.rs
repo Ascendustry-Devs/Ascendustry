@@ -1,7 +1,6 @@
 pub mod buffer_pool;
 pub mod constants;
 pub mod geometry;
-pub mod network;
 pub mod parallel;
 pub mod utils;
 pub mod world;

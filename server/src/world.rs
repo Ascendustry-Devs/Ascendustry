@@ -1,7 +1,7 @@
 use cgmath::Point3;
+use network::messages::Position;
 use satiscore::constants::MAX_SPAWN_SEARCH_HEIGHT;
 use satiscore::log_warn_server;
-use satiscore::network::messages::Position;
 use satiscore::world::data::block::BlockData;
 use satiscore::world::data::block::{BlockInstance, BlockManager};
 use satiscore::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE};

@@ -29,3 +29,4 @@ pollster = "0.4.0"
 satiscore = { version = "0.1.0", path = "../satiscore" }
 winit = "0.30.13"
 kira = "0.12.0"
+network = { version = "0.1.0", path = "../network" }

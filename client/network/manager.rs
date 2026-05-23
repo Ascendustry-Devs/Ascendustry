@@ -23,10 +23,8 @@
 
 use crate::network::protocol::GameProtocol;
 use engine::network::ClientConnection;
-use satiscore::{
-    log_client, log_err_client,
-    network::messages::{Paquet, PlayerGameMode},
-};
+use network::messages::{Paquet, PlayerGameMode};
+use satiscore::{log_client, log_err_client};
 use std::time::{Duration, Instant};
 
 /// Intervalle entre deux envois de position (50ms = 20 updates/sec)

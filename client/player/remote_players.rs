@@ -1,4 +1,4 @@
-use satiscore::network::messages::PlayerTransformation;
+use network::messages::PlayerTransformation;
 use satiscore::utils::updatable::Updatable;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};

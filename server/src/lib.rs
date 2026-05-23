@@ -1,15 +1,15 @@
 pub mod broadcast;
 pub mod client;
 pub mod game;
-pub mod network;
+pub mod network_server;
 pub mod player;
 pub mod server;
 pub mod state;
 pub mod world;
 
 use anyhow::Result;
+use network::DEFAULT_SERVER_ADDRESS;
 use satiscore::log_server;
-use satiscore::network::DEFAULT_SERVER_ADDRESS;
 use server::Server;
 
 pub async fn run_server() -> Result<()> {

@@ -12,10 +12,15 @@
 //! - [`world::modified_chunk`]  : Modifications de blocs
 //! - [`world::generation`]      : Génération déterministe de chunks
 
-use aes_gcm::{Aes256Gcm, KeyInit};
-use std::sync::{Arc, RwLock};
-
 use crate::constants::{HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE};
+use aes_gcm::{Aes256Gcm, KeyInit};
+use network::crypto::{aes_decrypt, aes_encrypt, compute_shared_secret, generate_server_id, server_id_to_hex, xor_crypt};
+use network::error::NetworkError;
+use network::messages::*;
+use network::network_protocol::{
+    create_cipher, create_codec, create_server_id, perform_client_handshake, perform_server_handshake, Cipher,
+};
+use std::sync::{Arc, RwLock};
 
 // ---------------------------------------------------------------------------
 // network::messages
@@ -25,8 +30,6 @@ use crate::constants::{HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE};
 /// correct sérialisation → désérialisation.
 #[test]
 fn messages_serialize_roundtrip_all_variants() {
-    use crate::network::messages::*;
-
     let cases: Vec<Paquet> = vec![
         create_handshake("Alice".to_string()),
         create_handshake_ack(42, 12345),
@@ -71,7 +74,6 @@ fn messages_serialize_roundtrip_all_variants() {
 /// Vérifie que `create_handshake` construit un paquet correct.
 #[test]
 fn messages_create_handshake() {
-    use crate::network::messages::*;
     let p = create_handshake("Alice".to_string());
     assert_eq!(p.type_paquet, TypePaquet::Handshake);
     match &p.contenu {
@@ -86,8 +88,6 @@ fn messages_create_handshake() {
 /// Vérifie que `new_ping_paquet` et `new_pong_paquet` conservent le timestamp.
 #[test]
 fn messages_ping_pong_timestamp() {
-    use crate::network::messages::*;
-
     let ping = new_ping_paquet(9999);
     match &ping.contenu {
         ContenuPaquet::Ping { timestamp } => assert_eq!(*timestamp, 9999),
@@ -104,7 +104,6 @@ fn messages_ping_pong_timestamp() {
 /// Vérifie que `create_player_update` remplit correctement les champs.
 #[test]
 fn messages_create_player_update() {
-    use crate::network::messages::*;
     let p = create_player_update(7, 1.0, 2.0, 3.0, 0.1, 0.2);
     assert_eq!(p.type_paquet, TypePaquet::PlayerTransformation);
     match &p.contenu {
@@ -120,7 +119,6 @@ fn messages_create_player_update() {
 /// Vérifie que `new_set_block_paquet` conserve les coordonnées et l'id du bloc.
 #[test]
 fn messages_set_block() {
-    use crate::network::messages::*;
     let p = new_set_block_paquet(-10, 20, -30, 3);
     assert_eq!(p.type_paquet, TypePaquet::SetBlock);
     match &p.contenu {
@@ -137,8 +135,6 @@ fn messages_set_block() {
 /// Vérifie que les chaînes vides et les valeurs extrêmes passent la sérialisation.
 #[test]
 fn messages_edge_cases() {
-    use crate::network::messages::*;
-
     let p = create_handshake(String::new());
     let bytes = p.serialize();
     let back = Paquet::deserialize(&bytes).unwrap();
@@ -163,8 +159,6 @@ fn messages_edge_cases() {
 /// Vérifie que `compute_shared_secret` est déterministe : mêmes entrées -> même sortie.
 #[test]
 fn crypto_shared_secret_deterministic() {
-    use crate::network::crypto::compute_shared_secret;
-
     let server_id = [0xABu8; 16];
     let token = b"server";
 
@@ -176,8 +170,6 @@ fn crypto_shared_secret_deterministic() {
 /// Vérifie que deux entrées différentes produisent des secrets différents.
 #[test]
 fn crypto_shared_secret_different_inputs() {
-    use crate::network::crypto::compute_shared_secret;
-
     let a = compute_shared_secret(&[1u8; 16], b"token_a");
     let b = compute_shared_secret(&[2u8; 16], b"token_b");
     assert_ne!(a, b);
@@ -186,8 +178,6 @@ fn crypto_shared_secret_different_inputs() {
 /// Vérifie que `server_id_to_hex` produit la chaîne hexadécimale attendue.
 #[test]
 fn crypto_server_id_to_hex() {
-    use crate::network::crypto::server_id_to_hex;
-
     assert_eq!(server_id_to_hex(&[0x00, 0xFF]), "00ff");
     assert_eq!(server_id_to_hex(&[0xDE, 0xAD, 0xBE, 0xEF]), "deadbeef");
     assert_eq!(server_id_to_hex(&[]), String::new());
@@ -196,7 +186,6 @@ fn crypto_server_id_to_hex() {
 /// Vérifie que `generate_server_id` produit 16 octets.
 #[test]
 fn crypto_generate_server_id_length() {
-    use crate::network::crypto::generate_server_id;
     let id = generate_server_id();
     assert_eq!(id.len(), 16);
 }
@@ -204,7 +193,6 @@ fn crypto_generate_server_id_length() {
 /// Vérifie l'aller-retour chiffrement/déchiffrement AES.
 #[test]
 fn crypto_aes_roundtrip() {
-    use crate::network::crypto::{aes_decrypt, aes_encrypt};
     use aes_gcm::Key;
 
     let key = [0x42u8; 32];
@@ -223,7 +211,6 @@ fn crypto_aes_roundtrip() {
 /// Vérifie que déchiffrer avec une clé différente échoue (authentification AES-GCM).
 #[test]
 fn crypto_aes_wrong_key_fails() {
-    use crate::network::crypto::{aes_decrypt, aes_encrypt};
     use aes_gcm::Key;
 
     let key_a = [0xAAu8; 32];
@@ -239,7 +226,6 @@ fn crypto_aes_wrong_key_fails() {
 /// Vérifie que déchiffrer des données trop courtes (< 12 octets) échoue.
 #[test]
 fn crypto_aes_decrypt_too_short() {
-    use crate::network::crypto::aes_decrypt;
     use aes_gcm::Key;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&[0u8; 32]));
@@ -250,8 +236,6 @@ fn crypto_aes_decrypt_too_short() {
 /// Vérifie que `xor_crypt` est sa propre inverse.
 #[test]
 fn crypto_xor_roundtrip() {
-    use crate::network::crypto::xor_crypt;
-
     let data = b"Hello, world!";
     let key = b"secret";
     let encrypted = xor_crypt(data, key);
@@ -262,8 +246,6 @@ fn crypto_xor_roundtrip() {
 /// Vérifie que `xor_crypt` fonctionne avec une clé à un seul octet.
 #[test]
 fn crypto_xor_single_byte_key() {
-    use crate::network::crypto::xor_crypt;
-
     let data = b"test data";
     let key = b"\xFF";
     let encrypted = xor_crypt(data, key);
@@ -279,8 +261,6 @@ fn crypto_xor_single_byte_key() {
 /// Vérifie que `Cipher::encrypt` / `decrypt` font un aller-retour correct.
 #[test]
 fn protocol_cipher_roundtrip() {
-    use crate::network::network_protocol::Cipher;
-
     let cipher = Cipher::new([0x42u8; 32]);
     let data = b"sensitive data to encrypt";
     let encrypted = cipher.encrypt(data);
@@ -292,9 +272,6 @@ fn protocol_cipher_roundtrip() {
 /// variante de paquet.
 #[test]
 fn protocol_codec_encode_decode_roundtrip() {
-    use crate::network::messages::*;
-    use crate::network::network_protocol::create_codec;
-
     let codec = create_codec([0x42u8; 32]);
 
     let packets = vec![
@@ -320,8 +297,6 @@ fn protocol_codec_encode_decode_roundtrip() {
 /// Vérifie que `decode` panique sur des données invalides (le decrypt expecte).
 #[test]
 fn protocol_codec_decode_invalid_data_panics() {
-    use crate::network::network_protocol::create_codec;
-
     let codec = create_codec([0x42u8; 32]);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let _ = codec.decode(b"garbage");
@@ -333,8 +308,6 @@ fn protocol_codec_decode_invalid_data_panics() {
 /// produisent le même secret quand le client utilise le token "server".
 #[test]
 fn protocol_handshake_match() {
-    use crate::network::network_protocol::{perform_client_handshake, perform_server_handshake};
-
     let server_id = [0x42u8; 16];
     let server_secret = perform_server_handshake(&server_id);
     let client_secret = perform_client_handshake(&server_id, b"server");
@@ -344,8 +317,6 @@ fn protocol_handshake_match() {
 /// Vérifie que `create_server_id` retourne 16 octets et une chaîne hex de 32 chars.
 #[test]
 fn protocol_create_server_id() {
-    use crate::network::network_protocol::create_server_id;
-
     let (id, hex) = create_server_id();
     assert_eq!(id.len(), 16);
     assert_eq!(hex.len(), 32);
@@ -354,8 +325,6 @@ fn protocol_create_server_id() {
 /// Vérifie que `create_cipher` produit un cipher utilisable.
 #[test]
 fn protocol_create_cipher_usable() {
-    use crate::network::network_protocol::create_cipher;
-
     let cipher = create_cipher([0u8; 32]);
     let data = b"test";
     let encrypted = cipher.encrypt(data);
@@ -370,8 +339,6 @@ fn protocol_create_cipher_usable() {
 /// Vérifie le format d'affichage de chaque variante de `NetworkError`.
 #[test]
 fn error_display_format() {
-    use crate::network::error::NetworkError;
-
     let cases: Vec<(NetworkError, &str)> = vec![
         (NetworkError::Io("timeout".into()), "IO error: timeout"),
         (NetworkError::Codec("bad format".into()), "Codec error: bad format"),
@@ -390,8 +357,6 @@ fn error_display_format() {
 /// Vérifie les conversions `From` vers `NetworkError`.
 #[test]
 fn error_from_conversions() {
-    use crate::network::error::NetworkError;
-
     let io_err = std::io::Error::new(std::io::ErrorKind::Other, "custom io");
     let err: NetworkError = io_err.into();
     assert!(matches!(err, NetworkError::Io(_)));
@@ -406,8 +371,6 @@ fn error_from_conversions() {
 /// Vérifie que `PacketTooLarge` préserve la taille après clone.
 #[test]
 fn error_clone_preserves_size() {
-    use crate::network::error::NetworkError;
-
     let original = NetworkError::PacketTooLarge(70000);
     let cloned = original.clone();
     match cloned {

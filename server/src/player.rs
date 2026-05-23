@@ -1,5 +1,5 @@
+use network::messages::{PlayerGameMode, Position, Rotation};
 use satiscore::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
-use satiscore::network::messages::{PlayerGameMode, Position, Rotation};
 use satiscore::world::data::chunk::CHUNK_SIZE_F;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
