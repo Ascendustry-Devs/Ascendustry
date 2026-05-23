@@ -38,5 +38,8 @@ lto = true
 strip = true
 
 [profile.flamegraph]
-inherits = "dev"
-# opt-level = 3
+inherits = "release"
+debug = true
+codegen-units = 4
+incremental = true
+strip = false

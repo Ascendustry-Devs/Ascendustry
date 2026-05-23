@@ -24,7 +24,7 @@ launcher: build
 	RUSTFLAGS="-Awarnings" cargo run -p launcher --bin launcher
 
 profile:
-	RUSTFLAGS="-C force-frame-pointers=yes" cargo flamegraph --profile flamegraph -p client --bin client -F 49
+	RUSTFLAGS="-C force-frame-pointers=yes" cargo flamegraph --profile flamegraph -p client -F 49
 
 doc:
 	cargo doc --no-deps --open --document-private-items

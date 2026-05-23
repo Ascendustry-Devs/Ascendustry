@@ -34,3 +34,5 @@ satiscore = { version = "0.1.0", path = "../satiscore" }
 engine = { version = "0.1.0", path = "../engine" }
 network = { version = "0.1.0", path = "../network" }
 physics = { path = "../physics", features = ["client"] }
+rustc-hash = "2.1.2"
+spin_sleep = "1.3.3"

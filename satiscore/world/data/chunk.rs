@@ -1,7 +1,8 @@
 use crate::world::data::block::BlockInstance;
 use cgmath::Vector3;
+use rustc_hash::{FxBuildHasher, FxHashSet};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, sync::Arc};
+use std::{collections::HashSet, fmt::Display, sync::Arc};
 
 pub const CHUNK_VALIDATION_BATCH_SIZE: usize = 20;
 
@@ -191,12 +192,37 @@ impl Chunk {
     /// Génère toutes les combinaisons de clés (cx, cy, cz) en fonction des paramètres d'entrée.
     pub fn get_cube_chunk_keys(min_cx: i32, max_cx: i32, min_cy: i32, max_cy: i32, min_cz: i32, max_cz: i32) -> Vec<(i32, i32, i32)> {
         let chunk_number = ((max_cx - min_cx) * (max_cy - min_cy) * (max_cz - min_cz)) as usize;
-        let mut keys: Vec<(i32, i32, i32)> = Vec::with_capacity(chunk_number);
+        let mut keys = Vec::with_capacity(chunk_number);
 
         for x in min_cx..=max_cx {
             for y in min_cy..=max_cy {
                 for z in min_cz..=max_cz {
                     keys.push((x, y, z));
+                }
+            }
+        }
+
+        return keys;
+    }
+
+    /// Génère toutes les combinaisons de clés (cx, cy, cz) en fonction des paramètres d'entrée.
+    ///
+    /// Retourne un FxHashSet.
+    pub fn get_cube_chunk_keys_set(
+        min_cx: i32,
+        max_cx: i32,
+        min_cy: i32,
+        max_cy: i32,
+        min_cz: i32,
+        max_cz: i32,
+    ) -> FxHashSet<(i32, i32, i32)> {
+        let chunk_number = ((max_cx - min_cx) * (max_cy - min_cy) * (max_cz - min_cz)) as usize;
+        let mut keys = HashSet::with_capacity_and_hasher(chunk_number, FxBuildHasher);
+
+        for x in min_cx..=max_cx {
+            for y in min_cy..=max_cy {
+                for z in min_cz..=max_cz {
+                    keys.insert((x, y, z));
                 }
             }
         }

@@ -15,9 +15,10 @@ use engine::core::frame::EngineFrameData;
 use engine::core::frame::GameFrameData;
 use engine::render::render::Renderer;
 use network::messages::ContenuPaquet;
+use satiscore::constants::CHUNK_VECTOR;
 use satiscore::geometry::{plane::Plane, vertex::generate_cube};
 use satiscore::{log_client, log_err_client, world::data::chunk::CHUNK_SIZE_F};
-use std::{thread::sleep, time::Duration};
+use std::time::Duration;
 use winit::keyboard::KeyCode;
 
 const FPS_CAP: u32 = 60;
@@ -82,7 +83,7 @@ impl AppState for GameState {
         self.delay_s += frame.dt;
 
         if self.delay_s < DT_CAP {
-            sleep(Duration::from_micros(((DT_CAP - self.delay_s) * 1_000_000.0) as u64));
+            spin_sleep::sleep(Duration::from_micros(((DT_CAP - self.delay_s) * 1_000_000.0) as u64));
         }
 
         self.delay_s -= DT_CAP;
@@ -177,26 +178,29 @@ impl AppState for GameState {
             let cam_forward = self.player.state.camera.forward();
             let cam_frustum = extract_camera_frustum_planes(view_proj);
 
-            let chunks_to_render = self.player.get_rendered_chunk_keys();
+            let chunks_to_render = self.player.get_rendered_chunk_keys_set();
 
             for (key, mesh) in self.world_mesh.meshes.iter() {
                 if mesh.id.is_none() || !chunks_to_render.contains(key) {
                     continue;
                 }
 
-                let chunk_vector = Vector3::new(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F);
                 let min = Vector3::new((key.0) as f32, (key.1) as f32, (key.2) as f32) * CHUNK_SIZE_F;
-                let max = min + chunk_vector;
+                let max = min + CHUNK_VECTOR;
 
                 // First, we check simply if the chunk to render is behind the camera.
-                // Second, we check if the chunk is within the field of view of the camera.
-                // If any of the above is true, we do not render the chunk.
-                // We do the frustum check after the first one because it is more expansive,
-                // and the first one would already eliminate ~50% of the chunks very quickly.
-                if is_chunk_behind_camera(&min, &max, &cam_forward, &cam_position) || !is_chunk_in_camera_frustum(&min, &max, &cam_frustum)
-                {
+                if is_chunk_behind_camera(&min, &max, &cam_forward, &cam_position) {
                     continue;
                 }
+
+                // Second, we check if the chunk is within the field of view of the camera.
+                if !is_chunk_in_camera_frustum(&min, &max, &cam_frustum) {
+                    continue;
+                }
+
+                // If any of the above is true, we do not render the chunk.
+                // We do the frustum check lately because it is more expansive,
+                // on top of this, the first check would already eliminate ~50% of the candidates.
 
                 data.visible_meshes.insert(mesh.id.unwrap());
             }

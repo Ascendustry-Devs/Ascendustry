@@ -9,6 +9,7 @@ use crate::world::world::World;
 use cgmath::Point3;
 use network::messages::{Paquet, PlayerGameMode, Position, Rotation};
 use physics::{body::PhysicsBody, collision::resolve_collision};
+use rustc_hash::FxHashSet;
 use satiscore::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
@@ -186,6 +187,15 @@ impl PlayerState {
         let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.get_rendered_chunk_range();
         Chunk::get_cube_chunk_keys(min_cx, max_cx, min_cy, max_cy, min_cz, max_cz)
     }
+
+    /// Génère toutes les clés (cx, cy, cz) des chunks à afficher autour du joueur.
+    ///
+    /// Retourne un FxHashSet.
+    #[inline(always)]
+    pub fn get_rendered_chunk_keys_set(&self) -> FxHashSet<(i32, i32, i32)> {
+        let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.get_rendered_chunk_range();
+        Chunk::get_cube_chunk_keys_set(min_cx, max_cx, min_cy, max_cy, min_cz, max_cz)
+    }
 }
 
 /// Structure principale du joueur local.
@@ -262,6 +272,10 @@ impl Player {
 
     pub fn get_rendered_chunk_keys(&self) -> Vec<(i32, i32, i32)> {
         self.state.get_rendered_chunk_keys()
+    }
+
+    pub fn get_rendered_chunk_keys_set(&self) -> FxHashSet<(i32, i32, i32)> {
+        self.state.get_rendered_chunk_keys_set()
     }
 
     pub fn get_simulation_chunk_keys(&self) -> Vec<(i32, i32, i32)> {
