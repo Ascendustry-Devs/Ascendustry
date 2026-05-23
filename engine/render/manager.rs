@@ -69,43 +69,33 @@ impl RenderManager {
     }
 
     pub fn update_indirect_buffer(&mut self) {
-        // TODO:
-        // - retirer les 2 memory heap allocations
-        // - itérer sur mesh_manager.data directement
-        // - réutiliser self.indirect_commands, .clear(), .push()
         let device = self.gpu_tools.device();
         let queue = self.gpu_tools.queue();
-        let mesh_regions: Vec<(usize, usize)> = self
-            .mesh_manager
-            .data
-            .iter()
-            .filter(|m| self.ids_to_render.contains(&m.id))
-            .map(|m| (m.position, m.length))
-            .collect();
+        const VERTEX_SIZE: usize = std::mem::size_of::<Vertex>();
 
-        if mesh_regions.is_empty() {
-            self.indirect_commands.clear();
-            return;
-        }
+        self.indirect_commands.clear();
 
-        let mut commands: Vec<DrawIndirectArgs> = Vec::with_capacity(mesh_regions.len());
-        const VERTEX_SIZE: u32 = std::mem::size_of::<Vertex>() as u32;
-
-        for (offset, length) in &mesh_regions {
-            let vertex_count = length / VERTEX_SIZE as usize;
-            commands.push(DrawIndirectArgs {
-                vertex_count: vertex_count as u32,
+        for m in &self.mesh_manager.data {
+            if !self.ids_to_render.contains(&m.id) {
+                continue;
+            }
+            self.indirect_commands.push(DrawIndirectArgs {
+                vertex_count: (m.length / VERTEX_SIZE) as u32,
                 instance_count: 1,
-                first_vertex: (offset / VERTEX_SIZE as usize) as u32,
+                first_vertex: (m.position / VERTEX_SIZE) as u32,
                 first_instance: 0,
             });
         }
 
-        self.count_buffer
-            .update(device, queue, bytemuck::bytes_of(&(mesh_regions.len() as u32)));
+        if self.indirect_commands.is_empty() {
+            return;
+        }
 
-        let data = bytemuck::cast_slice(&commands);
+        let count = self.indirect_commands.len();
+        let count_raw = bytemuck::bytes_of(&count);
+        self.count_buffer.update(device, queue, count_raw);
+
+        let data = bytemuck::cast_slice(&self.indirect_commands);
         self.indirect_buffer.update(device, queue, data);
-        self.indirect_commands = commands;
     }
 }

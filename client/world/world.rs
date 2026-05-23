@@ -1,4 +1,5 @@
 use engine::render::{mesh::manager::MeshManager, texture::RenderMode};
+use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use crate::api::texture_loader::TextureLoader;
 use cgmath::Point3;
@@ -6,7 +7,7 @@ use physics::aabb::AABB;
 use physics::collision_world::CollisionWorld;
 use satiscore::{
     constants::DIRECT_NORMALS_3D,
-    utils::unique_queue::{FastUniqueQueue, UniqueQueue},
+    utils::unique_queue::{FxUniqueQueue, UniqueQueue},
     world::data::block::BlockData,
 };
 use satiscore::{constants::MAX_GENERATION_CHUNKS_IN_QUEUE, log_err_client};
@@ -46,11 +47,11 @@ pub struct MeshSnapshot {
 
 pub struct World {
     seed: u32,
-    chunks: HashMap<(i32, i32, i32), ChunkData>,
+    chunks: FxHashMap<(i32, i32, i32), ChunkData>,
     chunk_generator: ChunkGenerator,
     block_manager: Arc<RwLock<BlockManager>>,
-    waiting_to_mesh: FastUniqueQueue<(i32, i32, i32)>,
-    ready_to_mesh: FastUniqueQueue<(i32, i32, i32)>,
+    waiting_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
+    ready_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
 }
 
 impl World {
@@ -67,7 +68,7 @@ impl World {
 
         return World {
             seed: seed,
-            chunks: HashMap::new(),
+            chunks: HashMap::with_hasher(FxBuildHasher),
             chunk_generator: chunk_generator,
             block_manager: block_manager,
             waiting_to_mesh: UniqueQueue::with_capacity(256),
@@ -231,7 +232,7 @@ impl World {
         self.waiting_to_mesh = waiting;
     }
 
-    pub fn ready_to_mesh(&mut self) -> &mut FastUniqueQueue<(i32, i32, i32)> {
+    pub fn ready_to_mesh(&mut self) -> &mut FxUniqueQueue<(i32, i32, i32)> {
         &mut self.ready_to_mesh
     }
 

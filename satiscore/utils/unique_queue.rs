@@ -23,7 +23,7 @@ pub struct UniqueQueue<T, S = RandomState> {
     set: HashSet<T, S>,
 }
 
-pub type FastUniqueQueue<T> = UniqueQueue<T, FxBuildHasher>;
+pub type FxUniqueQueue<T> = UniqueQueue<T, FxBuildHasher>;
 
 impl<T: Hash + Eq + Clone, S: BuildHasher + Default> UniqueQueue<T, S> {
     pub fn new() -> Self {

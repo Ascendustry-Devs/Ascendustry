@@ -78,10 +78,10 @@ impl GpuContext {
             format: surface_format,
             width: size.width,
             height: size.height,
-            present_mode: PresentMode::AutoNoVsync,
+            present_mode: PresentMode::Mailbox,
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: 1,
         };
 
         Ok(Self {

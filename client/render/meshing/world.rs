@@ -1,6 +1,7 @@
+use rustc_hash::{FxBuildHasher, FxHashMap};
 use satiscore::{
     buffer_pool::BufferPool,
-    utils::unique_queue::{FastUniqueQueue, UniqueQueue},
+    utils::unique_queue::{FxUniqueQueue, UniqueQueue},
     world::data::chunk::ChunkState,
 };
 use satiscore::{
@@ -22,11 +23,11 @@ use {
 };
 
 pub struct WorldMesh {
-    pub meshes: HashMap<(i32, i32, i32), ChunkMesh>,
+    pub meshes: FxHashMap<(i32, i32, i32), ChunkMesh>,
     mesh_worker: WorkerPool<GreedyMeshingProcessor>,
     pending: HashMap<usize, (i32, i32, i32)>,
     pending_keys: HashSet<(i32, i32, i32)>,
-    queued: FastUniqueQueue<(i32, i32, i32)>,
+    queued: FxUniqueQueue<(i32, i32, i32)>,
 }
 
 impl WorldMesh {
@@ -34,11 +35,11 @@ impl WorldMesh {
         let worker_count = max(num_cpus::get() / 2, 1);
         let buffer_pool = Arc::new(BufferPool::new(1024 * 256));
         WorldMesh {
-            meshes: HashMap::new(),
+            meshes: HashMap::with_hasher(FxBuildHasher),
             mesh_worker: WorkerPool::with_max_pending(worker_count, buffer_pool, Some(MAX_MESHING_CHUNKS_IN_QUEUE as usize)),
             pending: HashMap::new(),
             pending_keys: HashSet::new(),
-            queued: FastUniqueQueue::new(),
+            queued: FxUniqueQueue::new(),
         }
     }
 
