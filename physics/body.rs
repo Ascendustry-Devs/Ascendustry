@@ -1,4 +1,4 @@
-use crate::physics::aabb::AABB;
+use crate::aabb::AABB;
 use cgmath::{Point3, Vector3};
 use satiscore::constants::{GRAVITY, JUMP_SPEED, WALK_SPEED};
 

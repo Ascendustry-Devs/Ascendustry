@@ -1,6 +1,8 @@
 use crate::player::PlayerRegistry;
 use crate::world::WorldState;
 use network::messages::{ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet};
+use physics::position::{find_safe_spawn_point, is_position_free};
+use physics::validator::is_movement_plausible;
 use satiscore::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use std::sync::RwLock;
 use tokio::sync::broadcast;
@@ -40,9 +42,8 @@ impl AppState {
     pub fn add_player(&self, id: u64, username: String) {
         let mut state = self.inner.write().unwrap();
         state.players.add(id, username);
-        let safe_position = state
-            .world
-            .find_safe_spawn_point(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
+        let (sx, sy, sz) = find_safe_spawn_point(&state.world, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
+        let safe_position = Position { x: sx, y: sy, z: sz };
         let safe_rotation = Rotation { x: 0.0, y: 0.0 };
         state.players.update_position(id, safe_position.clone(), safe_rotation.clone());
         state.players.set_last_valid_transformation(id, safe_position, safe_rotation);
@@ -107,7 +108,8 @@ impl AppState {
                 .get(&id)
                 .map(|p| (p.position.x, p.position.y, p.position.z))
                 .unwrap_or((SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z));
-            let surface = state.world.find_safe_spawn_point(x, y, z);
+            let (sx, sy, sz) = find_safe_spawn_point(&state.world, x, y, z);
+            let surface = Position { x: sx, y: sy, z: sz };
             if let Some(player) = state.players.get_mut(&id) {
                 player.position = surface.clone();
                 player.last_valid_position = surface;
@@ -127,11 +129,17 @@ impl AppState {
                     continue;
                 }
 
-                let valid = state
-                    .world
-                    .is_position_free(player.position.x, player.position.y, player.position.z);
+                let valid = is_position_free(&state.world, player.position.x, player.position.y, player.position.z);
 
-                let plausible = crate::game::validator::is_movement_plausible(&player.last_valid_position, &player.position, 0.2);
+                let plausible = is_movement_plausible(
+                    player.last_valid_position.x,
+                    player.last_valid_position.y,
+                    player.last_valid_position.z,
+                    player.position.x,
+                    player.position.y,
+                    player.position.z,
+                    0.2,
+                );
 
                 evals.push((
                     player.id,

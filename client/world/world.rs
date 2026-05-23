@@ -1,7 +1,9 @@
 use engine::render::{mesh::manager::MeshManager, texture::RenderMode};
 
-use crate::{api::texture_loader::TextureLoader, physics::aabb::AABB};
+use crate::api::texture_loader::TextureLoader;
 use cgmath::Point3;
+use physics::aabb::AABB;
+use physics::collision_world::CollisionWorld;
 use satiscore::{
     constants::DIRECT_NORMALS_3D,
     utils::unique_queue::{FastUniqueQueue, UniqueQueue},
@@ -316,6 +318,20 @@ impl World {
         self.chunks.clear();
         // TODO: faire fonctionner -> self.block_manager.dispose();
         self.chunk_generator.dispose();
+    }
+}
+
+impl CollisionWorld for World {
+    fn is_empty(&self) -> bool {
+        self.chunks.is_empty()
+    }
+
+    fn is_block_solid(&self, x: i32, y: i32, z: i32) -> bool {
+        let (cx, cy, cz) = Chunk::chunk_coords_from_world(x, y, z);
+        if !self.chunks.contains_key(&(cx, cy, cz)) {
+            return true;
+        }
+        self.get_block_from_xyz(x, y, z).is_solid()
     }
 }
 

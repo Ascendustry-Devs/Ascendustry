@@ -9,3 +9,7 @@ path = "lib.rs"
 [features]
 server = []
 client = []
+
+[dependencies]
+cgmath = "0.18.0"
+satiscore = { path = "../satiscore" }

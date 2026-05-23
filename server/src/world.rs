@@ -1,6 +1,4 @@
 use cgmath::Point3;
-use network::messages::Position;
-use satiscore::constants::MAX_SPAWN_SEARCH_HEIGHT;
 use satiscore::log_warn_server;
 use satiscore::world::data::block::BlockData;
 use satiscore::world::data::block::{BlockInstance, BlockManager};
@@ -10,6 +8,8 @@ use satiscore::world::generation::chunk_generator::{generate_chunks_parallel_blo
 use satiscore::world::modified_chunk::ModifiedWorld;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+
+use physics::collision_world::CollisionWorld;
 
 pub struct WorldState {
     pub seed: u32,
@@ -83,39 +83,6 @@ impl WorldState {
         BlockInstance::air()
     }
 
-    pub fn find_safe_spawn_point(&self, x: f32, start_y: f32, z: f32) -> Position {
-        let mut y = start_y;
-        while y < MAX_SPAWN_SEARCH_HEIGHT {
-            if self.is_position_free(x, y, z) {
-                return Position { x, y, z };
-            }
-            y += 1.0;
-        }
-        Position { x, y: start_y, z }
-    }
-
-    pub fn is_position_free(&self, x: f32, y: f32, z: f32) -> bool {
-        use satiscore::constants::{COLLISION_EPSILON, PLAYER_HEIGHT, PLAYER_WIDTH};
-
-        let half_width = PLAYER_WIDTH / 2.0;
-        let min_x = (x - half_width).floor() as i32;
-        let max_x = (x + half_width - COLLISION_EPSILON).floor() as i32;
-        let min_y = y.floor() as i32;
-        let max_y = (y + PLAYER_HEIGHT - COLLISION_EPSILON).floor() as i32;
-        let min_z = (z - half_width).floor() as i32;
-        let max_z = (z + half_width - COLLISION_EPSILON).floor() as i32;
-
-        for bx in min_x..=max_x {
-            for by in min_y..=max_y {
-                for bz in min_z..=max_z {
-                    if self.get_block(bx, by, bz).is_solid() {
-                        return false;
-                    }
-                }
-            }
-        }
-        true
-    }
     /// Génère les chunks manquants à partir d'une liste de coordonnées.
     pub fn generate_missing(&mut self, coords: &[(i32, i32, i32)]) {
         let missing: Vec<_> = coords
@@ -184,6 +151,16 @@ impl WorldState {
         }
 
         generate_chunks_sequential(Arc::clone(&self.block_manager), self.seed, coords)
+    }
+}
+
+impl CollisionWorld for WorldState {
+    fn is_empty(&self) -> bool {
+        self.world_generated_chunks.is_empty()
+    }
+
+    fn is_block_solid(&self, x: i32, y: i32, z: i32) -> bool {
+        self.get_block(x, y, z).is_solid()
     }
 }
 

@@ -28,3 +28,4 @@ env_logger = "0.10"
 
 satiscore = { path = "../satiscore" }
 network = { version = "0.1.0", path = "../network" }
+physics = { path = "../physics", features = ["server"] }

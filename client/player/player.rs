@@ -2,13 +2,13 @@ use crate::network::protocol::GameProtocol;
 use crate::player::controllers::spectator::SpectatorPlayerController;
 use crate::player::controllers::walk::WalkPlayerController;
 
-use crate::physics::{body::PhysicsBody, collision::resolve_collision};
 use crate::player::camera::Camera;
 use crate::player::controllers::{CameraController, PlayerController};
 use crate::systems::inputs::InputState;
 use crate::world::world::World;
 use cgmath::Point3;
 use network::messages::{Paquet, PlayerGameMode, Position, Rotation};
+use physics::{body::PhysicsBody, collision::resolve_collision};
 use satiscore::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
