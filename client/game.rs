@@ -23,7 +23,7 @@ use satiscore::{log_client, log_err_client};
 use std::time::Duration;
 use winit::keyboard::KeyCode;
 
-const FPS_CAP: u32 = u32::MAX;
+const FPS_CAP: u32 = 60;
 const DT_CAP: f32 = {
     if FPS_CAP == 0 {
         0.0
