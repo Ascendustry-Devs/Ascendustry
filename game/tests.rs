@@ -121,7 +121,7 @@ mod tests {
 
         let origin = Point3::new(0.0, 0.0, 0.0);
         let direction = Vector3::new(0.0, 1.0, 0.0);
-        let result = voxel_raycast(origin, direction, 10.0, |_, _, _| false);
+        let result = voxel_raycast(&origin, &direction, 10.0, |_, _, _| false);
         assert!(result.is_none());
     }
 
@@ -131,7 +131,7 @@ mod tests {
 
         let origin = Point3::new(0.5, 0.5, 0.5);
         let direction = Vector3::new(1.0, 0.0, 0.0);
-        let result = voxel_raycast(origin, direction, 10.0, |x, _, _| x > 2);
+        let result = voxel_raycast(&origin, &direction, 10.0, |x, _, _| x > 2);
         assert!(result.is_some());
         let hit = result.unwrap();
         assert!(hit.block_pos.0 >= 3);

@@ -79,8 +79,14 @@ impl CameraController for FreeCameraController {
 
         let (dx, dy) = inputs.take_mouse_delta_f32();
 
-        camera.yaw += dx * self.sensitivity;
-        camera.pitch -= dy * self.sensitivity;
-        camera.pitch = camera.pitch.clamp(CLAMP_BOTTOM, CLAMP_TOP);
+        camera.yaw.update_eq(|cur| cur + dx * self.sensitivity);
+        camera
+            .pitch
+            .update_eq(|cur| (cur - dy * self.sensitivity).clamp(CLAMP_BOTTOM, CLAMP_TOP));
+
+        if camera.needs_new_view_proj() {
+            camera.set_view_proj();
+            camera.set_frustum_planes();
+        }
     }
 }

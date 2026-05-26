@@ -1,4 +1,5 @@
 /// A simple yet effective struct to get track of the last 2 values used.
+#[derive(Clone)]
 pub struct Updatable<T: Clone + PartialEq> {
     last: T,
     current: T,
@@ -16,6 +17,14 @@ impl<T: Clone + PartialEq> Updatable<T> {
     #[inline(always)]
     pub fn update(&mut self, value: T) {
         self.last = std::mem::replace(&mut self.current, value);
+    }
+
+    #[inline(always)]
+    pub fn update_eq<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&T) -> T,
+    {
+        self.update(f(&self.current));
     }
 
     #[inline(always)]

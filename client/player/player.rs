@@ -8,15 +8,15 @@ use crate::systems::inputs::InputState;
 use crate::world::world::World;
 use cgmath::Point3;
 use game::constants::{
-    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
-    VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
+    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X, SPAWN_POSITION_Y,
+    SPAWN_POSITION_Z, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};
 use game::world::raycast::voxel_raycast;
 use network::messages::{Paquet, PlayerGameMode, Position, Rotation};
 use physics::{body::PhysicsBody, collision::resolve_collision};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxBuildHasher, FxHashSet};
 use satiscore::log_client;
 use satiscore::utils::updatable::Updatable;
 use winit::keyboard::KeyCode;
@@ -25,8 +25,9 @@ use winit::keyboard::KeyCode;
 /// Séparé de `Player` pour permettre l'ajout d'un corps physique sans tout casser.
 pub struct PlayerState {
     uuid: i32,
-    pub pos: Updatable<cgmath::Point3<f32>>,
-    pub cpos: Updatable<cgmath::Point3<i32>>,
+    pub pos: Updatable<Point3<f32>>,
+    pub cpos: Updatable<Point3<i32>>,
+    pub chunk_keys: FxHashSet<(i32, i32, i32)>,
     pub game_mode: PlayerGameMode,
     pub horizontal_render_distance: u16,
     pub vertical_render_distance: u16,
@@ -48,6 +49,7 @@ impl PlayerState {
             uuid: -1,
             pos: Updatable::new(spawn_pos),
             cpos: Updatable::new(spawn_pos.map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32)),
+            chunk_keys: FxHashSet::with_capacity_and_hasher(RENDER_DISTANCE_CHUNK_COUNT as usize, FxBuildHasher),
             horizontal_render_distance: HORIZONTAL_RENDER_DISTANCE,
             vertical_render_distance: VERTICAL_RENDER_DISTANCE,
             horizontal_simulation_distance: HORIZONTAL_SIMULATION_DISTANCE,
@@ -74,7 +76,7 @@ impl PlayerState {
     }
 
     fn break_block(&mut self, world: &mut World, commands: &mut Vec<Paquet>) {
-        let hit = voxel_raycast(self.camera.eye, self.camera.forward(), 4.0, |x, y, z| {
+        let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |x, y, z| {
             world.get_block_from_xyz(x, y, z).is_solid()
         });
         if let Some(hit) = hit {
@@ -143,8 +145,7 @@ impl PlayerState {
     }
 
     pub fn set_rot(&mut self, rot: Rotation) {
-        self.camera.yaw = rot.x;
-        self.camera.pitch = rot.y;
+        self.camera.set_rotation((rot.x, rot.y));
     }
 
     pub fn set_position_and_rotation(&mut self, pos: Position, rot: Rotation) {
@@ -239,6 +240,9 @@ impl Player {
         self.state
             .cpos
             .update(self.state.pos.current().map(|coord| coord.div_euclid(CHUNK_SIZE_F).floor() as i32));
+        if self.state.cpos.has_changed() {
+            self.state.chunk_keys = self.state.get_rendered_chunk_keys_set();
+        }
     }
 
     /// Délègue à `self.state`.
@@ -274,8 +278,8 @@ impl Player {
         self.state.get_rendered_chunk_keys()
     }
 
-    pub fn get_rendered_chunk_keys_set(&self) -> FxHashSet<(i32, i32, i32)> {
-        self.state.get_rendered_chunk_keys_set()
+    pub fn get_rendered_chunk_keys_set(&self) -> &FxHashSet<(i32, i32, i32)> {
+        &self.state.chunk_keys
     }
 
     pub fn get_simulation_chunk_keys(&self) -> Vec<(i32, i32, i32)> {

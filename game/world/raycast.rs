@@ -6,8 +6,8 @@ pub struct RaycastHit {
 }
 
 pub fn voxel_raycast(
-    origin: Point3<f32>,
-    direction: Vector3<f32>,
+    origin: &Point3<f32>,
+    direction: &Vector3<f32>,
     max_distance: f32,
     mut stop_condition: impl FnMut(i32, i32, i32) -> bool,
 ) -> Option<RaycastHit> {
