@@ -47,6 +47,9 @@ incremental = true
 lto = false
 strip = false
 
+[profile.dev.package.noise]
+opt-level = 3
+
 [profile.release]
 debug = false
 opt-level = 3

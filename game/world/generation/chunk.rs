@@ -6,9 +6,9 @@ use crate::world::data::block::{BlockInstance, BlockManager};
 use crate::world::data::chunk::{Chunk, CHUNK_BLOCK_NUMBER, CHUNK_SIZE};
 use crate::world::generation::chunk_generator::ChunkGenContext;
 
-pub const TERRAIN_SCALE: f64 = 0.02;
+pub const TERRAIN_SCALE: f64 = 0.017;
 pub const TERRAIN_BASE_HEIGHT: f64 = 0.0;
-pub const TERRAIN_AMPLITUDE: f64 = 10.0;
+pub const TERRAIN_AMPLITUDE: f64 = 12.0;
 
 pub struct ChunkWithChecksum {
     pub chunk_data: crate::world::data::chunk::ChunkData,
@@ -60,7 +60,7 @@ impl Chunk {
                 let wz = (z + cwz) as f64;
                 let nz = wz * TERRAIN_SCALE;
 
-                let valeur = ctx.perlin.get([nx, nz]);
+                let valeur = ctx.surface.get([nx, nz]);
                 let terrain_y = (TERRAIN_BASE_HEIGHT + valeur * TERRAIN_AMPLITUDE) as i32;
 
                 for y in 0..CHUNK_SIZE {

@@ -1,4 +1,4 @@
-use noise::{NoiseFn, Perlin, Seedable};
+use noise::{NoiseFn, Seedable, SuperSimplex};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use satiscore::parallel::{Parallelizable, QueueFull, WorkResult, WorkerPool};
 use std::sync::{Arc, RwLock};
@@ -7,16 +7,20 @@ use crate::world::data::block::BlockManager;
 use crate::world::data::chunk::{Chunk, ChunkData};
 use crate::world::generation::chunk::ChunkWithChecksum;
 
-pub const CAVE_SCALE: f64 = 0.025;
-pub const CAVE_THRESHOLD: f64 = 0.04;
+// + caves proches
+// - caves éloignées
+pub const CAVE_SCALE: f64 = 0.0125;
+// + caves larges
+// - caves étroites
+pub const CAVE_THRESHOLD: f64 = 0.15625;
 pub const CAVE_MIN_DEPTH: i32 = 0;
 
 #[derive(Clone)]
 pub struct ChunkGenContext {
     pub seed: u32,
-    pub perlin: Arc<Perlin>,
-    pub cave_noise_1: Arc<Perlin>,
-    pub cave_noise_2: Arc<Perlin>,
+    pub surface: Arc<SuperSimplex>,
+    pub cave_1: Arc<SuperSimplex>,
+    pub cave_2: Arc<SuperSimplex>,
     pub block_manager: Arc<RwLock<BlockManager>>,
 }
 
@@ -24,9 +28,9 @@ impl ChunkGenContext {
     pub fn new(seed: u32, block_manager: Arc<RwLock<BlockManager>>) -> Self {
         Self {
             seed,
-            perlin: Arc::new(Perlin::default().set_seed(seed)),
-            cave_noise_1: Arc::new(Perlin::default().set_seed(seed.wrapping_add(1000))),
-            cave_noise_2: Arc::new(Perlin::default().set_seed(seed.wrapping_add(2000))),
+            surface: Arc::new(SuperSimplex::default().set_seed(seed)),
+            cave_1: Arc::new(SuperSimplex::default().set_seed(seed.wrapping_add(1000))),
+            cave_2: Arc::new(SuperSimplex::default().set_seed(seed.wrapping_add(2000))),
             block_manager,
         }
     }
@@ -39,8 +43,8 @@ impl ChunkGenContext {
         let nx = wx * CAVE_SCALE;
         let ny = wy * CAVE_SCALE;
         let nz = wz * CAVE_SCALE;
-        let cave1 = self.cave_noise_1.get([nx, ny, nz]).abs();
-        let cave2 = self.cave_noise_2.get([nx, ny, nz]).abs();
+        let cave1 = self.cave_1.get([nx, ny, nz]).abs();
+        let cave2 = self.cave_2.get([nx, ny, nz]).abs();
         cave1 < CAVE_THRESHOLD && cave2 < CAVE_THRESHOLD
     }
 }
