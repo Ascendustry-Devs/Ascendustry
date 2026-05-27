@@ -8,7 +8,8 @@ use crate::render::meshing::world::WorldMesh;
 use crate::systems::inputs::InputState;
 use crate::world::world::World;
 use bytemuck::cast_slice;
-use cgmath::{dot, EuclideanSpace, Matrix4, Vector3};
+use cgmath::EuclideanSpace;
+use cgmath::{dot, Vector3};
 use engine::audio::GameAudioManager;
 use engine::core::application::AppState;
 use engine::core::frame::EngineFrameData;
@@ -25,7 +26,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use winit::keyboard::KeyCode;
 
-const FPS_CAP: u32 = 60;
+const FPS_CAP: u32 = 0;
 const DT_CAP: f32 = {
     if FPS_CAP == 0 {
         0.0
@@ -187,15 +188,15 @@ impl AppState for GameState {
         {
             let view_proj = self.player.state.camera.get_view_proj();
             let (cam_x, cam_y, cam_z) = {
-                let pos = self.player.state.camera.eye;
+                let pos = self.player.state.camera.eye();
                 (pos.x, pos.y, pos.z)
             };
-            data.camera.update(cam_x, cam_y, cam_z, view_proj.into());
+            data.camera.update(cam_x, cam_y, cam_z, (*view_proj).into());
 
-            self.player.state.camera.aspect = renderer.render_options.aspect;
-            let cam_position = self.player.state.camera.eye.to_vec();
+            self.player.state.camera.aspect.update(renderer.render_options.aspect);
+            let cam_position = (*self.player.state.camera.eye()).to_vec();
             let cam_forward = self.player.state.camera.forward();
-            let cam_frustum = extract_camera_frustum_planes(view_proj);
+            let cam_frustum = self.player.state.camera.get_frustum_planes();
 
             let chunks_to_render = self.player.get_rendered_chunk_keys_set();
 
@@ -307,36 +308,6 @@ fn is_chunk_behind_camera(min: &Vector3<f32>, max: &Vector3<f32>, cam_forward: &
     let distance = dot(*cam_forward, center - *cam_eye);
 
     distance + radius < 0.0
-}
-
-fn extract_camera_frustum_planes(m: Matrix4<f32>) -> [Plane; 6] {
-    [
-        Plane {
-            normal: Vector3::new(m[0][3] + m[0][0], m[1][3] + m[1][0], m[2][3] + m[2][0]),
-            d: m[3][3] + m[3][0],
-        }, // left
-        Plane {
-            normal: Vector3::new(m[0][3] - m[0][0], m[1][3] - m[1][0], m[2][3] - m[2][0]),
-            d: m[3][3] - m[3][0],
-        }, // right
-        Plane {
-            normal: Vector3::new(m[0][3] + m[0][1], m[1][3] + m[1][1], m[2][3] + m[2][1]),
-            d: m[3][3] + m[3][1],
-        }, // bottom
-        Plane {
-            normal: Vector3::new(m[0][3] - m[0][1], m[1][3] - m[1][1], m[2][3] - m[2][1]),
-            d: m[3][3] - m[3][1],
-        }, // top
-        Plane {
-            normal: Vector3::new(m[0][3] + m[0][2], m[1][3] + m[1][2], m[2][3] + m[2][2]),
-            d: m[3][3] + m[3][2],
-        }, // near
-        Plane {
-            normal: Vector3::new(m[0][3] - m[0][2], m[1][3] - m[1][2], m[2][3] - m[2][2]),
-            d: m[3][3] - m[3][2],
-        }, // far
-    ]
-    .map(|p| p.normalize())
 }
 
 fn is_chunk_in_camera_frustum(min: &Vector3<f32>, max: &Vector3<f32>, planes: &[Plane; 6]) -> bool {

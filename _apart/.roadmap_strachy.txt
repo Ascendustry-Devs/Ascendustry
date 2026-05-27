@@ -1,0 +1,17 @@
+Abstraction de logique
+- Allocation mémoire/buffer GPU intelligente
+- Manager abstrait (créer, modifier, consulter, détruire, avec ids uniques)
+
+UI
+
+Ressources
+- Pipelines (Opaque, AlphaCutout, Translucent, Billboards, UI)
+- Textures Arrays (Opaque, AlphaCutout, Translucent, Billboards)
+- Texture Atlas (UI)
+
+Optis:
+- Génération : super simplex noise interpolé (surface: 1/2 blocs, cave 1/4 blocs),
+- Greedy mesh : plein de trucs
+- Update : mettre en cache tout ce qui peut l'être
+- Rendu : réutiliser la mémoire du TextureView si possible, utiliser RenderBundle pour les calls qui sont immuables (style debug/gizmo).
+- Configuration : tester; ControlFlow::Poll/Wait, PresentMode::AutoNoVsync/Immediate/Mailbox, desired_maximum_frame_latency = 1/2,
