@@ -7,4 +7,5 @@ pub mod render;
 pub mod text;
 pub mod texture;
 pub mod textures;
+pub mod ui;
 pub mod utils;
