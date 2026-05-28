@@ -7,6 +7,7 @@ pub struct LauncherApp {
     tx: mpsc::Sender<LaunchMode>,
     address: String,
     show_multi: bool,
+    save_path: String,
 }
 
 impl LauncherApp {
@@ -15,6 +16,7 @@ impl LauncherApp {
             tx,
             address: DEFAULT_SERVER_ADDRESS.to_string(),
             show_multi: false,
+            save_path: "world/world_1.stf".to_string(),
         }
     }
 }
@@ -57,8 +59,17 @@ impl eframe::App for LauncherApp {
                         }
                     });
                 } else {
+                    ui.label("Chemin de la sauvegarde :");
+                    ui.add_sized(
+                        [250.0, 30.0],
+                        egui::TextEdit::singleline(&mut self.save_path).hint_text("world/world_1.stf"),
+                    );
+
+                    ui.add_space(10.0);
+
                     if ui.add_sized([250.0, 50.0], egui::Button::new("Solo")).clicked() {
-                        self.tx.send(LaunchMode::Singleplayer).ok();
+                        let path = save_path_or_default(&self.save_path);
+                        self.tx.send(LaunchMode::Singleplayer(path)).ok();
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
 
@@ -78,5 +89,13 @@ fn address_or_default(addr: &str) -> String {
         DEFAULT_SERVER_ADDRESS.to_string()
     } else {
         addr.trim().to_string()
+    }
+}
+
+fn save_path_or_default(path: &str) -> String {
+    if path.trim().is_empty() {
+        "world/world_1.stf".to_string()
+    } else {
+        path.trim().to_string()
     }
 }

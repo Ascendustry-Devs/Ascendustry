@@ -18,12 +18,14 @@ use server::Server;
 struct Args {
     #[arg(short, long, default_value_t = String::from(DEFAULT_SERVER_ADDRESS))]
     address: String,
+    #[arg(short = 'p', long, default_value = "world/world_1.stf")]
+    save_path: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     log_server!("Serveur: lancement.");
     let args = Args::parse();
-    let server = Server::new(&args.address, "world/test.satis").await?;
+    let server = Server::new(&args.address, &args.save_path).await?;
     server.run().await
 }

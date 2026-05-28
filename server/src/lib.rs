@@ -16,9 +16,9 @@ use network::DEFAULT_SERVER_ADDRESS;
 use satiscore::log_server;
 use server::Server;
 
-pub async fn run_server() -> Result<()> {
+pub async fn run_server(save_path: &str) -> Result<()> {
     log_server!("Serveur: lancement.");
     let x = String::from(DEFAULT_SERVER_ADDRESS);
-    let server = Server::new(&x, "world/test.satis").await?;
+    let server = Server::new(&x, save_path).await?;
     server.run().await
 }

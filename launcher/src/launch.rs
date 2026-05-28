@@ -4,20 +4,21 @@ use server::run_server;
 use tokio::runtime::Runtime;
 
 pub enum LaunchMode {
-    Singleplayer,
+    Singleplayer(String),
     Multiplayer(String),
 }
 
 pub fn set_play_mode(runtime: &Runtime, mode: LaunchMode) {
     match mode {
-        LaunchMode::Singleplayer => start_singleplayer(runtime),
+        LaunchMode::Singleplayer(save_path) => start_singleplayer(runtime, &save_path),
         LaunchMode::Multiplayer(address) => start_multiplayer(&address),
     }
 }
 
-pub fn start_singleplayer(runtime: &Runtime) {
-    runtime.spawn(async {
-        if let Err(e) = run_server().await {
+pub fn start_singleplayer(runtime: &Runtime, save_path: &str) {
+    let save_path = save_path.to_string();
+    runtime.spawn(async move {
+        if let Err(e) = run_server(&save_path).await {
             eprintln!("Erreur: {}", e);
         }
     });
