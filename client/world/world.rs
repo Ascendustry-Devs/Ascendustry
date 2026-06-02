@@ -47,7 +47,6 @@ pub struct World {
     chunk_generator: ChunkGenerator,
     block_manager: Arc<RwLock<BlockManager>>,
     waiting_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
-    ready_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
     mesh_request: MeshRequestMessage,
 }
 
@@ -59,6 +58,12 @@ pub type MeshRequestDelete = (i32, i32, i32);
 pub struct MeshRequestAdd {
     pub coords: (i32, i32, i32),
     pub snapshot: MeshSnapshot,
+}
+
+impl MeshRequestAdd {
+    pub fn new(coords: (i32, i32, i32), snapshot: MeshSnapshot) -> Self {
+        Self { coords, snapshot }
+    }
 }
 
 impl PartialEq for MeshRequestAdd {
@@ -105,7 +110,6 @@ impl World {
             chunk_generator: chunk_generator,
             block_manager: block_manager,
             waiting_to_mesh: UniqueQueue::with_capacity(256),
-            ready_to_mesh: UniqueQueue::with_capacity(256),
             mesh_request: MeshRequestMessage::empty(),
         };
     }
@@ -246,10 +250,14 @@ impl World {
         };
         let chunk_data = ChunkData::new(chunk);
         self.chunks.insert((cx, cy, cz), chunk_data);
-        self.ready_to_mesh.push_back((cx, cy, cz));
+        let data = MeshRequestAdd::new((cx, cy, cz), self.get_mesh_snapshot(cx, cy, cz));
+        self.mesh_request.add.insert(data);
         for (dx, dy, dz) in DIRECT_NORMALS_3D {
-            if self.chunks.contains_key(&(cx + dx, cy + dy, cz + dz)) {
-                self.ready_to_mesh.push_back((cx + dx, cy + dy, cz + dz));
+            let (cx, cy, cz) = (cx + dx, cy + dy, cz + dz);
+            let coords = (cx, cy, cz);
+            if self.chunks.contains_key(&coords) {
+                let data = MeshRequestAdd::new(coords, self.get_mesh_snapshot(cx, cy, cz));
+                self.mesh_request.add.insert(data);
             }
         }
     }
@@ -281,7 +289,8 @@ impl World {
             let chunk = *chunk;
             let (cx, cy, cz) = chunk;
             if self.are_all_neighbors_ready(cx, cy, cz) {
-                self.ready_to_mesh.push_back(chunk);
+                let data = MeshRequestAdd::new(chunk, self.get_mesh_snapshot(cx, cy, cz));
+                self.mesh_request.add.insert(data);
                 false
             } else {
                 true
@@ -289,10 +298,6 @@ impl World {
         });
 
         self.waiting_to_mesh = waiting;
-    }
-
-    pub fn ready_to_mesh(&mut self) -> &mut FxUniqueQueue<(i32, i32, i32)> {
-        &mut self.ready_to_mesh
     }
 
     pub fn get_mesh_snapshot(&self, cx: i32, cy: i32, cz: i32) -> MeshSnapshot {
@@ -329,10 +334,12 @@ impl World {
         } else {
             Arc::make_mut(&mut chunk.chunk).set_block_from_xyz(lx, ly, lz, block);
 
-            self.ready_to_mesh.push_back((cx, cy, cz));
+            let data = MeshRequestAdd::new((cx, cy, cz), self.get_mesh_snapshot(cx, cy, cz));
+            self.mesh_request.add.insert(data);
             for (ncx, ncy, ncz) in Chunk::neighbors_from_block_pos(x, y, z) {
                 if self.get_chunk_data(ncx, ncy, ncz).is_some() {
-                    self.ready_to_mesh.push_back((ncx, ncy, ncz));
+                    let data = MeshRequestAdd::new((ncx, ncy, ncz), self.get_mesh_snapshot(ncx, ncy, ncz));
+                    self.mesh_request.add.insert(data);
                 }
             }
             return true;

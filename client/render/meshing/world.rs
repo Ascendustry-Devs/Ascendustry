@@ -44,9 +44,31 @@ impl WorldMesh {
     }
 
     pub fn update(&mut self, mesh_manager: &mut GpuAllocator, mesh_request: &mut MeshRequestMessage) -> Vec<MeshResponse> {
+        self.clean_meshes(mesh_manager, &mut mesh_request.delete);
         self.enqueue_missing_meshes(&mut mesh_request.add);
         self.submit_meshes(mesh_request);
-        self.compute_generated_meshes(&mut mesh_request.delete, mesh_manager)
+        let responses = self.compute_generated_meshes(&mut mesh_request.delete, mesh_manager);
+        responses
+    }
+
+    fn clean_meshes(&mut self, mesh_manager: &mut GpuAllocator, mesh_out: &mut FxHashSet<MeshRequestDelete>) {
+        if mesh_out.is_empty() {
+            return;
+        }
+
+        for mesh in mesh_out.drain() {
+            self.pending_keys.remove(&mesh);
+            if let Some(entry) = self.meshes.remove(&mesh) {
+                if let Some(mesh_id) = entry.id {
+                    match mesh_manager.free(mesh_id) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            println!("WorldMesh clean_meshes: failed to free mesh {:?} with id {}", mesh, mesh_id);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn enqueue_missing_meshes(&mut self, meshin: &mut FxHashSet<MeshRequestAdd>) {

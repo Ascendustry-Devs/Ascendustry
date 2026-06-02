@@ -214,7 +214,11 @@ impl AppState for GameState {
                 data.visible_meshes.clear();
 
                 for (key, mesh) in self.world_mesh.meshes.iter() {
-                    if mesh.id.is_none() || !chunks_to_render.contains(key) {
+                    let Some(id) = mesh.id else {
+                        continue;
+                    };
+
+                    if !chunks_to_render.contains(key) {
                         continue;
                     }
 
@@ -235,7 +239,7 @@ impl AppState for GameState {
                     // We do the frustum check lately because it is more expansive,
                     // on top of this, the first check would already eliminate ~50% of the candidates.
 
-                    data.visible_meshes.insert(mesh.id.unwrap());
+                    data.visible_meshes.insert(id);
                 }
             };
 
