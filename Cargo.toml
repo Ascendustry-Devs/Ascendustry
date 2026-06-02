@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "client",
-    "satiscore",
+    "project_core",
     "engine",
     "game",
     "launcher",

@@ -21,7 +21,7 @@ wgpu_text = { workspace = true }
 pollster = { workspace = true }
 anyhow = { workspace = true }
 log = { workspace = true }
-satiscore = { path = "../satiscore" }
+project_core = { path = "../project_core" }
 network = { path = "../network" }
 game = { path = "../game" }
 image = { version = "0.24", default-features = false, features = ["png"] }

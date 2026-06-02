@@ -1,4 +1,4 @@
-use satiscore::utils::updatable::Updatable;
+use project_core::utils::updatable::Updatable;
 use wgpu::Device;
 use wgpu_text::{glyph_brush::ab_glyph::FontRef, BrushBuilder, TextBrush};
 

@@ -12,5 +12,5 @@ client = []
 
 [dependencies]
 cgmath = { workspace = true }
-satiscore = { path = "../satiscore" }
+project_core = { path = "../project_core" }
 game = { path = "../game" }

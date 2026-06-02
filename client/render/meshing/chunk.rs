@@ -1,10 +1,15 @@
 use crate::render::utils::{face_mask::FaceMask, padded_chunk::*};
 use bytemuck::cast_slice;
-use engine::geometry::vertex::Vertex;
-use engine::render::mesh::manager::{AllocError, MeshId, MeshManager};
+use engine::{
+    geometry::vertex::Vertex,
+    gpu::allocator::{
+        alloc_error::AllocError,
+        gpu_allocator::{GpuAllocator, MeshId},
+    },
+};
 use game::world::data::chunk::{CHUNK_SIZE, LAST_CHUNK_AXIS_INDEX_USIZE};
-use satiscore::geometry::corner::SquareCorner;
-use satiscore::geometry::direction::Direction;
+use project_core::geometry::corner::SquareCorner;
+use project_core::geometry::direction::Direction;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct ChunkMesh {
@@ -673,7 +678,7 @@ impl ChunkMesh {
     }
 
     /// Updates a ChunkMesh with the data processed by [GreedyMeshingProcessor]'s threads.
-    pub fn update(&mut self, vertices: &Vec<Vertex>, mesh_manager: &mut MeshManager) -> Result<(), AllocError> {
+    pub fn update(&mut self, vertices: &Vec<Vertex>, mesh_manager: &mut GpuAllocator) -> Result<(), AllocError> {
         // It's no longer dirty since we're updating it.
         self.dirty.store(false, Ordering::Relaxed);
 

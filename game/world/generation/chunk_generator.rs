@@ -1,7 +1,7 @@
 use noise::{NoiseFn, Seedable, SuperSimplex};
+use project_core::parallel::{Parallelizable, QueueFull, WorkResult, WorkerPool};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rustc_hash::{FxBuildHasher, FxHashMap};
-use satiscore::parallel::{Parallelizable, QueueFull, WorkResult, WorkerPool};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 

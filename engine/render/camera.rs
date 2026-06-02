@@ -1,6 +1,6 @@
 use cgmath::{Matrix4, SquareMatrix};
 use game::world::data::chunk::{CHUNK_SIZE, CHUNK_SIZE_F};
-use satiscore::utils::updatable::Updatable;
+use project_core::utils::updatable::Updatable;
 
 #[rustfmt::skip]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::from_cols(

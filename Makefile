@@ -18,13 +18,13 @@ server: build
 	RUSTFLAGS="-Awarnings" cargo run -p server --bin server
 
 client: build
-	RUSTFLAGS="-Awarnings" cargo run -p client --bin Satisfactorio
+	RUSTFLAGS="-Awarnings" cargo run -p client --bin Ascendustry
 
 server-release:
 		RUSTFLAGS="-Awarnings" cargo run -r -p server --bin server
 
 client-release:
-		RUSTFLAGS="-Awarnings" cargo run -r -p client --bin Satisfactorio
+		RUSTFLAGS="-Awarnings" cargo run -r -p client --bin Ascendustry
 
 launcher: build
 	RUSTFLAGS="-Awarnings" cargo run -p launcher --bin launcher
@@ -68,4 +68,3 @@ clean-code:
 	cargo fix --allow-dirty
 
 launch: launcher
-

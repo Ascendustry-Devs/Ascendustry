@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use engine::geometry::vertex::Vertex;
 use game::world::data::chunk::{Chunk, CHUNK_SIZE};
-use satiscore::{buffer_pool::BufferPool, parallel::Parallelizable};
+use project_core::{buffer_pool::BufferPool, parallel::Parallelizable};
 
 use crate::{
     render::{
@@ -16,14 +16,14 @@ pub struct GreedyMeshingProcessor;
 
 impl Parallelizable for GreedyMeshingProcessor {
     type Context = Arc<BufferPool<Vertex>>;
-    type Input = (Arc<Chunk>, MeshSnapshot, i32, i32, i32);
+    type Input = (MeshSnapshot, i32, i32, i32);
     type Output = Option<Vec<Vertex>>;
 
     /// Makes greedy
     fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output {
-        let (main_chunk, neighbors, cx, cy, cz) = input;
+        let (snapshot, cx, cy, cz) = input;
 
-        let padded = PaddedChunk::from_snapshot(&main_chunk, &neighbors);
+        let padded = PaddedChunk::from_snapshot(&snapshot.main, &snapshot);
 
         // Pre-calc entire chunk blocks solidity to save CPU (by avoiding repetition)
         let mut solidity = [false; PADDED_CHUNK_BLOCK_CBE_USIZE];

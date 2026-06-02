@@ -1,4 +1,4 @@
-pub type MeshId = u32;
+use crate::gpu::allocator::gpu_allocator::MeshId;
 
 pub struct WriteOperation {
     pub mesh_id: MeshId,

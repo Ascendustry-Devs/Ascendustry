@@ -1,9 +1,9 @@
-# Satisfactorio
+# Ascendustry
 
 Jeu voxel multijoueur en Rust avec rendu wgpu.
 
 ```
-Satisfactorio/
+Ascendustry/
 ├── shared/    -- Bibliothèque partagée (réseau, monde, blocs, chiffrement)
 ├── client/    -- Client de jeu (rendu wgpu, audio, physique, joueur)
 └── server/    -- Serveur multijoueur (monde, connexions, génération)

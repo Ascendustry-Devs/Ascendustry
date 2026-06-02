@@ -6,7 +6,7 @@ use aes_gcm::{
 
 use sha2::{Digest, Sha256};
 
-pub const SALT: &[u8] = b"Satisfactorio_v1_LE48TRUC48DE48FOU";
+pub const SALT: &[u8] = b"Ascendustry_v1_LE48TRUC48DE48FOU";
 pub const NONCE_LEN: usize = 12;
 
 pub fn generate_server_id() -> [u8; 16] {

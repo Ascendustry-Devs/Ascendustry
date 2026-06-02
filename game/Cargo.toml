@@ -17,4 +17,4 @@ rustc-hash = { workspace = true }
 noise = { workspace = true }
 rayon = { workspace = true }
 num_cpus = { workspace = true }
-satiscore = { path = "../satiscore" }
+project_core = { path = "../project_core" }

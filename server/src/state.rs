@@ -5,7 +5,7 @@ use game::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use network::messages::{ChunkData, ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet};
 use physics::position::{find_safe_spawn_point, is_position_free};
 use physics::validator::is_movement_plausible;
-use satiscore::log_server;
+use project_core::log_server;
 use std::sync::RwLock;
 use tokio::sync::broadcast;
 

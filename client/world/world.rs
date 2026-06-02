@@ -1,5 +1,7 @@
-use engine::render::{mesh::manager::MeshManager, texture::RenderMode};
-use rustc_hash::{FxBuildHasher, FxHashMap};
+use engine::gpu::allocator::gpu_allocator::GpuAllocator;
+use engine::render::texture::RenderMode;
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use std::hash::{Hash, Hasher};
 
 use crate::api::texture_loader::TextureLoader;
 use cgmath::Point3;
@@ -10,10 +12,11 @@ use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_S
 use game::world::generation::chunk_generator::ChunkGenerator;
 use physics::aabb::AABB;
 use physics::collision_world::CollisionWorld;
-use satiscore::{
+use project_core::{
     log_err_client,
     utils::unique_queue::{FxUniqueQueue, UniqueQueue},
 };
+use std::collections::HashSet;
 use std::{
     cmp::max,
     collections::HashMap,
@@ -27,7 +30,7 @@ use crate::{
     render::meshing::world::WorldMesh,
 };
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct MeshSnapshot {
     pub main: Arc<Chunk>,
     pub neg_x: Option<Arc<Chunk>>,
@@ -45,6 +48,43 @@ pub struct World {
     block_manager: Arc<RwLock<BlockManager>>,
     waiting_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
     ready_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
+    mesh_request: MeshRequestMessage,
+}
+
+pub type MeshResponse = (i32, i32, i32);
+
+pub type MeshRequestDelete = (i32, i32, i32);
+
+#[derive(Clone)]
+pub struct MeshRequestAdd {
+    pub coords: (i32, i32, i32),
+    pub snapshot: MeshSnapshot,
+}
+
+impl PartialEq for MeshRequestAdd {
+    fn eq(&self, other: &Self) -> bool {
+        self.coords == other.coords
+    }
+}
+impl Eq for MeshRequestAdd {}
+impl Hash for MeshRequestAdd {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.coords.hash(state);
+    }
+}
+
+pub struct MeshRequestMessage {
+    pub add: FxHashSet<MeshRequestAdd>,
+    pub delete: FxHashSet<MeshRequestDelete>,
+}
+
+impl MeshRequestMessage {
+    pub fn empty() -> Self {
+        Self {
+            add: HashSet::with_hasher(FxBuildHasher),
+            delete: HashSet::with_hasher(FxBuildHasher),
+        }
+    }
 }
 
 impl World {
@@ -66,10 +106,11 @@ impl World {
             block_manager: block_manager,
             waiting_to_mesh: UniqueQueue::with_capacity(256),
             ready_to_mesh: UniqueQueue::with_capacity(256),
+            mesh_request: MeshRequestMessage::empty(),
         };
     }
 
-    pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) {
+    pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut FxHashSet<MeshRequestAdd> {
         {
             let mut block_manager = self.block_manager.write().unwrap();
 
@@ -89,18 +130,20 @@ impl World {
         }
 
         self.generate_missing_chunks(player);
+        &mut self.mesh_request.add
     }
 
-    pub fn update(&mut self, mesh_manager: &mut MeshManager, world_mesh: &mut WorldMesh, player: &Player) {
+    pub fn update(&mut self, mesh_manager: &mut GpuAllocator, world_mesh: &mut WorldMesh, player: &Player) -> &mut MeshRequestMessage {
         if player.state.cpos.has_changed() || self.chunks.is_empty() {
             self.clean_chunks(mesh_manager, world_mesh, player);
             self.generate_missing_chunks(player);
         }
         self.compute_generated_chunks();
         self.submit_to_mesh();
+        &mut self.mesh_request
     }
 
-    fn clean_chunks(&mut self, mesh_manager: &mut MeshManager, world_mesh: &mut WorldMesh, player: &Player) {
+    fn clean_chunks(&mut self, mesh_manager: &mut GpuAllocator, world_mesh: &mut WorldMesh, player: &Player) {
         // Maths
         // let radii_h_squared = (player.state.horizontal_render_distance * player.state.horizontal_render_distance) as i32;
         // let radii_v_squared = (player.state.vertical_render_distance * player.state.vertical_render_distance) as i32;

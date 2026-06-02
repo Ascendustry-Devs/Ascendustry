@@ -6,8 +6,8 @@ use game::world::generation::chunk::ChunkWithChecksum;
 use game::world::generation::chunk_generator::{generate_chunks_parallel_blocking, generate_chunks_sequential};
 use game::world::modified_chunk::ModifiedWorld;
 use network::messages::ChunkData;
+use project_core::log_warn_server;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
-use satiscore::log_warn_server;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 

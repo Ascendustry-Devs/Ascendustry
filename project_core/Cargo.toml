@@ -1,5 +1,5 @@
 [package]
-name = "satiscore"
+name = "project_core"
 version.workspace = true
 edition.workspace = true
 

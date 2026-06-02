@@ -1,6 +1,6 @@
 use network::messages::PlayerTransformation;
+use project_core::utils::updatable::Updatable;
 use rustc_hash::{FxBuildHasher, FxHashMap};
-use satiscore::utils::updatable::Updatable;
 use std::time::{Duration, Instant};
 
 pub struct RemotePlayer {

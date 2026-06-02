@@ -6,7 +6,7 @@ use crate::player::player::Player;
 use crate::player::remote_players::RemotePlayersManager;
 use crate::render::meshing::world::WorldMesh;
 use crate::systems::inputs::InputState;
-use crate::world::world::World;
+use crate::world::world::{MeshRequestMessage, World};
 use bytemuck::cast_slice;
 use cgmath::EuclideanSpace;
 use cgmath::{dot, Vector3};
@@ -15,13 +15,15 @@ use engine::core::application::AppState;
 use engine::core::frame::EngineFrameData;
 use engine::core::frame::GameFrameData;
 use engine::geometry::vertex::generate_cube;
+use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use engine::render::render::Renderer;
 use game::constants::CHUNK_VECTOR;
 use game::world::data::chunk::CHUNK_SIZE_F;
 use network::messages::new_save_request_paquet;
 use network::messages::ContenuPaquet;
-use satiscore::geometry::plane::Plane;
-use satiscore::{log_client, log_err_client};
+use project_core::geometry::plane::Plane;
+use project_core::{log_client, log_err_client};
+use std::mem;
 use std::time::Duration;
 use tokio::time::Instant;
 use winit::keyboard::KeyCode;
@@ -74,8 +76,8 @@ impl GameState {
 impl AppState for GameState {
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>) {
         let mut tex_loader = TextureLoader::new(&mut renderer.texture_manager);
-        self.world.init(&mut tex_loader, &self.player);
-        self.world_mesh.init(&mut self.world);
+        let meshin = self.world.init(&mut tex_loader, &self.player);
+        self.world_mesh.init(meshin);
 
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {
@@ -96,7 +98,7 @@ impl AppState for GameState {
         self.delay_s -= DT_CAP;
 
         // Commande debug (touches)
-        self.update_debug_commands();
+        self.update_debug_commands(&renderer.render_manager.mesh_manager);
 
         // PHYSICS
         self.player
@@ -105,7 +107,8 @@ impl AppState for GameState {
         // LOGIC
         let network_commands = self.player.update(frame.dt, &mut self.world, &mut self.inputs);
         let mesh_manager = &mut renderer.render_manager.mesh_manager;
-        self.world.update(mesh_manager, &mut self.world_mesh, &self.player);
+        let mesh_request = self.world.update(mesh_manager, &mut self.world_mesh, &self.player);
+        let mut mesh_request = mem::replace(mesh_request, MeshRequestMessage::empty());
 
         // NETWORK
         {
@@ -188,7 +191,7 @@ impl AppState for GameState {
         }
 
         // MESHING
-        self.world_mesh.update(mesh_manager, &mut self.world);
+        self.world_mesh.update(mesh_manager, &mut mesh_request);
 
         // RENDER
         {
@@ -274,7 +277,36 @@ impl AppState for GameState {
 }
 
 impl GameState {
-    fn update_debug_commands(&mut self) {
+    fn update_debug_commands(&mut self, alloc: &GpuAllocator) {
+        // GPU VRAM ALLOCATOR MEM DUMP
+        if self.inputs.take_key_pressed(KeyCode::KeyV) {
+            let meshes = &self.world_mesh.meshes;
+            println!("==== CACHED MESHES ====");
+            for (pos, mesh) in meshes.iter() {
+                let Some(id) = mesh.id else {
+                    continue;
+                };
+                let data = alloc.get_mesh_entry(id);
+                println!("Chunk: {:?}", *pos);
+                println!("Has data?: {:?}", data.is_some());
+                let Some(data) = data else {
+                    continue;
+                };
+                println!("Mesh (id: {:?}, position: {:?}, length: {:?})", data.id, data.position, data.length);
+            }
+            println!("TOTAL: {} meshes.", meshes.len());
+            println!("==== BAD MESHES ====");
+            let diff = meshes.values().filter_map(|mesh| mesh.id).collect();
+            for diff_mesh in alloc.get_entries_difference_by_ids(diff) {
+                println!(
+                    "Unknown chunk found: Mesh (id: {:?}, position: {:?}, length: {:?})",
+                    diff_mesh.id, diff_mesh.position, diff_mesh.length
+                );
+            }
+            println!("==== MEM INFOS ====");
+            alloc.force_print_debug_infos();
+            println!("===================")
+        }
         // CURRENT CHUNK DEBUG
         if self.inputs.take_key_pressed(KeyCode::KeyC) {
             let cpos = self.player.state.cpos.current();

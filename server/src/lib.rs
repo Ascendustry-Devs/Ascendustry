@@ -13,7 +13,7 @@ mod tests;
 
 use anyhow::Result;
 use network::DEFAULT_SERVER_ADDRESS;
-use satiscore::log_server;
+use project_core::log_server;
 use server::Server;
 
 pub async fn run_server(save_path: &str) -> Result<()> {

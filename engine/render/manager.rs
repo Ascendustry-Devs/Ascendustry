@@ -8,16 +8,16 @@ use rustc_hash::{FxBuildHasher, FxHashSet};
 use wgpu::{wgt::DrawIndirectArgs, BufferUsages, CommandEncoder};
 
 use crate::{
-    gpu::tools::GpuTools,
-    render::{
-        mesh::manager::{MeshEntry, MeshId, MeshManager},
-        utils::smart_buffer::SmartBuffer,
+    gpu::{
+        allocator::gpu_allocator::{GpuAllocator, MeshEntry, MeshId},
+        tools::GpuTools,
     },
+    render::utils::smart_buffer::SmartBuffer,
 };
 
 pub struct RenderManager {
     pub gpu_tools: Arc<GpuTools>,
-    pub mesh_manager: MeshManager,
+    pub mesh_manager: GpuAllocator,
     pub indirect_buffer: SmartBuffer,
     pub indirect_commands: Vec<DrawIndirectArgs>,
     pub count_buffer: SmartBuffer,
@@ -31,7 +31,7 @@ impl RenderManager {
         let indirect_buffer = SmartBuffer::from_capacity(0, device, None, usages);
         let count_buffer = SmartBuffer::from_capacity(4, device, None, usages);
 
-        let mesh_manager = MeshManager::new(Arc::clone(&gpu_tools), frame_encoder);
+        let mesh_manager = GpuAllocator::new(Arc::clone(&gpu_tools), frame_encoder);
         let indirect_commands = Vec::with_capacity(64);
         let ids_to_render = HashSet::with_capacity_and_hasher(128, FxBuildHasher);
 

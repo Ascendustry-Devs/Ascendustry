@@ -3,7 +3,7 @@ use std::mem;
 use std::process::exit;
 use std::sync::Arc;
 
-use satiscore::{log_client, log_err_client};
+use project_core::{log_client, log_err_client};
 use winit::event_loop::ActiveEventLoop;
 use winit::{application::ApplicationHandler, keyboard::KeyCode, keyboard::PhysicalKey};
 
@@ -53,7 +53,7 @@ impl<S: AppState> App<S> {
 impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
     #[inline(always)]
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window_attributes = Window::default_attributes().with_maximized(true).with_title("Satisfactorio");
+        let window_attributes = Window::default_attributes().with_maximized(true).with_title("Ascendustry");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         let mut engine = pollster::block_on(State::new(window, &self.app_state)).unwrap();
         self.app_state.init(&mut engine.renderer, &mut engine.audio_manager);

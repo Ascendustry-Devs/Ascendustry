@@ -28,7 +28,7 @@ impl eframe::App for LauncherApp {
                 egui::Frame::none()
                     .inner_margin(egui::Margin::symmetric(20.0, 10.0))
                     .show(ui, |ui| {
-                        ui.heading("Satisfactorio");
+                        ui.heading("Ascendustry");
                     });
 
                 ui.add_space(30.0);

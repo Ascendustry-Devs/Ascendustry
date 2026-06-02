@@ -1,4 +1,4 @@
-use satiscore::geometry::direction::Direction;
+use project_core::geometry::direction::Direction;
 
 const VISITED_SHIFT: u64 = 63;
 const BLOCK_ID_SHIFT: u64 = 31;

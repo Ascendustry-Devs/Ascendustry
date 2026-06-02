@@ -1,7 +1,7 @@
 use crate::aabb::AABB;
 use cgmath::{Point3, Vector3};
 use game::constants::{GRAVITY, JUMP_SPEED, WALK_SPEED};
-use satiscore::utils::updatable::Updatable;
+use project_core::utils::updatable::Updatable;
 
 pub struct PhysicsBody {
     pub aabb: AABB,

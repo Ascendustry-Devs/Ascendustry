@@ -10,7 +10,7 @@ pub mod world;
 use anyhow::Result;
 use clap::Parser;
 use network::DEFAULT_SERVER_ADDRESS;
-use satiscore::log_server;
+use project_core::log_server;
 use server::Server;
 
 #[derive(Parser, Debug)]
