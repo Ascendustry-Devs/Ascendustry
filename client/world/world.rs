@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::api::texture_loader::TextureLoader;
 use cgmath::Point3;
-use game::constants::{DIRECT_NORMALS_3D, MAX_GENERATION_CHUNKS_IN_QUEUE, SIMULATION_DISTANCE_IN_BLOCKS_HALFED_VEC3_F};
+use game::constants::{DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE};
 use game::world::data::block::BlockData;
 use game::world::data::block::{BlockInstance, BlockManager};
 use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
@@ -24,11 +24,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{
-    // engine::render::mesh::manager::RenderManager,
-    player::player::Player,
-    render::meshing::world::WorldMesh,
-};
+use crate::{player::player::Player, render::meshing::world::WorldMesh};
 
 #[derive(Clone, PartialEq)]
 pub struct MeshSnapshot {
@@ -114,7 +110,7 @@ impl World {
         };
     }
 
-    pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut FxHashSet<MeshRequestAdd> {
+    pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut MeshRequestMessage {
         {
             let mut block_manager = self.block_manager.write().unwrap();
 
@@ -134,10 +130,15 @@ impl World {
         }
 
         self.generate_missing_chunks(player);
-        &mut self.mesh_request.add
+        &mut self.mesh_request
     }
 
-    pub fn update(&mut self, mesh_manager: &mut GpuAllocator, world_mesh: &mut WorldMesh, player: &Player) -> &mut MeshRequestMessage {
+    pub fn update(
+        &mut self,
+        mesh_manager: &mut Arc<RwLock<GpuAllocator>>,
+        world_mesh: &mut WorldMesh,
+        player: &Player,
+    ) -> &mut MeshRequestMessage {
         if player.state.cpos.has_changed() || self.chunks.is_empty() {
             self.clean_chunks(mesh_manager, world_mesh, player);
             self.generate_missing_chunks(player);
@@ -147,41 +148,48 @@ impl World {
         &mut self.mesh_request
     }
 
-    fn clean_chunks(&mut self, mesh_manager: &mut GpuAllocator, world_mesh: &mut WorldMesh, player: &Player) {
-        // Maths
-        // let radii_h_squared = (player.state.horizontal_render_distance * player.state.horizontal_render_distance) as i32;
-        // let radii_v_squared = (player.state.vertical_render_distance * player.state.vertical_render_distance) as i32;
+    pub fn listen(&mut self, mesh_responses: &mut Vec<MeshResponse>) {
+        for response in mesh_responses.drain(..) {
+            let (cx, cy, cz) = response;
+            if let Some(chunk) = self.get_chunk_data_mut(cx, cy, cz) {
+                chunk.state = ChunkState::Ready;
+            }
+        }
+    }
 
-        // Coordonnées du chunk où se trouve le joueur (entiers)
-        let cpos = player.get_cpos().map(|coord| coord as f32);
-        let player_simulation_aabb = AABB::new_sized(cpos, SIMULATION_DISTANCE_IN_BLOCKS_HALFED_VEC3_F);
+    fn clean_chunks(&mut self, mesh_manager: &mut Arc<RwLock<GpuAllocator>>, world_mesh: &mut WorldMesh, player: &Player) {
+        let alloc = &mut mesh_manager.write().unwrap();
+
+        // Coordonnées du chunk en blocks où se trouve le joueur
+        let chunk_pos_in_blocks = player.get_cpos().map(|coord| (coord * CHUNK_SIZE) as f32);
+        let player_simulation_aabb = AABB::new_sized(chunk_pos_in_blocks, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F);
 
         self.chunks.retain(|key, _| {
             let (cx, cy, cz) = *key;
-            let key_vec_f = Point3::new(cx as f32, cy as f32, cz as f32);
+            let key_vec_f = Point3::new(cx, cy, cz).map(|coord| (coord * CHUNK_SIZE) as f32);
             let chunk_aabb = AABB::new_sized(key_vec_f, CHUNK_SIZE_HALFED_VEC3_F);
+
             // On garde les chunks qui sont à portée du joueur
             if chunk_aabb.overlaps(&player_simulation_aabb) {
                 return true;
             }
+
             // On supprime proprement ceux qui ne le sont plus
+            self.mesh_request.delete.insert(*key);
             let Some(mesh) = world_mesh.meshes.remove(key) else {
                 return false;
             };
-            let Some(id) = mesh.id else {
+            let Some(mesh_id) = mesh.id else {
                 return false;
             };
-            let result = mesh_manager.free(id);
+            let result = alloc.free(mesh_id);
             match result {
                 Ok(_) => {}
                 Err(err) => {
-                    let (x, y, z) = key;
                     log_err_client!(
-                        "World: an error occured while trying to free chunk (x: {} y: {} z: {})'s mesh with id {}.\nError: {}",
-                        x,
-                        y,
-                        z,
-                        id,
+                        "World: an error occured while trying to free chunk (pos: {:?})'s mesh with id {}.\nError: {}",
+                        *key,
+                        mesh_id,
                         err
                     )
                 }
@@ -400,13 +408,4 @@ impl CollisionWorld for World {
         }
         self.get_block_from_xyz(x, y, z).is_solid()
     }
-}
-
-#[inline(always)]
-fn is_chunk_in_range_radii(c: &(i32, i32, i32), center: &(i32, i32, i32), radius_h_squared: i32, radius_v_squared: i32) -> bool {
-    let dx = c.0 - center.0;
-    let dy = c.1 - center.1;
-    let dz = c.2 - center.2;
-
-    (dx * dx) / radius_h_squared + (dy * dy) / radius_v_squared + (dz * dz) / radius_h_squared <= 1
 }

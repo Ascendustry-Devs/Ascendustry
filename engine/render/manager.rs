@@ -9,7 +9,7 @@ use wgpu::{wgt::DrawIndirectArgs, BufferUsages, CommandEncoder};
 
 use crate::{
     gpu::{
-        allocator::gpu_allocator::{GpuAllocator, MeshEntry, MeshId},
+        allocator::gpu_allocator::{GpuAllocator, MeshId},
         tools::GpuTools,
     },
     render::utils::smart_buffer::SmartBuffer,
@@ -17,7 +17,7 @@ use crate::{
 
 pub struct RenderManager {
     pub gpu_tools: Arc<GpuTools>,
-    pub mesh_manager: GpuAllocator,
+    pub mesh_manager: Arc<RwLock<GpuAllocator>>,
     pub indirect_buffer: SmartBuffer,
     pub indirect_commands: Vec<DrawIndirectArgs>,
     pub count_buffer: SmartBuffer,
@@ -31,7 +31,7 @@ impl RenderManager {
         let indirect_buffer = SmartBuffer::from_capacity(0, device, None, usages);
         let count_buffer = SmartBuffer::from_capacity(4, device, None, usages);
 
-        let mesh_manager = GpuAllocator::new(Arc::clone(&gpu_tools), frame_encoder);
+        let mesh_manager = Arc::new(RwLock::new(GpuAllocator::new(Arc::clone(&gpu_tools), frame_encoder)));
         let indirect_commands = Vec::with_capacity(64);
         let ids_to_render = HashSet::with_capacity_and_hasher(128, FxBuildHasher);
 
@@ -45,11 +45,13 @@ impl RenderManager {
         }
     }
 
-    pub fn get_meshes_to_render(&self) -> Vec<&MeshEntry> {
+    pub fn get_meshes_to_render(&self) -> Vec<MeshId> {
         self.mesh_manager
+            .read()
+            .unwrap()
             .data
             .iter()
-            .filter_map(|x| if self.ids_to_render.contains(&x.id) { Some(x) } else { None })
+            .filter_map(|x| if self.ids_to_render.contains(&x.id) { Some(x.id) } else { None })
             .collect()
     }
 
@@ -76,7 +78,9 @@ impl RenderManager {
 
         self.indirect_commands.clear();
 
-        for m in &self.mesh_manager.data {
+        let alloc = &self.mesh_manager.read().unwrap();
+
+        for m in &alloc.data {
             if !self.ids_to_render.contains(&m.id) {
                 continue;
             }

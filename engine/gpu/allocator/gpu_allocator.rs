@@ -51,7 +51,7 @@ pub struct GpuAllocator {
     frame_encoder: Arc<RwLock<CommandEncoder>>,
 }
 
-const LOG_ALLOCATOR: bool = false;
+const LOG_ALLOCATOR: bool = true;
 
 macro_rules! log_allocator {
     () => {
@@ -554,7 +554,7 @@ impl GpuAllocator {
     }
 
     fn try_merge_next_gap(&mut self, current_index: usize) {
-        if current_index <= self.gaps.len() {
+        if current_index + 1 < self.gaps.len() {
             let curr = &self.gaps[current_index];
             let next = &self.gaps[current_index + 1];
             if curr.position + curr.length == next.position {

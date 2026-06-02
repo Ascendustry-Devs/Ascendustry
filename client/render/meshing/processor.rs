@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use engine::geometry::vertex::Vertex;
-use game::world::data::chunk::{Chunk, CHUNK_SIZE};
+use game::world::data::chunk::CHUNK_SIZE;
 use project_core::{buffer_pool::BufferPool, parallel::Parallelizable};
 
 use crate::{

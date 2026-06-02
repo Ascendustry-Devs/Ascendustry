@@ -24,6 +24,7 @@ use network::messages::ContenuPaquet;
 use project_core::geometry::plane::Plane;
 use project_core::{log_client, log_err_client};
 use std::mem;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::time::Instant;
 use winit::keyboard::KeyCode;
@@ -77,7 +78,8 @@ impl AppState for GameState {
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>) {
         let mut tex_loader = TextureLoader::new(&mut renderer.texture_manager);
         let meshin = self.world.init(&mut tex_loader, &self.player);
-        self.world_mesh.init(meshin);
+        let alloc = Arc::clone(&renderer.render_manager.mesh_manager);
+        self.world_mesh.init(alloc, meshin);
 
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {
@@ -191,7 +193,8 @@ impl AppState for GameState {
         }
 
         // MESHING
-        self.world_mesh.update(mesh_manager, &mut mesh_request);
+        let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request);
+        self.world.listen(&mut responses);
 
         // RENDER
         {
@@ -244,16 +247,17 @@ impl AppState for GameState {
             };
 
             // Update renderer with remote player positions
+            let alloc = &mut mesh_manager.write().unwrap();
             for p in self.remote_players.get_all_mut().iter_mut() {
                 if let Some(new_pos) = p.position.change() {
                     let player_data = generate_cube(new_pos.0, new_pos.1, new_pos.2);
                     let raw_data = cast_slice(&player_data);
                     if let Some(mesh_id) = p.mesh_id {
-                        if let Some(update_err) = mesh_manager.update(mesh_id, raw_data).err() {
+                        if let Some(update_err) = alloc.update(mesh_id, raw_data).err() {
                             println!("Failed to update mesh id {}.\nError: {}", mesh_id, update_err);
                         };
                     } else {
-                        p.mesh_id = mesh_manager.add(raw_data).ok();
+                        p.mesh_id = alloc.add(raw_data).ok();
                     }
                 }
                 data.visible_meshes.replace(p.mesh_id.unwrap());
@@ -269,20 +273,21 @@ impl AppState for GameState {
         self.inputs.set_key_press(code, is_pressed);
     }
 
-    fn dispose(&mut self) {
+    fn dispose(&mut self, alloc: &mut Arc<RwLock<GpuAllocator>>) {
         // TODO: faire fonctionner -> // Network dispose (disconnection, memory release...), if any.
         // if let Some(net) = self.network.as_mut() {
 
         // }
 
         self.world.dispose();
-        self.world_mesh.dispose();
+        self.world_mesh.dispose(alloc);
     }
 }
 
 impl GameState {
-    fn update_debug_commands(&mut self, alloc: &GpuAllocator) {
+    fn update_debug_commands(&mut self, alloc: &Arc<RwLock<GpuAllocator>>) {
         // GPU VRAM ALLOCATOR MEM DUMP
+        let alloc = &alloc.read().unwrap();
         if self.inputs.take_key_pressed(KeyCode::KeyV) {
             let meshes = &self.world_mesh.meshes;
             println!("==== CACHED MESHES ====");

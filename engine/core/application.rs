@@ -1,7 +1,7 @@
 use core::*;
 use std::mem;
 use std::process::exit;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use project_core::{log_client, log_err_client};
 use winit::event_loop::ActiveEventLoop;
@@ -10,6 +10,7 @@ use winit::{application::ApplicationHandler, keyboard::KeyCode, keyboard::Physic
 use crate::audio::GameAudioManager;
 use crate::core::frame::{EngineFrameData, GameFrameData};
 use crate::core::state::State;
+use crate::gpu::allocator::gpu_allocator::GpuAllocator;
 use crate::render::render::Renderer;
 use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
 use winit::window::{CursorGrabMode, Window};
@@ -33,7 +34,7 @@ pub trait AppState {
     fn update(&mut self, frame: &EngineFrameData, data: &mut GameFrameData, renderer: &mut Renderer);
     fn on_mouse_move(&mut self, dx: f64, dy: f64);
     fn on_key(&mut self, code: KeyCode, is_pressed: bool);
-    fn dispose(&mut self);
+    fn dispose(&mut self, alloc: &mut Arc<RwLock<GpuAllocator>>);
 }
 
 pub struct App<S: AppState> {
@@ -154,8 +155,8 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
 
     #[inline(always)]
     fn exiting(&mut self, _: &ActiveEventLoop) {
-        self.app_state.dispose();
         if let Some(engine) = self.engine_state.as_mut() {
+            self.app_state.dispose(&mut engine.renderer.render_manager.mesh_manager);
             engine.dispose();
         }
         log_client!("Exiting...");

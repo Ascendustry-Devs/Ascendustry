@@ -16,9 +16,6 @@ use crate::{
     },
 };
 
-const WIREFRAME: bool = false;
-const SHOW_CHUNK_BORDERS: bool = false;
-
 pub struct Renderer {
     pub is_surface_configured: bool,
 
@@ -63,8 +60,9 @@ impl Renderer {
     fn world_pass(&self, render_pass: &mut RenderPass) {
         // World & Player meshes (other than local player)
         let mesh_count = self.render_manager.get_meshes_to_render().len() as u32;
+        let alloc = &self.render_manager.mesh_manager.read().unwrap();
         if mesh_count > 0 {
-            render_pass.set_vertex_buffer(0, self.render_manager.mesh_manager.get_buffer().slice(..));
+            render_pass.set_vertex_buffer(0, alloc.get_buffer().slice(..));
 
             let can_multidraw = self.gpu_context.features.contains(Features::MULTI_DRAW_INDIRECT_COUNT);
 
@@ -211,7 +209,7 @@ impl Renderer {
         queue.submit(iter::once(encoder.finish()));
         output.present();
 
-        self.render_manager.mesh_manager.process_pending_destructions();
+        self.render_manager.mesh_manager.write().unwrap().process_pending_destructions();
         self.render_manager.clear_render_queue();
     }
 
