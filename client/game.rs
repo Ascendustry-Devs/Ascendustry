@@ -25,6 +25,7 @@ use network::messages::ContenuPaquet;
 use project_core::geometry::plane::Plane;
 use project_core::{log_client, log_err_client};
 use std::mem;
+use std::process::exit;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::time::Instant;
@@ -116,85 +117,87 @@ impl AppState for GameState {
         // NETWORK
         {
             let net = self.network.as_mut().expect("NetworkManager: uninitialized.");
-            if net.is_connected() {
-                // Envoi un ping si aucun échange n'a eu lieu depuis PING_INTERVAL
-                if net.get_last_communication().elapsed() >= PING_INTERVAL {
-                    let timestamp = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs();
-                    if let Err(e) = net.send_ping(timestamp) {
-                        log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
-                    } else {
-                        log_client!("Ping envoyé !");
-                    }
+            if !net.is_connected() {
+                log_client!("Déconnecté du serveur. Arrêt du client.");
+                exit(0);
+            }
+            // Envoi un ping si aucun échange n'a eu lieu depuis PING_INTERVAL
+            if net.get_last_communication().elapsed() >= PING_INTERVAL {
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                if let Err(e) = net.send_ping(timestamp) {
+                    log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
+                } else {
+                    log_client!("Ping envoyé !");
                 }
-                // Envoi la position et rotation du joueur au serveur si elles ont changés
-                if self.player.has_moved() {
-                    let pos = self.player.get_pos();
-                    let (rx, ry) = self.player.state.camera.get_rotation();
-                    if let Err(e) = net.send_position(pos.x, pos.y, pos.z, rx, ry) {
-                        log_err_client!("Échec de l'envoi de la position.\nErreur : {}", e);
-                    }
-                    self.player.state.reset_moved();
+            }
+            // Envoi la position et rotation du joueur au serveur si elles ont changés
+            if self.player.has_moved() {
+                let pos = self.player.get_pos();
+                let (rx, ry) = self.player.state.camera.get_rotation();
+                if let Err(e) = net.send_position(pos.x, pos.y, pos.z, rx, ry) {
+                    log_err_client!("Échec de l'envoi de la position.\nErreur : {}", e);
                 }
-                // Réception des positions des autres joueurs
-                if let Ok(Some(packet)) = net.receive_packet() {
-                    use ContenuPaquet;
-                    match packet.contenu {
-                        ContenuPaquet::MultiplePlayerTransformation { data } => {
-                            if let Some(my_id) = net.player_id() {
-                                self.remote_players.update(data, my_id);
-                            }
+                self.player.state.reset_moved();
+            }
+            // Réception des positions des autres joueurs
+            if let Ok(Some(packet)) = net.receive_packet() {
+                use ContenuPaquet;
+                match packet.contenu {
+                    ContenuPaquet::MultiplePlayerTransformation { data } => {
+                        if let Some(my_id) = net.player_id() {
+                            self.remote_players.update(data, my_id);
                         }
-                        ContenuPaquet::GuardCorrection { data } => {
-                            if let Some(my_id) = net.player_id() {
-                                for t in &data {
-                                    if t.player_id == my_id {
-                                        self.player.state.set_position_and_rotation(t.position, t.rotation);
-                                    }
+                    }
+                    ContenuPaquet::GuardCorrection { data } => {
+                        if let Some(my_id) = net.player_id() {
+                            for t in &data {
+                                if t.player_id == my_id {
+                                    self.player.state.set_position_and_rotation(t.position, t.rotation);
                                 }
                             }
                         }
-                        ContenuPaquet::DonneesMonde { chunks } => {
-                            log_client!("Paquet ContenuPaquet::DonneesMonde reçu !");
-                            for c in chunks {
-                                self.world.apply_remote_chunk(c.x, c.y, c.z, &c.data);
-                            }
+                    }
+                    ContenuPaquet::DonneesMonde { chunks } => {
+                        log_client!("Paquet ContenuPaquet::DonneesMonde reçu !");
+                        for c in chunks {
+                            self.world.apply_remote_chunk(c.x, c.y, c.z, &c.data);
                         }
-                        ContenuPaquet::SetBlock { x, y, z, block_id } => {
-                            let block = BlockInstance::new(block_id);
-                            self.world.set_block(x, y, z, block);
-                        }
-                        _ => {}
+                    }
+                    ContenuPaquet::SetBlock { x, y, z, block_id } => {
+                        let block = BlockInstance::new(block_id);
+                        self.world.set_block(x, y, z, block);
+                    }
+                    _ => {}
+                }
+            }
+            for command in network_commands {
+                let result = net.send_packet(command);
+                match result {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log_err_client!("Failed to send command packet.\nError: {}", err);
                     }
                 }
-                for command in network_commands {
-                    let result = net.send_packet(command);
-                    match result {
+            }
+            // Envoyer une demande de sauvegarde
+            if self.inputs.is_key_pressed(KeyCode::Digit3) && self.last_save_request.elapsed() > Duration::from_secs(5) {
+                self.last_save_request = Instant::now();
+                let packet = new_save_request_paquet();
+                if let Some(net) = self.network.as_mut() {
+                    match net.send_packet(packet) {
                         Ok(_) => {}
                         Err(err) => {
-                            log_err_client!("Failed to send command packet.\nError: {}", err);
+                            log_err_client!("Failed to send save request packet.\nError: {}", err);
                         }
                     }
                 }
-                // Envoyer une demande de sauvegarde
-                if self.inputs.is_key_pressed(KeyCode::Digit3) && self.last_save_request.elapsed() > Duration::from_secs(5) {
-                    self.last_save_request = Instant::now();
-                    let packet = new_save_request_paquet();
-                    if let Some(net) = self.network.as_mut() {
-                        match net.send_packet(packet) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                log_err_client!("Failed to send save request packet.\nError: {}", err);
-                            }
-                        }
-                    }
-                }
-
-                // Nettoyer les joueurs distants qui n'ont pas envoyé de mise à jour depuis 30s
-                self.remote_players.cleanup_stale(Duration::from_secs(30));
             }
+
+            // Nettoyer les joueurs distants qui n'ont pas envoyé de mise à jour depuis 30s
+            self.remote_players.cleanup_stale(Duration::from_secs(30));
         }
 
         // MESHING
