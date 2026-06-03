@@ -269,13 +269,21 @@ fn fun_name(
 
     let gpu_factory = GpuFactory::new(&gpu_context);
 
-    let texture_bind_group_layout = gpu_factory.bind_group_layout().make_texture_array(Some("Texture array layout"));
+    let texture_bind_group_layout = gpu_factory.bind_group_layout().make_textures(Some("Texture Bind Group Layout"));
 
-    let opaque_array = texture_manager.get_array(RenderMode::Opaque);
-    let texture_bind_group = gpu_factory.bind_group().make(
-        Some("Texture array"),
+    let opaque_array = texture_manager.get_array(&RenderMode::Opaque);
+    let alpha_cutout_array = texture_manager.get_array(&RenderMode::AlphaCutout);
+    let translucent_array = texture_manager.get_array(&RenderMode::Translucent);
+    let billboard_array = texture_manager.get_array(&RenderMode::Billboard);
+    let ui_atlas = texture_manager.get_ui_atlas();
+
+    let textures_arrays_bind_group_entries = [opaque_array, alpha_cutout_array, translucent_array, billboard_array];
+
+    let textures_bind_group = gpu_factory.bind_group().make_textures_entries(
         &texture_bind_group_layout,
-        &gpu_factory.bind_group().make_texture_array_entry(0, &opaque_array),
+        &textures_arrays_bind_group_entries,
+        ui_atlas,
+        Some("Texture Bind Group"),
     );
 
     let render_camera = RenderCamera::new();
@@ -438,7 +446,7 @@ fn fun_name(
     (
         gpu_context,
         texture_manager,
-        texture_bind_group,
+        textures_bind_group,
         render_camera,
         camera_buffer,
         camera_bind_group,

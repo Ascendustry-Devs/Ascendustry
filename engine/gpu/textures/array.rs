@@ -4,10 +4,10 @@ pub struct Texture2DArray {
     texture: Texture,
     view: TextureView,
     sampler: Sampler,
-    width: u16,
-    height: u16,
-    depth: u16,
-    next_depth: u16,
+    width: u32,
+    height: u32,
+    depth: u32,
+    next_depth: u32,
 }
 
 impl Texture2DArray {
@@ -46,21 +46,21 @@ impl Texture2DArray {
             texture,
             view,
             sampler,
-            width: width as u16,
-            height: height as u16,
-            depth: depth as u16,
+            width: width,
+            height: height,
+            depth: depth,
             next_depth: 0,
         }
     }
 
-    pub fn next_id(&mut self) -> u16 {
+    pub fn next_id(&mut self) -> u32 {
         let depth = self.next_depth;
         self.next_depth += 1;
         depth
     }
 
-    pub fn write_at(&mut self, queue: &wgpu::Queue, depth: u16, data: &[u8]) {
-        assert_eq!(data.len(), (self.width as u32 * self.height as u32 * 4) as usize);
+    pub fn write_at(&mut self, queue: &wgpu::Queue, depth: u32, data: &[u8]) {
+        assert_eq!(data.len(), (self.width * self.height * 4) as usize);
         assert!(depth <= self.depth);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -76,12 +76,12 @@ impl Texture2DArray {
             data,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * self.width as u32),
-                rows_per_image: Some(self.height as u32),
+                bytes_per_row: Some(4 * self.width),
+                rows_per_image: Some(self.height),
             },
             wgpu::Extent3d {
-                width: self.width as u32,
-                height: self.height as u32,
+                width: self.width,
+                height: self.height,
                 depth_or_array_layers: 1,
             },
         );
@@ -95,15 +95,15 @@ impl Texture2DArray {
         &self.sampler
     }
 
-    pub fn width(&self) -> u16 {
+    pub fn width(&self) -> u32 {
         self.width
     }
 
-    pub fn height(&self) -> u16 {
+    pub fn height(&self) -> u32 {
         self.height
     }
 
-    pub fn depth(&self) -> u16 {
+    pub fn depth(&self) -> u32 {
         self.depth
     }
 

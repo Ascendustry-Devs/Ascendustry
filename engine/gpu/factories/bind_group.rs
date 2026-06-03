@@ -5,7 +5,10 @@ use wgpu::{
     BindingType, Buffer, Sampler, SamplerBindingType, ShaderStages, TextureSampleType, TextureView, TextureViewDimension,
 };
 
-use crate::gpu::{textures::array::Texture2DArray, tools::GpuTools};
+use crate::gpu::{
+    textures::{array::Texture2DArray, atlas::Texture2DAtlas},
+    tools::GpuTools,
+};
 
 pub struct BindGroupLayoutFactory {
     gpu_tools: Arc<GpuTools>,
@@ -152,23 +155,24 @@ impl BindGroupFactory {
         ]
     }
 
-    pub fn make_texture_atlas_entry<'a>(&'a self, binding: u32, view: &'a TextureView, sampler: &'a Sampler) -> [BindGroupEntry<'a>; 2] {
+    pub fn make_texture_atlas_entry<'a>(&'a self, binding: u32, atlas: &'a Texture2DAtlas) -> [BindGroupEntry<'a>; 2] {
         [
             BindGroupEntry {
                 binding: binding,
-                resource: BindingResource::TextureView(view),
+                resource: BindingResource::TextureView(atlas.view()),
             },
             BindGroupEntry {
                 binding: binding + 1,
-                resource: BindingResource::Sampler(sampler),
+                resource: BindingResource::Sampler(atlas.sampler()),
             },
         ]
     }
 
-    pub fn make_textures_arrays(
+    pub fn make_textures_entries(
         &self,
         layout: &BindGroupLayout,
         arrays: &[&Texture2DArray; 4],
+        ui_atlas: &Texture2DAtlas,
         // atlas_view: ,
         label: Option<&str>,
     ) -> BindGroup {
@@ -177,6 +181,7 @@ impl BindGroupFactory {
             self.make_texture_array_entry(2, arrays[1]), // alpha cutout
             self.make_texture_array_entry(4, arrays[2]), // translucent
             self.make_texture_array_entry(6, arrays[3]), // billboard
+            self.make_texture_atlas_entry(8, ui_atlas),  // ui
         ]
         .into_iter()
         .flatten()

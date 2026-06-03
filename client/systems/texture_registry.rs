@@ -13,7 +13,6 @@ impl TextureRegistry {
             return Err(Error::msg("idk"));
         };
 
-        let size = texture.width() as u16;
-        texture_manager.register(render_mode, texture.as_bytes(), size, size)
+        texture_manager.register_array(render_mode, texture.as_bytes())
     }
 }

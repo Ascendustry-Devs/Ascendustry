@@ -1,10 +1,16 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Error;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use crate::{
     gpu::{
-        textures::{array::Texture2DArray, id::TextureID},
+        textures::{
+            array::Texture2DArray,
+            atlas::Texture2DAtlas,
+            data::TextureData::{self, OfArray, OfAtlas},
+            id::TextureID,
+        },
         tools::GpuTools,
     },
     render::modes::RenderMode,
@@ -12,90 +18,174 @@ use crate::{
 
 pub struct TextureManager {
     gpu_resources: Arc<GpuTools>,
-    textures_arrays: Vec<Texture2DArray>,
+
     max_texture_size: u32,
     max_array_depth: u32,
+
+    opaque: Texture2DArray,
+    alpha_cutout: Texture2DArray,
+    translucent: Texture2DArray,
+    billboard: Texture2DArray,
+    ui: Texture2DAtlas,
+
+    texture_ids: FxHashMap<TextureID, TextureData>,
+
+    next_ui_id: u32,
 }
 
 impl TextureManager {
     pub fn new(gpu_resources: Arc<GpuTools>, max_texture_size: u32, max_array_depth: u32) -> Self {
-        let size = max_texture_size.min(32) as u16;
+        let device = gpu_resources.device();
 
-        let mut instance = Self {
-            gpu_resources,
-            textures_arrays: vec![],
-            max_texture_size,
-            max_array_depth,
+        let [opaque, alpha_cutout, translucent, billboard] = {
+            let width = 32;
+            let height = 32;
+            let depth = max_array_depth;
+
+            let labels = [
+                "Opaque Texture2DArray",
+                "AlphaCutout Texture2DArray",
+                "Translucent Texture2DArray",
+                "Billboard Texture2DArray",
+            ]
+            .map(|label| String::from(label));
+
+            labels.map(|label| Texture2DArray::new(label, device, width, height, depth))
         };
 
-        let texture_array = instance.make_new_array("Textures".to_string(), size, size);
-        assert!(texture_array == RenderMode::Opaque.to_usize());
+        let ui = {
+            let width = max_texture_size;
+            let height = max_texture_size;
 
-        instance
-    }
+            Texture2DAtlas::new(String::from("UI Texture2DAtlas"), device, width, height)
+        };
 
-    fn make_new_array(&mut self, label: String, width: u16, height: u16) -> usize {
-        let width = width as u32;
-        let height = height as u32;
-        if width > self.max_texture_size || height > self.max_texture_size {
-            panic!(
-                "TextureManager - make_new_array: texture's dimensions exceeds what hardware supports.\nw: {} > {} or h: {} > {}",
-                width, self.max_texture_size, height, self.max_texture_size
-            )
+        Self {
+            gpu_resources,
+            opaque,
+            alpha_cutout,
+            translucent,
+            billboard,
+            ui,
+            max_texture_size,
+            max_array_depth,
+            texture_ids: HashMap::with_hasher(FxBuildHasher),
+            next_ui_id: 0,
         }
-
-        let id = self.textures_arrays.len();
-        let depth = self.max_array_depth;
-        let array = Texture2DArray::new(label, self.gpu_resources.device(), width, height, depth);
-
-        self.textures_arrays.push(array);
-
-        id
     }
 
-    fn find_place(&mut self, array_index: RenderMode) -> Result<TextureID, Error> {
-        let idx = array_index.to_usize();
-        if let Some(array) = self.textures_arrays.get_mut(idx) {
-            let depth = array.next_id();
-            if depth > self.max_array_depth as u16 {
-                return Err(Error::msg(format!("No spot found for new texture.\nIndex provided: {}", idx)));
-            } else {
-                return Ok(TextureID::new(idx, depth));
-            }
+    pub fn get_array(&self, render_mode: &RenderMode) -> &Texture2DArray {
+        match render_mode {
+            RenderMode::Opaque => &self.opaque,
+            RenderMode::AlphaCutout => &self.alpha_cutout,
+            RenderMode::Translucent => &self.translucent,
+            RenderMode::Billboard => &self.billboard,
+            _ => panic!(),
         }
-        Err(Error::msg(format!("Texture array not found.\nIndex provided: {}", idx)))
     }
 
-    pub fn register(&mut self, array: RenderMode, texture: &[u8], width: u16, height: u16) -> Result<TextureID, Error> {
-        if texture.len() != ((width as u32) * (height as u32) * 4) as usize {
+    pub fn get_ui_atlas(&self) -> &Texture2DAtlas {
+        &self.ui
+    }
+
+    pub fn register_array(&mut self, render_mode: RenderMode, texture: &[u8]) -> Result<TextureID, Error> {
+        assert!(render_mode != RenderMode::UI);
+
+        let array = self.get_array_mut(&render_mode);
+        if texture.len() != (array.width() * array.height() * 4) as usize {
             panic!(
                 "Texture data length does not match expected size for given dimensions.\n{} != {}*{}*4",
                 texture.len(),
-                width,
-                height
+                array.width(),
+                array.height()
             );
         }
 
-        let id = self.find_place(array)?;
+        let id = self.find_place_array(&render_mode)?;
+        let texture_data = TextureData::for_array(id.id());
 
+        self.texture_ids.insert(id.clone(), texture_data);
         self.write(texture, &id);
 
         Ok(id)
     }
 
-    pub fn write(&mut self, texture: &[u8], id: &TextureID) {
-        let Some(array) = self.textures_arrays.get_mut(id.array()) else {
-            return;
-        };
+    pub fn register_atlas(&mut self, texture: &[u8], x: u32, y: u32, width: u32, height: u32) -> Result<TextureID, Error> {
+        let array = self.get_ui_atlas_mut();
+        if texture.len() != (width * height * 4) as usize {
+            panic!(
+                "Texture data length does not match expected size for given dimensions.\n{} != {}*{}*4",
+                texture.len(),
+                array.width(),
+                array.height()
+            );
+        }
 
-        array.write_at(self.gpu_resources.queue(), id.depth(), texture);
+        let id = self.find_place_ui_atlas().unwrap();
+        let texture_data = TextureData::for_atlas(x, y, width, height);
+
+        self.texture_ids.insert(id.clone(), texture_data);
+        self.write(texture, &id);
+
+        Ok(id)
     }
 
-    pub fn get_array(&self, index: RenderMode) -> &Texture2DArray {
-        self.textures_arrays.get(index.to_usize()).unwrap()
+    fn write(&mut self, texture: &[u8], id: &TextureID) {
+        let data = self.texture_ids.get(id).unwrap();
+        match *data {
+            OfAtlas { x, y, width, height } => {
+                self.write_to_ui_atlas(x, y, width, height, texture);
+            }
+            OfArray { depth: _ } => {
+                self.write_to_array(texture, id);
+            }
+        }
     }
 
-    pub fn get_array_mut(&mut self, index: RenderMode) -> &mut Texture2DArray {
-        self.textures_arrays.get_mut(index.to_usize()).unwrap()
+    fn write_to_array(&mut self, texture: &[u8], id: &TextureID) {
+        let gpu = self.gpu_resources.clone();
+        let queue = gpu.queue();
+        let array = self.get_array_mut(id.render_mode());
+        let depth = id.id();
+        array.write_at(queue, depth, texture);
+    }
+
+    fn write_to_ui_atlas(&mut self, x: u32, y: u32, width: u32, height: u32, texture: &[u8]) {
+        let gpu = self.gpu_resources.clone();
+        let queue = gpu.queue();
+        let ui = self.get_ui_atlas_mut();
+        ui.write_at(queue, x, y, width, height, texture);
+    }
+
+    fn find_place_array(&mut self, render_mode: &RenderMode) -> Result<TextureID, Error> {
+        let depth = self.get_array_mut(&render_mode).next_id();
+
+        if depth > self.max_array_depth {
+            return Err(Error::msg(format!("No place found for {}.", render_mode)));
+        } else {
+            return Ok(TextureID::new((*render_mode).clone(), depth));
+        }
+    }
+
+    fn find_place_ui_atlas(&mut self) -> Result<TextureID, Error> {
+        let id = self.next_ui_id;
+        self.next_ui_id += 1;
+
+        let texture_id = TextureID::new(RenderMode::UI, id);
+        return Ok(texture_id);
+    }
+
+    fn get_array_mut(&mut self, render_mode: &RenderMode) -> &mut Texture2DArray {
+        match render_mode {
+            RenderMode::Opaque => &mut self.opaque,
+            RenderMode::AlphaCutout => &mut self.alpha_cutout,
+            RenderMode::Translucent => &mut self.translucent,
+            RenderMode::Billboard => &mut self.billboard,
+            _ => panic!(),
+        }
+    }
+
+    fn get_ui_atlas_mut(&mut self) -> &mut Texture2DAtlas {
+        &mut self.ui
     }
 }
