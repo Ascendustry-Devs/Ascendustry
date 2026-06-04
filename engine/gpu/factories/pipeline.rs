@@ -16,7 +16,7 @@ impl PipelineLayoutFactory {
         Self { gpu_tools }
     }
 
-    pub fn make(&self, label: Option<&str>, bind_group_layouts: &[&BindGroupLayout]) -> PipelineLayout {
+    pub fn make(&self, label: Option<&str>, bind_group_layouts: &[Option<&BindGroupLayout>]) -> PipelineLayout {
         let descriptor = PipelineLayoutDescriptor {
             label: label,
             bind_group_layouts: bind_group_layouts,

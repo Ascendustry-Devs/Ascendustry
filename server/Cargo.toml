@@ -22,8 +22,6 @@ serde = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 rand = "0.8"
-log = { workspace = true }
-env_logger = { workspace = true }
 
 project_core = { path = "../project_core" }
 game = { path = "../game" }
@@ -31,3 +29,6 @@ network = { path = "../network" }
 physics = { path = "../physics", features = ["server"] }
 bincode.workspace = true
 rustc-hash.workspace = true
+
+# log = { workspace = true }
+# env_logger = { workspace = true }

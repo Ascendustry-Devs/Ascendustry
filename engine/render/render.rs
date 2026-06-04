@@ -5,7 +5,7 @@ use game::world::data::chunk::CHUNK_SIZE_F;
 use crate::geometry::vertex::Vertex;
 use wgpu::{
     wgt::{CommandEncoderDescriptor, DrawIndirectArgs},
-    Features, RenderPass,
+    Features, RenderPass, SurfaceTexture,
 };
 
 use crate::{
@@ -74,7 +74,7 @@ impl Renderer {
         }
     }
 
-    pub fn render<'a>(&'a mut self, camera: &RenderCamera, text_renderer: Option<&'a mut TextRenderer>) {
+    pub fn render<'a>(&'a mut self, output: SurfaceTexture, camera: &RenderCamera, text_renderer: Option<&'a mut TextRenderer>) {
         const CHUNK_BORDERS: [Vertex; 24] = [
             Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
             Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
@@ -126,7 +126,6 @@ impl Renderer {
             queue.write_buffer(&self.debug.chunk_borders_buffer, 0, bytemuck::cast_slice(&chunk_borders_vertices));
         };
 
-        let output = self.gpu_context.surface.get_current_texture().unwrap();
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         // World pass
