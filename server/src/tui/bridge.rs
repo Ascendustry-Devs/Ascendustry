@@ -4,7 +4,7 @@ use tokio::sync::mpsc;
 pub struct PlayerInfo {
     pub id: u64,
     pub username: String,
-    pub position: (f64, f64, f64),
+    pub position: (f32, f32, f32),
     pub gamemode: String,
 }
 
@@ -41,6 +41,7 @@ pub enum TuiCommand {
     Log(String),
 }
 
+#[derive(Clone)]
 pub struct TuiBridge {
     pub state: Arc<Mutex<TuiState>>,
     pub command_tx: mpsc::UnboundedSender<TuiCommand>,
@@ -49,5 +50,32 @@ pub struct TuiBridge {
 impl TuiBridge {
     pub fn new(state: Arc<Mutex<TuiState>>, command_tx: mpsc::UnboundedSender<TuiCommand>) -> Self {
         Self { state, command_tx }
+    }
+
+    pub fn set_address(&self, address: &str) {
+        self.state.lock().unwrap().address = address.to_string();
+    }
+
+    pub fn sync_from_appstate(&self, app_state: &crate::state::AppState) {
+        let seed = app_state.get_seed();
+        let chunk_count = app_state.get_chunk_count();
+        let modified_count = app_state.get_modified_count();
+        let players = app_state.get_all_players_vec().unwrap_or_default();
+        let connected_count = players.len();
+
+        let mut s = self.state.lock().unwrap();
+        s.seed = seed;
+        s.chunk_count = chunk_count;
+        s.modified_count = modified_count;
+        s.connected_player_count = connected_count;
+        s.players = players
+            .iter()
+            .map(|p| PlayerInfo {
+                id: p.id,
+                username: p.username.clone(),
+                position: (p.position.x, p.position.y, p.position.z),
+                gamemode: format!("{:?}", p.gamemode),
+            })
+            .collect();
     }
 }

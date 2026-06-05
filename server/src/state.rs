@@ -209,6 +209,14 @@ impl AppState {
             let _ = broadcaster.send(BroadcastMessage::All(packet));
         }
     }
+    pub fn get_chunk_count(&self) -> usize {
+        self.inner.read().unwrap().world.world_generated_chunks.len()
+    }
+
+    pub fn get_modified_count(&self) -> usize {
+        self.inner.read().unwrap().world.modifications.chunks().len()
+    }
+
     pub fn get_modified_chunks_data(&self) -> Vec<ChunkData> {
         let mut state = self.inner.write().unwrap();
 

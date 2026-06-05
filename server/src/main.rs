@@ -25,6 +25,7 @@ async fn main() -> Result<()> {
     let state = Arc::new(std::sync::Mutex::new(server::tui::bridge::TuiState::default()));
     let (command_tx, mut command_rx) = tokio::sync::mpsc::unbounded_channel();
     let bridge = server::tui::bridge::TuiBridge::new(Arc::clone(&state), command_tx.clone());
+    bridge.set_address(&args.address);
 
     server::tui::log::init_logging(Arc::clone(&state));
 

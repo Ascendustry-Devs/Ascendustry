@@ -91,6 +91,19 @@ impl Server {
             }
         });
 
+        #[cfg(feature = "tui")]
+        if let Some(bridge) = self.bridge.as_ref() {
+            let state = Arc::clone(&self.state);
+            let b = bridge.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(3));
+                loop {
+                    interval.tick().await;
+                    b.sync_from_appstate(&state);
+                }
+            });
+        }
+
         loop {
             let (stream, addr) = self.listener.accept().await?;
             log_server!("Serveur: connexion de l'adresse {}.", addr);
