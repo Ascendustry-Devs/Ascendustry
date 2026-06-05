@@ -3,7 +3,7 @@ use std::mem;
 use std::process::exit;
 use std::sync::{Arc, RwLock};
 
-use project_core::{log_client, log_err_client};
+use project_core::log_client;
 use winit::event_loop::ActiveEventLoop;
 use winit::{application::ApplicationHandler, keyboard::KeyCode, keyboard::PhysicalKey};
 
@@ -56,7 +56,7 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes().with_maximized(true).with_title("Ascendustry");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
-        let mut engine = pollster::block_on(State::new(window, &self.app_state)).unwrap();
+        let mut engine = pollster::block_on(State::new(window, event_loop, &self.app_state)).unwrap();
         self.app_state.init(&mut engine.renderer, &mut engine.audio_manager);
         self.engine_state = Some(engine);
     }
@@ -117,16 +117,7 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
-            WindowEvent::RedrawRequested => match state.render() {
-                Ok(_) => {}
-                Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                    let size: winit::dpi::PhysicalSize<u32> = state.window.inner_size();
-                    state.resize(size.width, size.height);
-                }
-                Err(e) => {
-                    log_err_client!("Unable to render.\nError: {}", e);
-                }
-            },
+            WindowEvent::RedrawRequested => state.render(),
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {

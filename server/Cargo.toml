@@ -23,8 +23,6 @@ serde = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 rand = "0.8"
-log = { workspace = true }
-env_logger = { workspace = true }
 
 project_core = { path = "../project_core" }
 game = { path = "../game" }

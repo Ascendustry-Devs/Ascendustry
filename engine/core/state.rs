@@ -29,11 +29,11 @@ use std::sync::Arc;
 use std::time::Instant;
 use wgpu::{
     util::{BufferInitDescriptor, DeviceExt},
-    BindGroup, BlendState, Buffer, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Face,
-    Features, FragmentState, FrontFace, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline, ShaderSource, Texture,
-    TextureFormat, TextureView, VertexState,
+    BindGroup, BlendState, Buffer, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, CurrentSurfaceTexture, DepthBiasState,
+    DepthStencilState, Face, Features, FragmentState, FrontFace, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline,
+    ShaderSource, Texture, TextureFormat, TextureView, VertexState,
 };
-use winit::{dpi::PhysicalSize, window::Window};
+use winit::{dpi::PhysicalSize, event_loop::ActiveEventLoop, window::Window};
 
 pub struct State {
     pub window: Arc<Window>,
@@ -45,7 +45,7 @@ pub struct State {
 }
 
 impl State {
-    pub async fn new<S: AppState>(window: Arc<Window>, _app_state: &S) -> anyhow::Result<Self> {
+    pub async fn new<S: AppState>(window: Arc<Window>, event_loop: &ActiveEventLoop, _app_state: &S) -> anyhow::Result<Self> {
         let audio_manager = GameAudioManager::new(&window).ok();
 
         let size = window.inner_size();
@@ -64,7 +64,7 @@ impl State {
             depth_view,
             pipelines,
             debug_pipelines,
-        ) = fun_name(size, &window);
+        ) = fun_name(size, &window, event_loop);
 
         let device = gpu_context.tools.device();
         let queue = gpu_context.tools.queue();
@@ -186,11 +186,28 @@ impl State {
         }
     }
 
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self) {
         self.renderer.render_manager.mesh_manager.write().unwrap().flush();
-        self.renderer.render(&self.game_frame_data.camera, Some(&mut self.text_renderer));
 
-        Ok(())
+        let output = self.renderer.gpu_context.surface.get_current_texture();
+        match output {
+            CurrentSurfaceTexture::Success(surface_texture) => {
+                self.renderer
+                    .render(surface_texture, &self.game_frame_data.camera, Some(&mut self.text_renderer));
+            }
+            CurrentSurfaceTexture::Suboptimal(_) | CurrentSurfaceTexture::Outdated => {
+                let (width, height) = self.window.inner_size().into();
+                self.resize(width, height);
+                // reconfigure
+                return;
+            }
+            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded | CurrentSurfaceTexture::Validation => {
+                return;
+            }
+            CurrentSurfaceTexture::Lost => {
+                return; /* chiant sa mère */
+            }
+        }
     }
 
     pub fn dispose(&mut self) {
@@ -205,6 +222,7 @@ impl State {
 fn fun_name(
     size: PhysicalSize<u32>,
     window: &Arc<Window>,
+    event_loop: &ActiveEventLoop,
 ) -> (
     GpuContext,
     TextureManager,
@@ -256,7 +274,7 @@ fn fun_name(
         Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
     ];
 
-    let gpu_context = GpuContext::new(Arc::clone(window)).unwrap();
+    let gpu_context = GpuContext::new(Arc::clone(window), event_loop.owned_display_handle()).unwrap();
 
     let device = gpu_context.tools.device();
     let config = &gpu_context.config;
@@ -269,13 +287,21 @@ fn fun_name(
 
     let gpu_factory = GpuFactory::new(&gpu_context);
 
-    let texture_bind_group_layout = gpu_factory.bind_group_layout().make_texture_array(Some("Texture array layout"));
+    let texture_bind_group_layout = gpu_factory.bind_group_layout().make_textures(Some("Texture Bind Group Layout"));
 
-    let opaque_array = texture_manager.get_array(RenderMode::Opaque);
-    let texture_bind_group = gpu_factory.bind_group().make(
-        Some("Texture array"),
+    let opaque_array = texture_manager.get_array(&RenderMode::Opaque);
+    let alpha_cutout_array = texture_manager.get_array(&RenderMode::AlphaCutout);
+    let translucent_array = texture_manager.get_array(&RenderMode::Translucent);
+    let billboard_array = texture_manager.get_array(&RenderMode::Billboard);
+    let ui_atlas = texture_manager.get_ui_atlas();
+
+    let textures_arrays_bind_group_entries = [opaque_array, alpha_cutout_array, translucent_array, billboard_array];
+
+    let textures_bind_group = gpu_factory.bind_group().make_textures_entries(
         &texture_bind_group_layout,
-        &gpu_factory.bind_group().make_texture_array_entry(0, &opaque_array),
+        &textures_arrays_bind_group_entries,
+        ui_atlas,
+        Some("Texture Bind Group"),
     );
 
     let render_camera = RenderCamera::new();
@@ -296,7 +322,7 @@ fn fun_name(
 
     let render_pipeline_layout = gpu_factory
         .pipeline_layout()
-        .make(None, &[&texture_bind_group_layout, &camera_bind_group_layout]);
+        .make(None, &[Some(&texture_bind_group_layout), Some(&camera_bind_group_layout)]);
 
     let vertex = VertexState {
         module: &shader,
@@ -348,8 +374,8 @@ fn fun_name(
 
     let depth_stencil = DepthStencilState {
         format: TextureFormat::Depth32Float,
-        depth_write_enabled: true,
-        depth_compare: CompareFunction::Less,
+        depth_write_enabled: Some(true),
+        depth_compare: Some(CompareFunction::Less),
         bias: DepthBiasState {
             constant: 0,
             slope_scale: 0.0,
@@ -438,7 +464,7 @@ fn fun_name(
     (
         gpu_context,
         texture_manager,
-        texture_bind_group,
+        textures_bind_group,
         render_camera,
         camera_buffer,
         camera_bind_group,

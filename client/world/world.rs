@@ -123,7 +123,7 @@ impl World {
 
             for mut values in blocks {
                 if let Ok(tex_id) = texture_loader.register(values.1.to_string(), RenderMode::Opaque) {
-                    values.0.texture_index = Some(tex_id.depth() as u32);
+                    values.0.texture_index = Some(tex_id.id());
                 };
                 block_manager.register(values.0);
             }

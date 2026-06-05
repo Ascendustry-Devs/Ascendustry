@@ -22,14 +22,16 @@ impl LauncherApp {
 }
 
 impl eframe::App for LauncherApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
+    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Effectuer la logique du launcher ici (s'il y en a)
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.vertical_centered(|ui| {
-                egui::Frame::none()
-                    .inner_margin(egui::Margin::symmetric(20.0, 10.0))
-                    .show(ui, |ui| {
-                        ui.heading("Ascendustry");
-                    });
+                egui::Frame::NONE.inner_margin(egui::Margin::symmetric(20, 10)).show(ui, |ui| {
+                    ui.heading("Ascendustry");
+                });
 
                 ui.add_space(30.0);
 
@@ -42,7 +44,7 @@ impl eframe::App for LauncherApp {
                     if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         let addr = address_or_default(&self.address);
                         self.tx.send(LaunchMode::Multiplayer(addr)).ok();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
 
                     ui.add_space(20.0);
@@ -55,7 +57,7 @@ impl eframe::App for LauncherApp {
                         if ui.add_sized([120.0, 40.0], egui::Button::new("Lancer")).clicked() {
                             let addr = address_or_default(&self.address);
                             self.tx.send(LaunchMode::Multiplayer(addr)).ok();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
                 } else {
@@ -70,7 +72,7 @@ impl eframe::App for LauncherApp {
                     if ui.add_sized([250.0, 50.0], egui::Button::new("Solo")).clicked() {
                         let path = save_path_or_default(&self.save_path);
                         self.tx.send(LaunchMode::Singleplayer(path)).ok();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
 
                     ui.add_space(15.0);

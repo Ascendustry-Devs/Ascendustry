@@ -18,7 +18,7 @@ fn main() -> eframe::Result<()> {
     let (tx, rx) = mpsc::channel::<LaunchMode>();
     let tx2 = tx.clone();
 
-    eframe::run_native("Ascendustry", options, Box::new(move |_cc| Box::new(LauncherApp::new(tx2))))?;
+    eframe::run_native("Ascendustry", options, Box::new(move |_cc| Ok(Box::new(LauncherApp::new(tx2)))))?;
 
     drop(tx);
     if let Ok(mode) = rx.recv() {

@@ -1,18 +1,21 @@
+use crate::render::modes::RenderMode;
+
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct TextureID {
-    array: usize,
-    depth: u16,
+    render_mode: RenderMode,
+    id: u32,
 }
 
 impl TextureID {
-    pub fn new(array: usize, depth: u16) -> Self {
-        Self { array, depth }
+    pub fn new(render_mode: RenderMode, id: u32) -> Self {
+        Self { render_mode, id }
     }
 
-    pub fn array(&self) -> usize {
-        self.array
+    pub fn render_mode(&self) -> &RenderMode {
+        &self.render_mode
     }
 
-    pub fn depth(&self) -> u16 {
-        self.depth
+    pub fn id(&self) -> u32 {
+        self.id
     }
 }

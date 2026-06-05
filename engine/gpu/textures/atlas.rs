@@ -4,8 +4,8 @@ pub struct Texture2DAtlas {
     texture: Texture,
     view: TextureView,
     sampler: Sampler,
-    width: u16,
-    height: u16,
+    width: u32,
+    height: u32,
 }
 
 impl Texture2DAtlas {
@@ -44,13 +44,13 @@ impl Texture2DAtlas {
             texture,
             view,
             sampler,
-            width: width as u16,
-            height: height as u16,
+            width: width,
+            height: height,
         }
     }
 
-    pub fn write_at(&mut self, queue: &wgpu::Queue, x: u32, y: u32, width: u16, height: u16, data: &[u8]) {
-        assert_eq!(data.len(), (self.width as u32 * self.height as u32 * 4) as usize);
+    pub fn write_at(&mut self, queue: &wgpu::Queue, x: u32, y: u32, width: u32, height: u32, data: &[u8]) {
+        assert_eq!(data.len(), (self.width * self.height * 4) as usize);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
@@ -61,12 +61,12 @@ impl Texture2DAtlas {
             data,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * width as u32),
-                rows_per_image: Some(height as u32),
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
             },
             wgpu::Extent3d {
-                width: self.width as u32,
-                height: self.height as u32,
+                width: self.width,
+                height: self.height,
                 depth_or_array_layers: 1,
             },
         );
@@ -80,11 +80,11 @@ impl Texture2DAtlas {
         &self.sampler
     }
 
-    pub fn width(&self) -> u16 {
+    pub fn width(&self) -> u32 {
         self.width
     }
 
-    pub fn height(&self) -> u16 {
+    pub fn height(&self) -> u32 {
         self.height
     }
 

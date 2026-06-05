@@ -2,10 +2,10 @@ use std::sync::{Arc, RwLock};
 
 use wgpu::{
     wgt::{CommandEncoderDescriptor, DeviceDescriptor},
-    Backends, CommandEncoder, ExperimentalFeatures, Features, Instance, InstanceDescriptor, Limits, PowerPreference, PresentMode,
+    CommandEncoder, ExperimentalFeatures, Features, Instance, InstanceDescriptor, Limits, PowerPreference, PresentMode,
     RequestAdapterOptions, Surface, SurfaceConfiguration, TextureUsages, Trace,
 };
-use winit::window::Window;
+use winit::{event_loop::OwnedDisplayHandle, window::Window};
 
 use crate::gpu::tools::GpuTools;
 
@@ -19,12 +19,12 @@ pub struct GpuContext {
 }
 
 impl GpuContext {
-    pub fn new(window: Arc<Window>) -> anyhow::Result<Self> {
+    pub fn new(window: Arc<Window>, display_handle: OwnedDisplayHandle) -> anyhow::Result<Self> {
         let size = window.inner_size();
-        let instance = Instance::new(&InstanceDescriptor {
-            backends: Backends::PRIMARY,
-            ..Default::default()
-        });
+        let instance = {
+            let descriptor = InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display_handle));
+            Instance::new(descriptor)
+        };
 
         let surface = instance.create_surface(window).unwrap();
 

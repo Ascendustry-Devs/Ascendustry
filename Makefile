@@ -34,17 +34,22 @@ check: fmt
 clean-code: fmt
 	cargo fix --allow-dirty
 
+client-build: fmt
+	RUSTFLAGS="-Awarnings" cargo build -p client --bin Ascendustry
+server-build: fmt
+	RUSTFLAGS="-Awarnings" cargo build -p server --bin server
+
 launch: launcher
-launcher: fmt
+launcher: fmt client-build server-build
 	RUSTFLAGS="-Awarnings" cargo run -p launcher --bin launcher
 
-launcher-profile: fmt
+launcher-profile: client-profile server-profile fmt
 	RUSTFLAGS="-Awarnings" cargo run --profile flamegraph -p launcher --bin launcher
 
 client-profile: fmt
 	RUSTFLAGS="-C force-frame-pointers=yes" cargo run --profile flamegraph -p client
 
-launcher-release: fmt
+launcher-release: fmt client-release-build server-release-build
 	RUSTFLAGS="-Awarnings" cargo run -r -p launcher --bin launcher
 
 launcher-release-build: fmt
@@ -56,6 +61,8 @@ server: fmt
 server-release: fmt
 	RUSTFLAGS="-Awarnings" cargo run -r -p server --bin server
 
+client-release-build: fmt
+	cargo build -r -p client --bin Ascendustry
 server-release-build: fmt
 	cargo build -r -p server --bin server
 
