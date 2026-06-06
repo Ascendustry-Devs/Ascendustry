@@ -50,12 +50,12 @@ impl Texture2DAtlas {
     }
 
     pub fn write_at(&mut self, queue: &wgpu::Queue, x: u32, y: u32, width: u32, height: u32, data: &[u8]) {
-        assert_eq!(data.len(), (self.width * self.height * 4) as usize);
+        assert_eq!(data.len(), (width * height * 4) as usize);
         queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d { x: x, y: y, z: 1 },
+                origin: wgpu::Origin3d { x: x, y: y, z: 0 },
                 aspect: wgpu::TextureAspect::All,
             },
             data,
