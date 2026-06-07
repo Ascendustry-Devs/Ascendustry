@@ -75,7 +75,8 @@ async fn run_with_tui(args: &Args) -> Result<()> {
 
             if crossterm::event::poll(std::time::Duration::from_millis(200)).unwrap() {
                 if let crossterm::event::Event::Key(key) = crossterm::event::read().unwrap() {
-                    if let Some(cmd) = TuiApp::handle_input(key, &mut app) {
+                    let player_ids: Vec<u64> = state.lock().unwrap().players.iter().map(|p| p.id).collect();
+                    if let Some(cmd) = TuiApp::handle_input(key, &mut app, &player_ids) {
                         command_tx.send(cmd).ok();
                     }
                 }

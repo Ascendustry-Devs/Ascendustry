@@ -8,6 +8,7 @@ pub struct LauncherApp {
     address: String,
     show_multi: bool,
     save_path: String,
+    username: String,
 }
 
 impl LauncherApp {
@@ -17,6 +18,7 @@ impl LauncherApp {
             address: DEFAULT_SERVER_ADDRESS.to_string(),
             show_multi: false,
             save_path: "world/world_solo.stf".to_string(),
+            username: "Lambda Player".to_string(),
         }
     }
 }
@@ -36,6 +38,13 @@ impl eframe::App for LauncherApp {
                 ui.add_space(30.0);
 
                 if self.show_multi {
+                    ui.label("Nom du joueur :");
+                    ui.add_sized(
+                        [250.0, 30.0],
+                        egui::TextEdit::singleline(&mut self.username).hint_text("Lambda Player"),
+                    );
+
+                    ui.add_space(10.0);
                     ui.label("Adresse du serveur (ip:port) :");
                     let resp = ui.add_sized(
                         [250.0, 30.0],
@@ -43,7 +52,12 @@ impl eframe::App for LauncherApp {
                     );
                     if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         let addr = address_or_default(&self.address);
-                        self.tx.send(LaunchMode::Multiplayer(addr)).ok();
+                        self.tx
+                            .send(LaunchMode::Multiplayer {
+                                address: addr,
+                                username: self.username.clone(),
+                            })
+                            .ok();
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
 
@@ -56,11 +70,23 @@ impl eframe::App for LauncherApp {
                         ui.add_space(10.0);
                         if ui.add_sized([120.0, 40.0], egui::Button::new("Lancer")).clicked() {
                             let addr = address_or_default(&self.address);
-                            self.tx.send(LaunchMode::Multiplayer(addr)).ok();
+                            self.tx
+                                .send(LaunchMode::Multiplayer {
+                                    address: addr,
+                                    username: self.username.clone(),
+                                })
+                                .ok();
                             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                     });
                 } else {
+                    ui.label("Nom du joueur :");
+                    ui.add_sized(
+                        [250.0, 30.0],
+                        egui::TextEdit::singleline(&mut self.username).hint_text("Lambda Player"),
+                    );
+
+                    ui.add_space(10.0);
                     ui.label("Chemin de la sauvegarde :");
                     ui.add_sized(
                         [250.0, 30.0],
@@ -71,7 +97,12 @@ impl eframe::App for LauncherApp {
 
                     if ui.add_sized([250.0, 50.0], egui::Button::new("Solo")).clicked() {
                         let path = save_path_or_default(&self.save_path);
-                        self.tx.send(LaunchMode::Singleplayer(path)).ok();
+                        self.tx
+                            .send(LaunchMode::Singleplayer {
+                                save_path: path,
+                                username: self.username.clone(),
+                            })
+                            .ok();
                         ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
 

@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::game::{HandlerContext, PacketHandler};
 use crate::network_server::ServerConnection;

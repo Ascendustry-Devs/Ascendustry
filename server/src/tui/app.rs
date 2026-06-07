@@ -65,14 +65,18 @@ impl TuiApp {
         frame.render_widget(help, chunks[2]);
     }
 
-    pub fn handle_input(key: KeyEvent, app: &mut Self) -> Option<TuiCommand> {
+    pub fn handle_input(key: KeyEvent, app: &mut Self, player_ids: &[u64]) -> Option<TuiCommand> {
         use crossterm::event::KeyCode;
         match key.code {
             KeyCode::Char('q') | KeyCode::Char('Q') => Some(TuiCommand::Shutdown),
             KeyCode::Char('s') if key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => Some(TuiCommand::Save),
             KeyCode::Char('k') | KeyCode::Char('K') => {
-                let id = app.selected_player_idx as u64;
-                Some(TuiCommand::Kick(id + 1))
+                let idx = app.selected_player_idx;
+                if idx < player_ids.len() {
+                    Some(TuiCommand::Kick(player_ids[idx]))
+                } else {
+                    None
+                }
             }
             KeyCode::Up => {
                 app.selected_player_idx = app.selected_player_idx.saturating_sub(1);
