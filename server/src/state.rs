@@ -89,12 +89,14 @@ impl AppState {
 
         self.players.write().await.set_player_chunks(id, required.clone());
 
-        let generated = self.world.read().await;
-        let missing: Vec<_> = required
-            .iter()
-            .filter(|c| !generated.world_generated_chunks.contains_key(*c))
-            .cloned()
-            .collect();
+        let missing = {
+            let generated = self.world.read().await;
+            required
+                .iter()
+                .filter(|c| !generated.world_generated_chunks.contains_key(*c))
+                .cloned()
+                .collect::<Vec<_>>()
+        };
         if !missing.is_empty() {
             self.world.write().await.generate_missing(&missing);
         }
