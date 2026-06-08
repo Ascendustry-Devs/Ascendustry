@@ -20,7 +20,7 @@ use engine::render::render::Renderer;
 use engine::render::ui::interpreter::compiler::UiCompiler;
 use engine::render::ui::interpreter::translator::UiTranslator;
 use engine::render::ui::widgets::panel::Panel;
-use engine::render::ui::widgets::{Widget, WidgetTransform, WidgetType};
+use engine::render::ui::widgets::{Widget, WidgetTransform};
 use game::constants::CHUNK_VECTOR;
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::CHUNK_SIZE_F;

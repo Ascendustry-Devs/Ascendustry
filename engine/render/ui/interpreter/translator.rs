@@ -4,7 +4,7 @@ pub struct UiTranslator;
 
 impl UiTranslator {
     pub fn translate(commands: Vec<DrawCommand>) -> Vec<UiVertex> {
-        let mut output = Vec::with_capacity(commands.len());
+        let mut output = Vec::with_capacity(commands.len() * 6);
 
         for command in commands {
             Self::process(command, &mut output);

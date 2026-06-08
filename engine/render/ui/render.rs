@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use wgpu::{BindGroup, Buffer, BufferDescriptor, BufferUsages, Device, Queue, RenderPass, RenderPipeline};
+use wgpu::{BindGroup, Buffer, BufferDescriptor, BufferUsages, RenderPass, RenderPipeline};
 
 use crate::{
     gpu::{smart_buffer::SmartBuffer, tools::GpuTools},
@@ -20,7 +20,7 @@ impl UiRenderer {
         let projection_buffer = gpu_tools.device().create_buffer(&BufferDescriptor {
             label: Some("UI Projection Buffer"),
             size: size_of::<[[f32; 4]; 4]>() as u64,
-            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+            usage: BufferUsages::COPY_DST | BufferUsages::UNIFORM,
             mapped_at_creation: false,
         });
         Self {
