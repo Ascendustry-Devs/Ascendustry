@@ -13,13 +13,13 @@ pub struct HandlerContext<'a> {
 }
 
 pub trait PacketHandler: Send + Sync {
-    fn handle(&self, packet: Paquet, ctx: &HandlerContext) -> Option<Paquet>;
+    async fn handle(&self, packet: Paquet, ctx: &HandlerContext<'_>) -> Option<Paquet>;
 }
 
 pub struct ProductionHandler;
 
 impl PacketHandler for ProductionHandler {
-    fn handle(&self, packet: Paquet, ctx: &HandlerContext) -> Option<Paquet> {
+    async fn handle(&self, packet: Paquet, ctx: &HandlerContext<'_>) -> Option<Paquet> {
         match &packet.contenu {
             ContenuPaquet::DonneesConnexion { version, username, .. } => {
                 log_server!("Joueur {}: connexion avec la version {}.", username, version);
@@ -28,7 +28,8 @@ impl PacketHandler for ProductionHandler {
 
             ContenuPaquet::PlayerTransformation { data } => {
                 ctx.state
-                    .update_player_position(data.player_id, data.position.clone(), data.rotation.clone());
+                    .update_player_position(data.player_id, data.position.clone(), data.rotation.clone())
+                    .await;
 
                 let broadcast_packet = Paquet::new(
                     TypePaquet::MultiplePlayerTransformation,
@@ -46,7 +47,7 @@ impl PacketHandler for ProductionHandler {
             }
 
             ContenuPaquet::SetBlock { x, y, z, block_id } => {
-                ctx.state.set_block(*x, *y, *z, *block_id);
+                ctx.state.set_block(*x, *y, *z, *block_id).await;
 
                 let broadcast_packet = Paquet::new(
                     TypePaquet::SetBlock,
@@ -82,13 +83,13 @@ impl PacketHandler for ProductionHandler {
             }
 
             ContenuPaquet::GamemodeChange { player_id, gamemode } => {
-                ctx.state.set_player_gamemode(*player_id, gamemode.clone());
+                ctx.state.set_player_gamemode(*player_id, gamemode.clone()).await;
                 Some(packet)
             }
 
             ContenuPaquet::SaveRequest => {
                 log_server!("Sauvegarde demandée par le joueur {}.", ctx.player_id);
-                let data = ctx.state.export_save();
+                let data = ctx.state.export_save().await;
                 if let Err(e) = ctx.persistence.save(&data) {
                     log_err_server!("Échec de la sauvegarde : {}", e);
                 }

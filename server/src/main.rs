@@ -104,14 +104,14 @@ async fn run_with_tui(args: &Args) -> Result<()> {
             }
             TuiCommand::Save => {
                 log_server!("Sauvegarde demandée par la TUI.");
-                if let Err(e) = server.save() {
+                if let Err(e) = server.save().await {
                     log_server!("Échec de la sauvegarde : {}", e);
                 }
             }
             TuiCommand::Kick(id) => {
-                if let Some(player) = server.state.get_player(id) {
+                if let Some(player) = server.state.get_player(id).await {
                     log_server!("Kick du joueur {} ({}) demandé par le Serveur.", player.username, id);
-                    server.kick_player(&id, "Kické par le Serveur");
+                    server.kick_player(&id, "Kické par le Serveur").await;
                 } else {
                     log_server!("Joueur {} non trouvé.", id);
                 }

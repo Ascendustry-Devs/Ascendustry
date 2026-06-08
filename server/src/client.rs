@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use crate::game::{HandlerContext, PacketHandler};
+use crate::game::{HandlerContext, PacketHandler, ProductionHandler};
 use crate::network_server::ServerConnection;
 use crate::persistence::PersistenceService;
 use crate::state::AppState;
 use anyhow::Result;
 use network::messages::{self, new_server_seed_paquet, BroadcastMessage, ContenuPaquet, Paquet, PlayerTransformation, TypePaquet};
 use network::traits::PacketCodec;
-use project_core::geometry::plane;
 use project_core::log_err_server;
 use project_core::log_server;
 use tokio::io::split;
@@ -36,7 +35,7 @@ pub struct ClientSession {
     /// Connexion chiffrée avec le client.
     conn: ServerConnection,
     /// Gestionnaire de paquets (injecté, testable).
-    handler: Box<dyn PacketHandler>,
+    handler: ProductionHandler,
     /// État partagé du serveur (joueurs, monde).
     state: Arc<AppState>,
     /// Canal broadcast pour diffuser les positions aux autres clients.
@@ -52,7 +51,7 @@ impl ClientSession {
         player_id: u64,
         player_unique_id: u64,
         server_id: [u8; 16],
-        handler: Box<dyn PacketHandler>,
+        handler: ProductionHandler,
         state: Arc<AppState>,
         broadcaster: TokioBroadcastSender<BroadcastMessage>,
         persistence: Arc<PersistenceService>,
@@ -100,8 +99,8 @@ impl ClientSession {
                 version: _,
             } => {
                 // Vérification d'identité (sera complétée avec IdentityRegistry)
-                if self.state.check_identity(player_unique_id, &username) {
-                    self.state.register_identity(player_unique_id, username.clone());
+                if self.state.check_identity(player_unique_id, &username).await {
+                    self.state.register_identity(player_unique_id, username.clone()).await;
                 } else {
                     let kick = messages::new_kick_paquet("Identité invalide : ce pseudo ne correspond pas à l'ID enregistré".to_string());
                     let _ = self.conn.send_packet(&mut stream, &kick).await;
@@ -116,7 +115,7 @@ impl ClientSession {
         }
 
         // Ajout du joueur à l'état partagé
-        self.state.add_player(player_id, self.username.clone());
+        self.state.add_player(player_id, self.username.clone()).await;
         log_server!("Joueur {} ({}): ajout à l'état global du serveur", self.username, player_id);
 
         // Le handler traite le paquet de connexion (log)
@@ -126,7 +125,7 @@ impl ClientSession {
             broadcaster: &self.broadcaster,
             persistence: &self.persistence,
         };
-        self.handler.handle(packet, &ctx);
+        self.handler.handle(packet, &ctx).await;
 
         let ack = messages::create_handshake_ack(player_id, 0, true);
         if let Err(e) = self.conn.send_packet(&mut stream, &ack).await {
@@ -135,7 +134,7 @@ impl ClientSession {
         }
 
         // Réponse : seed du monde
-        let seed_packet = new_server_seed_paquet(self.state.get_seed());
+        let seed_packet = new_server_seed_paquet(self.state.get_seed().await);
         if let Err(e) = self.conn.send_packet(&mut stream, &seed_packet).await {
             log_err_server!("Échec de l'envoi de la seed.\nErreur : {}", e);
             return Ok(());
@@ -144,8 +143,10 @@ impl ClientSession {
 
         // Restauration de la position sauvegardée pour un joueur qui se reconnecte
         if self.player_unique_id != 0 {
-            if let Some(saved) = self.state.take_saved_player_data(self.player_unique_id) {
-                self.state.restore_player(player_id, saved.position, saved.rotation, saved.gamemode);
+            if let Some(saved) = self.state.take_saved_player_data(self.player_unique_id).await {
+                self.state
+                    .restore_player(player_id, saved.position, saved.rotation, saved.gamemode)
+                    .await;
                 let correction = Paquet::new(
                     TypePaquet::GuardCorrection,
                     ContenuPaquet::GuardCorrection {
@@ -162,7 +163,7 @@ impl ClientSession {
             }
         }
 
-        let modified_chunks = self.state.get_modified_chunks_data();
+        let modified_chunks = self.state.get_modified_chunks_data().await;
         log_server!("Envoi de {} chunks modifiés", modified_chunks.len());
 
         for chunk_batch in modified_chunks.chunks(MAX_CHUNKS_PER_WORLD_DATA) {
@@ -179,7 +180,7 @@ impl ClientSession {
         }
 
         // Synchronisation INITIALE UNIQUEMENT : envoyer les positions des autres joueurs
-        if let Some(players) = self.state.get_all_players_vec() {
+        if let Some(players) = self.state.get_all_players_vec().await {
             let players_data: Vec<PlayerTransformation> = players
                 .iter()
                 .map(|p| PlayerTransformation {
@@ -265,7 +266,7 @@ impl ClientSession {
                                 broadcaster: &self.broadcaster,
                                 persistence: &self.persistence,
                             };
-                            if let Some(response) = self.handler.handle(packet, &ctx) {
+                            if let Some(response) = self.handler.handle(packet, &ctx).await {
                                 if write_tx.send(response).await.is_err() {
                                     break;
                                 }
@@ -296,13 +297,14 @@ impl ClientSession {
         write_task.abort();
 
         if self.player_unique_id != 0 {
-            if let Some(player) = self.state.get_player(self.player_id) {
+            if let Some(player) = self.state.get_player(self.player_id).await {
                 self.state
-                    .save_player_data(self.player_unique_id, player.position, player.rotation, player.gamemode);
+                    .save_player_data(self.player_unique_id, player.position, player.rotation, player.gamemode)
+                    .await;
             }
         }
 
-        self.state.remove_player(&player_id);
+        self.state.remove_player(&player_id).await;
         log_server!("Joueur {}: déconnexion.", player_id);
         Ok(())
     }

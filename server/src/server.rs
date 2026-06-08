@@ -1,5 +1,5 @@
 use crate::client::ClientSession;
-use crate::game::{PacketHandler, ProductionHandler};
+use crate::game::ProductionHandler;
 use crate::persistence::PersistenceService;
 use crate::state::AppState;
 #[cfg(feature = "tui")]
@@ -40,10 +40,10 @@ impl Server {
         let persistence = Arc::new(PersistenceService::new(save_path));
         if let Ok(Some(data)) = persistence.load() {
             log_server!("Sauvegarde trouvée, restauration du monde.");
-            state.import_save(data);
+            state.import_save(data).await;
         } else {
             log_server!("Aucune sauvegarde trouvée, création d'un nouveau monde.");
-            state.init_random_seed();
+            state.init_random_seed().await;
         }
         let (broadcaster, _) = crate::broadcast::channel();
         Ok(Self {
@@ -62,8 +62,8 @@ impl Server {
         Arc::clone(&self.state)
     }
 
-    pub fn save(&self) -> Result<()> {
-        let data = self.state.export_save();
+    pub async fn save(&self) -> Result<()> {
+        let data = self.state.export_save().await;
         self.persistence.save(&data)
     }
 
@@ -76,7 +76,7 @@ impl Server {
             let mut interval = tokio::time::interval(Duration::from_millis(GUARD_CYCLE_INTERVAL_MS));
             loop {
                 interval.tick().await;
-                state.run_guard_cycle(&bc);
+                state.run_guard_cycle(&bc).await;
             }
         });
         let state = Arc::clone(&self.state);
@@ -85,7 +85,7 @@ impl Server {
             let mut interval = tokio::time::interval(Duration::from_mins(5)); // 5min
             loop {
                 interval.tick().await;
-                let data = state.export_save();
+                let data = state.export_save().await;
                 if let Err(e) = persistence.save(&data) {
                     log_err_server!("Auto-save échoué : {}", e);
                 } else {
@@ -102,7 +102,7 @@ impl Server {
                 let mut interval = tokio::time::interval(Duration::from_secs(3));
                 loop {
                     interval.tick().await;
-                    b.sync_from_appstate(&state);
+                    b.sync_from_appstate(&state).await;
                 }
             });
         }
@@ -115,7 +115,7 @@ impl Server {
             let server_id = generate_server_id();
             log_server!("Joueur {}: connexion (ID serveur: {:02x?}).", player_id, server_id);
 
-            let handler: Box<dyn PacketHandler> = Box::new(ProductionHandler);
+            let handler = ProductionHandler;
 
             let (kick_tx, kick_rx) = oneshot::channel();
             self.active_sessions.lock().unwrap().insert(player_id, kick_tx);
@@ -139,11 +139,11 @@ impl Server {
             });
         }
     }
-    pub fn kick_player(&self, id: &u64, reason: &str) -> bool {
+    pub async fn kick_player(&self, id: &u64, reason: &str) -> bool {
         let mut sessions = self.active_sessions.lock().unwrap();
         if let Some(tx) = sessions.remove(id) {
             let _ = tx.send(());
-            self.state.kick_player(id, reason);
+            self.state.kick_player(id, reason).await;
             true
         } else {
             log_server!("Joueur {} non trouvé dans les sessions actives.", id);

@@ -124,7 +124,7 @@ impl GpuAllocator {
         let (used_cpu_mb, used_cpu_kb, used_cpu_b) = conversion(used_cpu);
 
         let alloc_cpu = (self.arena.capacity()
-            + self.free_ids.capacity() * size_of::<u32>()
+            + self.free_ids.capacity() * size_of::<u32>() // Ceci est un easter egg: https://pastebin.com/demZGt0P
             + self.gaps.capacity() * size_of::<Gap>()
             + self.pending_destruction.capacity() * size_of::<SmartBuffer>()
             + self.write_operations.capacity() * size_of::<WriteOperation>()

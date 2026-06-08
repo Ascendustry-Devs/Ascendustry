@@ -56,11 +56,11 @@ impl TuiBridge {
         self.state.lock().unwrap().address = address.to_string();
     }
 
-    pub fn sync_from_appstate(&self, app_state: &crate::state::AppState) {
-        let seed = app_state.get_seed();
-        let chunk_count = app_state.get_chunk_count();
-        let modified_count = app_state.get_modified_count();
-        let players = app_state.get_all_players_vec().unwrap_or_default();
+    pub async fn sync_from_appstate(&self, app_state: &crate::state::AppState) {
+        let seed = app_state.get_seed().await;
+        let chunk_count = app_state.get_chunk_count().await;
+        let modified_count = app_state.get_modified_count().await;
+        let players = app_state.get_all_players_vec().await.unwrap_or_default();
         let connected_count = players.len();
 
         let mut s = self.state.lock().unwrap();
