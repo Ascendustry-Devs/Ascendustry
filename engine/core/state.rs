@@ -7,7 +7,6 @@ use crate::{
     gpu::{
         context::GpuContext,
         factories::wrapper::GpuFactory,
-        layouts::BufferLayouts,
         resources::{pipeline::Pipelines, wrapper::GpuResources},
         textures::manager::TextureManager,
     },
@@ -15,23 +14,20 @@ use crate::{
         camera::RenderCamera,
         debug::DebugRenderResources,
         manager::RenderManager,
-        modes::RenderMode,
         options::RenderOptions,
         render::Renderer,
         text::{text_renderer::FPS_UPDATE_DELAY, TextRenderer},
+        ui::render::UiRenderer,
     },
 };
-use bytemuck::cast_slice;
 use game::world::data::chunk::CHUNK_SIZE_F;
 
 use crate::geometry::vertex::Vertex;
-use std::sync::Arc;
 use std::time::Instant;
+use std::{num::NonZero, sync::Arc};
 use wgpu::{
-    util::{BufferInitDescriptor, DeviceExt},
-    BindGroup, BlendState, Buffer, BufferUsages, ColorTargetState, ColorWrites, CompareFunction, CurrentSurfaceTexture, DepthBiasState,
-    DepthStencilState, Face, Features, FragmentState, FrontFace, PolygonMode, PrimitiveState, PrimitiveTopology, RenderPipeline,
-    ShaderSource, Texture, TextureFormat, TextureView, VertexState,
+    util::DeviceExt, wgt::BufferDescriptor, BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Buffer, BufferBinding,
+    BufferUsages, CurrentSurfaceTexture, PipelineLayout, RenderPipeline, TextureView,
 };
 use winit::{dpi::PhysicalSize, event_loop::ActiveEventLoop, window::Window};
 
@@ -64,6 +60,8 @@ impl State {
             depth_view,
             pipelines,
             debug_pipelines,
+            ui_uniform_bind_group,
+            ui_renderer,
         ) = fun_name(size, &window, event_loop);
 
         let device = gpu_context.tools.device();
@@ -86,6 +84,7 @@ impl State {
             pipelines,
             camera_bind_group,
             texture_bind_group,
+            ui_uniform_bind_group,
             camera_buffer,
             depth_texture,
             depth_view,
@@ -93,11 +92,14 @@ impl State {
 
         let debug = DebugRenderResources::new(debug_pipelines, gizmo_render_pipeline, gizmo_buffer, chunk_borders_buffer);
 
+        ui_renderer.update_proj(size.width, size.height);
+
         let renderer = Renderer::new(
             false,
-            render_manager,
             render_options,
+            render_manager,
             texture_manager,
+            ui_renderer,
             gpu_context,
             gpu_tools,
             debug,
@@ -128,23 +130,29 @@ impl State {
                 .configure(&self.renderer.gpu_context.tools.device(), &self.renderer.gpu_context.config);
             self.renderer.is_surface_configured = true;
             self.text_renderer.resize(width, height);
-            self.renderer.gpu_resources.depth_texture = self.renderer.gpu_context.tools.device().create_texture(&wgpu::TextureDescriptor {
-                size: wgpu::Extent3d {
-                    width: width,
-                    height: height,
-                    depth_or_array_layers: 1,
-                },
-                ..wgpu::TextureDescriptor {
-                    label: Some("Depth Texture"),
-                    view_formats: &[wgpu::TextureFormat::Depth32Float],
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format: wgpu::TextureFormat::Depth32Float,
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-                    size: Default::default(),
-                }
-            });
+            self.renderer.ui_renderer.update_proj(width, height);
+            self.renderer.gpu_resources.depth_texture =
+                self.renderer
+                    .gpu_context
+                    .tools
+                    .device()
+                    .create_texture(&wgpu::TextureDescriptor {
+                        size: wgpu::Extent3d {
+                            width: width,
+                            height: height,
+                            depth_or_array_layers: 1,
+                        },
+                        ..wgpu::TextureDescriptor {
+                            label: Some("Depth Texture"),
+                            view_formats: &[wgpu::TextureFormat::Depth32Float],
+                            mip_level_count: 1,
+                            sample_count: 1,
+                            dimension: wgpu::TextureDimension::D2,
+                            format: wgpu::TextureFormat::Depth32Float,
+                            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                            size: Default::default(),
+                        }
+                    });
             self.renderer.gpu_resources.depth_view = self
                 .renderer
                 .gpu_resources
@@ -187,7 +195,7 @@ impl State {
     }
 
     pub fn render(&mut self) {
-        self.renderer.render_manager.mesh_manager.write().unwrap().flush();
+        self.renderer.render_manager.world_buffer.write().unwrap().flush();
 
         let output = self.renderer.gpu_context.surface.get_current_texture();
         match output {
@@ -240,10 +248,12 @@ fn fun_name(
     RenderPipeline,
     Buffer,
     Buffer,
-    Texture,
+    wgpu::Texture,
     TextureView,
     Pipelines,
     Pipelines,
+    BindGroup,
+    UiRenderer,
 ) {
     const GIZMO: [Vertex; 6] = [
         Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 0.0),
@@ -286,137 +296,71 @@ fn fun_name(
     let device = gpu_context.tools.device();
     let config = &gpu_context.config;
 
-    let texture_manager = TextureManager::new(
+    let mut texture_manager = TextureManager::new(
         gpu_context.get_tools(),
         gpu_context.limits.max_texture_dimension_2d,
         gpu_context.limits.max_texture_array_layers,
     );
 
-    let gpu_factory = GpuFactory::new(&gpu_context);
-
-    let texture_bind_group_layout = gpu_factory.bind_group_layout().make_textures(Some("Texture Bind Group Layout"));
-
-    let opaque_array = texture_manager.get_array(&RenderMode::Opaque);
-    let alpha_cutout_array = texture_manager.get_array(&RenderMode::AlphaCutout);
-    let translucent_array = texture_manager.get_array(&RenderMode::Translucent);
-    let billboard_array = texture_manager.get_array(&RenderMode::Billboard);
-    let ui_atlas = texture_manager.get_ui_atlas();
-
-    let textures_arrays_bind_group_entries = [opaque_array, alpha_cutout_array, translucent_array, billboard_array];
-
-    let textures_bind_group = gpu_factory.bind_group().make_textures_entries(
-        &texture_bind_group_layout,
-        &textures_arrays_bind_group_entries,
-        ui_atlas,
-        Some("Texture Bind Group"),
-    );
+    let atlas = image::open("/home/strachy/Documents/GitHub/Ascendustry/assets/ui/texture_atlas.png").unwrap();
+    let id = texture_manager
+        .register_atlas(atlas.as_bytes(), 0, 0, atlas.width(), atlas.height())
+        .unwrap();
 
     let render_camera = RenderCamera::new();
 
-    let camera_buffer = gpu_context.tools.device().create_buffer_init(&BufferInitDescriptor {
+    let camera_buffer = gpu_context.tools.device().create_buffer(&BufferDescriptor {
         label: Some("Camera Buffer"),
-        contents: cast_slice(render_camera.view_proj().current()),
+        size: size_of::<[[f32; 4]; 4]>() as u64,
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        mapped_at_creation: false,
     });
 
-    let camera_bind_group_layout = gpu_factory.bind_group_layout().make_camera();
-    let camera_bind_group = gpu_factory.bind_group().make_camera(&camera_bind_group_layout, &camera_buffer);
+    let gpu_factory = GpuFactory::new(&gpu_context);
 
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("Shader"),
-        source: ShaderSource::Wgsl(include_str!("../../assets/shaders/shader.wgsl").into()),
-    });
+    let (
+        texture_bind_group_layout,
+        camera_bind_group_layout,
+        ui_uniform_bind_group_layout,
+        opaque_render_pipeline_layout,
+        ui_render_pipeline_layout,
+    ) = make_bind_group_layouts(&gpu_factory);
 
-    let render_pipeline_layout = gpu_factory
-        .pipeline_layout()
-        .make(None, &[Some(&texture_bind_group_layout), Some(&camera_bind_group_layout)]);
-
-    let vertex = VertexState {
-        module: &shader,
-        entry_point: Some("vs_main"),
-        buffers: &[BufferLayouts::vertex()],
-        compilation_options: Default::default(),
-    };
-
-    let fragment = FragmentState {
-        module: &shader,
-        entry_point: Some("fs_main"),
-        targets: &[Some(ColorTargetState {
-            format: config.format,
-            blend: Some(BlendState::REPLACE),
-            write_mask: ColorWrites::ALL,
-        })],
-        compilation_options: wgpu::PipelineCompilationOptions::default(),
-    };
-
-    let wireframe_primitive = PrimitiveState {
-        topology: PrimitiveTopology::TriangleList,
-        strip_index_format: None,
-        front_face: FrontFace::Ccw,
-        cull_mode: Some(Face::Back),
-        polygon_mode: PolygonMode::Line,
-        unclipped_depth: false,
-        conservative: false,
-    };
-
-    let normal_primitive = PrimitiveState {
-        topology: PrimitiveTopology::TriangleList,
-        strip_index_format: None,
-        front_face: FrontFace::Ccw,
-        cull_mode: Some(Face::Back),
-        polygon_mode: PolygonMode::Fill,
-        unclipped_depth: false,
-        conservative: gpu_context.features.contains(Features::CONSERVATIVE_RASTERIZATION),
-    };
-
-    let gizmo_primitive = PrimitiveState {
-        topology: PrimitiveTopology::LineList,
-        strip_index_format: None,
-        front_face: FrontFace::Ccw,
-        cull_mode: Some(Face::Back),
-        polygon_mode: PolygonMode::Fill,
-        unclipped_depth: false,
-        conservative: false,
-    };
-
-    let depth_stencil = DepthStencilState {
-        format: TextureFormat::Depth32Float,
-        depth_write_enabled: Some(true),
-        depth_compare: Some(CompareFunction::Less),
-        bias: DepthBiasState {
-            constant: 0,
-            slope_scale: 0.0,
-            clamp: 0.0,
-        },
-        stencil: Default::default(),
-    };
-
-    let wireframe_render_pipeline = gpu_factory.pipeline().make(
-        "Wireframe",
-        &render_pipeline_layout,
-        vertex.clone(),
-        fragment.clone(),
-        wireframe_primitive,
-        Some(depth_stencil.clone()),
+    let textures_bind_group = gpu_factory.bind_group().make_textures_entries(
+        &texture_bind_group_layout,
+        &texture_manager,
+        Some("Texture Bind Group"),
     );
 
-    let render_pipeline = gpu_factory.pipeline().make(
-        "Normal",
-        &render_pipeline_layout,
-        vertex.clone(),
-        fragment.clone(),
-        normal_primitive,
-        Some(depth_stencil.clone()),
+    let camera_bind_group = gpu_factory
+        .bind_group()
+        .make_camera(&camera_bind_group_layout, &camera_buffer);
+
+    let ui_renderer = UiRenderer::new(gpu_context.get_tools());
+
+    let ui_uniform_bind_group = gpu_factory.bind_group().make(
+        Some("UI Uniform"),
+        &ui_uniform_bind_group_layout,
+        &[BindGroupEntry {
+            binding: 0,
+            resource: BindingResource::Buffer(BufferBinding {
+                buffer: ui_renderer.proj_buffer(),
+                offset: 0,
+                size: NonZero::new(size_of::<[[f32; 4]; 4]>() as u64),
+            }),
+        }],
     );
 
-    let gizmo_render_pipeline = gpu_factory.pipeline().make(
-        "Gizmo",
-        &render_pipeline_layout,
-        vertex.clone(),
-        fragment.clone(),
-        gizmo_primitive,
-        Some(depth_stencil.clone()),
-    );
+    let (opaque_render_pipeline, opaque_wireframe_render_pipeline) =
+        gpu_factory
+            .pipeline()
+            .make_opaque(&opaque_render_pipeline_layout, config, &gpu_context.features);
+
+    let gizmo_render_pipeline = gpu_factory.pipeline().make_gizmo(&opaque_render_pipeline_layout, config);
+
+    let ui_render_pipeline = gpu_factory
+        .pipeline()
+        .make_ui(&ui_render_pipeline_layout, config, &gpu_context.features);
 
     let gizmo_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Gizmo Buffer"),
@@ -430,43 +374,39 @@ fn fun_name(
         usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
     });
 
-    let depth_size = wgpu::Extent3d {
-        width: size.width,
-        height: size.height,
-        depth_or_array_layers: 1,
-    };
-
-    let depth_texture_desc = wgpu::TextureDescriptor {
+    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Depth Texture"),
-        size: depth_size,
+        size: wgpu::Extent3d {
+            width: size.width,
+            height: size.height,
+            depth_or_array_layers: 1,
+        },
         view_formats: &[wgpu::TextureFormat::Depth32Float],
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Depth32Float,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-    };
-
-    let depth_texture = device.create_texture(&depth_texture_desc);
+    });
 
     let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
     // TODO: faire les autres pipelines
     let pipelines = Pipelines::new(
-        render_pipeline.clone(),
-        render_pipeline.clone(),
-        render_pipeline.clone(),
-        render_pipeline.clone(),
-        render_pipeline.clone(),
+        opaque_render_pipeline.clone(),
+        opaque_render_pipeline.clone(),
+        opaque_render_pipeline.clone(),
+        opaque_render_pipeline.clone(),
+        ui_render_pipeline,
     );
 
     // TODO (wireframe)
     let debug_pipelines = Pipelines::new(
-        wireframe_render_pipeline.clone(),
-        wireframe_render_pipeline.clone(),
-        wireframe_render_pipeline.clone(),
-        wireframe_render_pipeline.clone(),
-        wireframe_render_pipeline.clone(),
+        opaque_wireframe_render_pipeline.clone(),
+        opaque_wireframe_render_pipeline.clone(),
+        opaque_wireframe_render_pipeline.clone(),
+        opaque_wireframe_render_pipeline.clone(),
+        opaque_wireframe_render_pipeline.clone(),
     );
     (
         gpu_context,
@@ -482,5 +422,36 @@ fn fun_name(
         depth_view,
         pipelines,
         debug_pipelines,
+        ui_uniform_bind_group,
+        ui_renderer,
+    )
+}
+
+fn make_bind_group_layouts(
+    gpu_factory: &GpuFactory,
+) -> (
+    BindGroupLayout,
+    BindGroupLayout,
+    BindGroupLayout,
+    PipelineLayout,
+    PipelineLayout,
+) {
+    let texture_bind_group_layout = gpu_factory
+        .bind_group_layout()
+        .make_textures(Some("Texture Bind Group Layout"));
+    let camera_bind_group_layout = gpu_factory.bind_group_layout().make_camera();
+    let ui_uniform_bind_group_layout = gpu_factory.bind_group_layout().make_ui_uniform();
+    let opaque_render_pipeline_layout = gpu_factory
+        .pipeline_layout()
+        .make(None, &[Some(&texture_bind_group_layout), Some(&camera_bind_group_layout)]);
+    let ui_render_pipeline_layout = gpu_factory
+        .pipeline_layout()
+        .make(None, &[Some(&texture_bind_group_layout), Some(&ui_uniform_bind_group_layout)]);
+    (
+        texture_bind_group_layout,
+        camera_bind_group_layout,
+        ui_uniform_bind_group_layout,
+        opaque_render_pipeline_layout,
+        ui_render_pipeline_layout,
     )
 }

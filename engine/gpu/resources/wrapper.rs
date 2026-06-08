@@ -7,6 +7,7 @@ pub struct GpuResources {
 
     pub camera_bind_group: BindGroup,
     pub texture_bind_group: BindGroup,
+    pub ui_uniform_bind_group: BindGroup,
 
     pub camera_buffer: Buffer,
 
@@ -20,6 +21,7 @@ impl GpuResources {
 
         camera_bind_group: BindGroup,
         texture_bind_group: BindGroup,
+        ui_uniform_bind_group: BindGroup,
 
         camera_buffer: Buffer,
 
@@ -30,6 +32,7 @@ impl GpuResources {
             pipelines,
             camera_bind_group,
             texture_bind_group,
+            ui_uniform_bind_group,
             camera_buffer,
             depth_texture,
             depth_view,

@@ -31,9 +31,11 @@ impl eframe::App for LauncherApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.vertical_centered(|ui| {
-                egui::Frame::NONE.inner_margin(egui::Margin::symmetric(20, 10)).show(ui, |ui| {
-                    ui.heading("Ascendustry");
-                });
+                egui::Frame::NONE
+                    .inner_margin(egui::Margin::symmetric(20, 10))
+                    .show(ui, |ui| {
+                        ui.heading("Ascendustry");
+                    });
 
                 ui.add_space(30.0);
 
@@ -63,22 +65,26 @@ impl eframe::App for LauncherApp {
 
                     ui.add_space(20.0);
 
-                    ui.allocate_ui_with_layout(egui::vec2(250.0, 40.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        if ui.add_sized([120.0, 40.0], egui::Button::new("Retour")).clicked() {
-                            self.show_multi = false;
-                        }
-                        ui.add_space(10.0);
-                        if ui.add_sized([120.0, 40.0], egui::Button::new("Lancer")).clicked() {
-                            let addr = address_or_default(&self.address);
-                            self.tx
-                                .send(LaunchMode::Multiplayer {
-                                    address: addr,
-                                    username: self.username.clone(),
-                                })
-                                .ok();
-                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
-                    });
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(250.0, 40.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            if ui.add_sized([120.0, 40.0], egui::Button::new("Retour")).clicked() {
+                                self.show_multi = false;
+                            }
+                            ui.add_space(10.0);
+                            if ui.add_sized([120.0, 40.0], egui::Button::new("Lancer")).clicked() {
+                                let addr = address_or_default(&self.address);
+                                self.tx
+                                    .send(LaunchMode::Multiplayer {
+                                        address: addr,
+                                        username: self.username.clone(),
+                                    })
+                                    .ok();
+                                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                            }
+                        },
+                    );
                 } else {
                     ui.label("Nom du joueur :");
                     ui.add_sized(

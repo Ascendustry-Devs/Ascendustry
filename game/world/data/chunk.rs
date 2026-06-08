@@ -39,18 +39,12 @@ pub enum ChunkState {
     Ready = 1,
 }
 
-impl ChunkState {
-    pub fn to_str(self) -> &'static str {
-        match self {
-            Self::Pending => "Pending",
-            Self::Ready => "Ready",
-        }
-    }
-}
-
 impl Display for ChunkState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.to_str())
+        f.write_str(match self {
+            Self::Pending => "Pending",
+            Self::Ready => "Ready",
+        })
     }
 }
 
@@ -185,7 +179,14 @@ impl Chunk {
         [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz]
     }
 
-    pub fn get_cube_chunk_keys(min_cx: i32, max_cx: i32, min_cy: i32, max_cy: i32, min_cz: i32, max_cz: i32) -> Vec<(i32, i32, i32)> {
+    pub fn get_cube_chunk_keys(
+        min_cx: i32,
+        max_cx: i32,
+        min_cy: i32,
+        max_cy: i32,
+        min_cz: i32,
+        max_cz: i32,
+    ) -> Vec<(i32, i32, i32)> {
         let chunk_number = ((max_cx - min_cx) * (max_cy - min_cy) * (max_cz - min_cz)) as usize;
         let mut keys = Vec::with_capacity(chunk_number);
 

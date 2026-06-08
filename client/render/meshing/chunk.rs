@@ -4,7 +4,7 @@ use engine::{
     geometry::vertex::Vertex,
     gpu::allocator::{
         data_structures::AllocError,
-        gpu_allocator::{GpuAllocator, MeshId},
+        gpu_allocator::{EntryId, GpuAllocator},
     },
 };
 use game::world::data::chunk::{CHUNK_SIZE, LAST_CHUNK_AXIS_INDEX_USIZE};
@@ -13,7 +13,7 @@ use project_core::geometry::direction::Direction;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct ChunkMesh {
-    pub id: Option<MeshId>,
+    pub id: Option<EntryId>,
     dirty: AtomicBool,
 }
 
@@ -62,12 +62,24 @@ impl ChunkMesh {
         const AO_TABLE: [u8; 8] = [3, 2, 2, 0, 2, 1, 1, 0];
 
         // Check if neighbors exists and if they exists, if they are solid (AKA doesn't let light pass through them).
-        let corner_solid =
-            ChunkMesh::get_solidity_xyz(solidity, pos[0] + neighbors[0].0, pos[1] + neighbors[0].1, pos[2] + neighbors[0].2) as u8;
-        let side1_solid =
-            ChunkMesh::get_solidity_xyz(solidity, pos[0] + neighbors[1].0, pos[1] + neighbors[1].1, pos[2] + neighbors[1].2) as u8;
-        let side2_solid =
-            ChunkMesh::get_solidity_xyz(solidity, pos[0] + neighbors[2].0, pos[1] + neighbors[2].1, pos[2] + neighbors[2].2) as u8;
+        let corner_solid = ChunkMesh::get_solidity_xyz(
+            solidity,
+            pos[0] + neighbors[0].0,
+            pos[1] + neighbors[0].1,
+            pos[2] + neighbors[0].2,
+        ) as u8;
+        let side1_solid = ChunkMesh::get_solidity_xyz(
+            solidity,
+            pos[0] + neighbors[1].0,
+            pos[1] + neighbors[1].1,
+            pos[2] + neighbors[1].2,
+        ) as u8;
+        let side2_solid = ChunkMesh::get_solidity_xyz(
+            solidity,
+            pos[0] + neighbors[2].0,
+            pos[1] + neighbors[2].1,
+            pos[2] + neighbors[2].2,
+        ) as u8;
 
         // Calc the index and return the corresponding AO
         let idx = ((corner_solid << 2) | (side1_solid << 1) | side2_solid) as usize;
@@ -169,8 +181,9 @@ impl ChunkMesh {
                 for v in 1..=LAST_PADDED_CHUNK_CENTER_INDEX {
                     let previous_pos = [d, u, v]; // The block before (x-1, y, z) actual coords (x, y, z)
 
-                    let previous_i =
-                        (previous_pos[0] + previous_pos[1] * PADDED_CHUNK_SIZE + previous_pos[2] * PADDED_CHUNK_SIZE_SQR) as usize; // index in the solidity array
+                    let previous_i = (previous_pos[0]
+                        + previous_pos[1] * PADDED_CHUNK_SIZE
+                        + previous_pos[2] * PADDED_CHUNK_SIZE_SQR) as usize; // index in the solidity array
                     let current_i = previous_i + 1; // current block is previous + x_stride (=1)
 
                     let previous_is_solid = solidity[previous_i];
@@ -289,10 +302,42 @@ impl ChunkMesh {
                     let uv_v1 = h_f32;
 
                     // Vertices
-                    let vertex_0 = Vertex::new(v0_pos[0], v0_pos[1], v0_pos[2], texture_index, (v0_ao as i32) as f32, UV_U0, UV_V0);
-                    let vertex_1 = Vertex::new(v1_pos[0], v1_pos[1], v1_pos[2], texture_index, (v1_ao as i32) as f32, UV_U0, uv_v1);
-                    let vertex_2 = Vertex::new(v2_pos[0], v2_pos[1], v2_pos[2], texture_index, (v2_ao as i32) as f32, uv_u1, UV_V0);
-                    let vertex_3 = Vertex::new(v3_pos[0], v3_pos[1], v3_pos[2], texture_index, (v3_ao as i32) as f32, uv_u1, uv_v1);
+                    let vertex_0 = Vertex::new(
+                        v0_pos[0],
+                        v0_pos[1],
+                        v0_pos[2],
+                        texture_index,
+                        (v0_ao as i32) as f32,
+                        UV_U0,
+                        UV_V0,
+                    );
+                    let vertex_1 = Vertex::new(
+                        v1_pos[0],
+                        v1_pos[1],
+                        v1_pos[2],
+                        texture_index,
+                        (v1_ao as i32) as f32,
+                        UV_U0,
+                        uv_v1,
+                    );
+                    let vertex_2 = Vertex::new(
+                        v2_pos[0],
+                        v2_pos[1],
+                        v2_pos[2],
+                        texture_index,
+                        (v2_ao as i32) as f32,
+                        uv_u1,
+                        UV_V0,
+                    );
+                    let vertex_3 = Vertex::new(
+                        v3_pos[0],
+                        v3_pos[1],
+                        v3_pos[2],
+                        texture_index,
+                        (v3_ao as i32) as f32,
+                        uv_u1,
+                        uv_v1,
+                    );
 
                     // Because of back culling, we must invert the normal of the face by swaping vertices of the triangles on the horizontal axis
                     let reverse_faces = face.get_face().is_negative();

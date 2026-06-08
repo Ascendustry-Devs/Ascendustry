@@ -37,7 +37,11 @@ mod tests {
         let pos = state.get_player_position(1);
         assert!(pos.is_some());
 
-        let new_pos = Position { x: 10.0, y: 20.0, z: 30.0 };
+        let new_pos = Position {
+            x: 10.0,
+            y: 20.0,
+            z: 30.0,
+        };
         let new_rot = Rotation { x: 1.0, y: 0.5 };
         state.update_player_position(1, new_pos.clone(), new_rot.clone());
 

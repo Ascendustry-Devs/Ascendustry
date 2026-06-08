@@ -8,8 +8,8 @@ use crate::systems::inputs::InputState;
 use crate::world::world::World;
 use cgmath::Point3;
 use game::constants::{
-    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X, SPAWN_POSITION_Y,
-    SPAWN_POSITION_Z, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
+    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X,
+    SPAWN_POSITION_Y, SPAWN_POSITION_Z, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};
@@ -140,8 +140,11 @@ impl PlayerState {
 
     pub fn set_pos(&mut self, pos: Point3<f32>) {
         self.pos.update(pos);
-        self.cpos
-            .update(self.pos.current().map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32));
+        self.cpos.update(
+            self.pos
+                .current()
+                .map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32),
+        );
     }
 
     pub fn set_rot(&mut self, rot: Rotation) {
@@ -237,9 +240,12 @@ impl Player {
             }
         }
 
-        self.state
-            .cpos
-            .update(self.state.pos.current().map(|coord| coord.div_euclid(CHUNK_SIZE_F).floor() as i32));
+        self.state.cpos.update(
+            self.state
+                .pos
+                .current()
+                .map(|coord| coord.div_euclid(CHUNK_SIZE_F).floor() as i32),
+        );
         if self.state.cpos.has_changed() {
             self.state.chunk_keys = self.state.get_rendered_chunk_keys_set();
         }

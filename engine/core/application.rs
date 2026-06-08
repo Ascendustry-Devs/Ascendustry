@@ -147,7 +147,7 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
     #[inline(always)]
     fn exiting(&mut self, _: &ActiveEventLoop) {
         if let Some(engine) = self.engine_state.as_mut() {
-            self.app_state.dispose(&mut engine.renderer.render_manager.mesh_manager);
+            self.app_state.dispose(&mut engine.renderer.render_manager.world_buffer);
             engine.dispose();
         }
         log_client!("Exiting...");

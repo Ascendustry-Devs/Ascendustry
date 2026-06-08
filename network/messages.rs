@@ -210,7 +210,10 @@ pub fn new_set_block_paquet(x: i32, y: i32, z: i32, block_id: u32) -> Paquet {
 }
 
 pub fn new_gamemode_change_paquet(player_id: u64, gamemode: PlayerGameMode) -> Paquet {
-    Paquet::new(TypePaquet::GamemodeChange, ContenuPaquet::GamemodeChange { player_id, gamemode })
+    Paquet::new(
+        TypePaquet::GamemodeChange,
+        ContenuPaquet::GamemodeChange { player_id, gamemode },
+    )
 }
 
 pub fn new_save_request_paquet() -> Paquet {
@@ -222,5 +225,8 @@ pub fn new_kick_paquet(reason: String) -> Paquet {
 }
 
 pub fn new_client_identity_paquet(player_id: u64, username: String) -> Paquet {
-    Paquet::new(TypePaquet::ClientIdentity, ContenuPaquet::ClientIdentity { player_id, username })
+    Paquet::new(
+        TypePaquet::ClientIdentity,
+        ContenuPaquet::ClientIdentity { player_id, username },
+    )
 }

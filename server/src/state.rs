@@ -56,7 +56,9 @@ impl AppState {
         let (sx, sy, sz) = find_safe_spawn_point(&state.world, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
         let safe_position = Position { x: sx, y: sy, z: sz };
         let safe_rotation = Rotation { x: 0.0, y: 0.0 };
-        state.players.update_position(id, safe_position.clone(), safe_rotation.clone());
+        state
+            .players
+            .update_position(id, safe_position.clone(), safe_rotation.clone());
         state.players.set_last_valid_transformation(id, safe_position, safe_rotation);
     }
 
@@ -214,7 +216,10 @@ impl AppState {
         }
 
         if !corrections.is_empty() {
-            let packet = Paquet::new(TypePaquet::GuardCorrection, ContenuPaquet::GuardCorrection { data: corrections });
+            let packet = Paquet::new(
+                TypePaquet::GuardCorrection,
+                ContenuPaquet::GuardCorrection { data: corrections },
+            );
             let _ = broadcaster.send(BroadcastMessage::All(packet));
         }
     }

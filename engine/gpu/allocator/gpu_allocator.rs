@@ -18,24 +18,24 @@ const ARENA_MIN_SIZE: usize = 1024 * 1024 * 4; // 4Mb
 const MESH_BUFFER_BASE_SIZE: usize = 1024 * 1024 * 4; // 4Mb
 const MESH_BUFFER_EXPAND_COEF: f32 = 1.25; // allocates 1.25x more than needed to prevent quick reallocates.
 
-pub type MeshId = u32;
+pub type EntryId = u32;
 
-pub struct MeshEntry {
-    pub id: MeshId,
+pub struct AllocEntry {
+    pub id: EntryId,
     pub position: usize,
     pub length: usize,
 }
 
-impl MeshEntry {
-    pub fn new(id: MeshId, position: usize, length: usize) -> Self {
+impl AllocEntry {
+    pub fn new(id: EntryId, position: usize, length: usize) -> Self {
         Self { id, position, length }
     }
 }
 
 pub struct GpuAllocator {
-    pub data: Vec<MeshEntry>,
-    next_id: MeshId,
-    free_ids: Vec<MeshId>,
+    pub data: Vec<AllocEntry>,
+    next_id: EntryId,
+    free_ids: Vec<EntryId>,
 
     gaps: Vec<Gap>,
     pending_destruction: Vec<SmartBuffer>,
@@ -89,14 +89,14 @@ impl GpuAllocator {
         }
     }
 
-    pub fn get_mesh_entry(&self, id: MeshId) -> Option<&MeshEntry> {
+    pub fn get_mesh_entry(&self, id: EntryId) -> Option<&AllocEntry> {
         if let Some(i) = self.data.iter().position(|entry| entry.id == id) {
             return self.data.get(i);
         }
         None
     }
 
-    pub fn get_entries_difference_by_ids(&self, ids: Vec<MeshId>) -> Vec<&MeshEntry> {
+    pub fn get_entries_difference_by_ids(&self, ids: Vec<EntryId>) -> Vec<&AllocEntry> {
         self.data.iter().filter(|entry| !ids.contains(&entry.id)).collect()
     }
 
@@ -120,7 +120,7 @@ impl GpuAllocator {
             + self.gaps.len() * size_of::<Gap>()
             + self.pending_destruction.len() * size_of::<SmartBuffer>()
             + self.write_operations.len() * size_of::<WriteOperation>()
-            + self.data.len() * size_of::<MeshEntry>()) as u32;
+            + self.data.len() * size_of::<AllocEntry>()) as u32;
         let (used_cpu_mb, used_cpu_kb, used_cpu_b) = conversion(used_cpu);
 
         let alloc_cpu = (self.arena.capacity()
@@ -128,7 +128,7 @@ impl GpuAllocator {
             + self.gaps.capacity() * size_of::<Gap>()
             + self.pending_destruction.capacity() * size_of::<SmartBuffer>()
             + self.write_operations.capacity() * size_of::<WriteOperation>()
-            + self.data.capacity() * size_of::<MeshEntry>()) as u32;
+            + self.data.capacity() * size_of::<AllocEntry>()) as u32;
         let (alloc_cpu_mb, alloc_cpu_kb, alloc_cpu_b) = conversion(alloc_cpu);
 
         let data_length = self.total_data_length() as u32;
@@ -169,7 +169,7 @@ impl GpuAllocator {
         self.buffer.buffer()
     }
 
-    pub fn add(&mut self, data: &[u8]) -> Result<MeshId, AllocError> {
+    pub fn add(&mut self, data: &[u8]) -> Result<EntryId, AllocError> {
         log_allocator!("Adding data for data of len: {}.", data.len());
         let mut index = self.find_place(data.len());
 
@@ -204,7 +204,7 @@ impl GpuAllocator {
 
         self.write_at(position, data, id);
 
-        let entry = MeshEntry::new(id, position, data.len());
+        let entry = AllocEntry::new(id, position, data.len());
         self.insert_entry(entry);
 
         self.print_debug_infos();
@@ -293,7 +293,7 @@ impl GpuAllocator {
         // Cas 3: on regarde s'il existe un trou suffisant pour accueillir les nouvelles données...
         if let Some(gap_index) = self.find_place(new_len) {
             let position = self.consume_gap_for(gap_index, id, data);
-            let entry = MeshEntry::new(id, position, new_len);
+            let entry = AllocEntry::new(id, position, new_len);
             self.insert_entry(entry);
 
             return Ok(());
@@ -307,7 +307,7 @@ impl GpuAllocator {
             return Err(AllocError::NotEnoughSpace);
         };
         let position = self.consume_gap_for(gap_index, id, data);
-        let entry = MeshEntry::new(id, position, new_len);
+        let entry = AllocEntry::new(id, position, new_len);
         self.insert_entry(entry);
 
         self.print_debug_infos();
@@ -315,7 +315,7 @@ impl GpuAllocator {
         Ok(())
     }
 
-    pub fn free(&mut self, id: MeshId) -> Result<(), AllocError> {
+    pub fn free(&mut self, id: EntryId) -> Result<(), AllocError> {
         log_allocator!("Freeing data of mesh id: {}.", id);
         let Some(data_index) = self.data.iter().position(|x| x.id == id) else {
             return Err(AllocError::InvalidId);
@@ -371,7 +371,7 @@ impl GpuAllocator {
         }
     }
 
-    fn get_new_id(&mut self) -> MeshId {
+    fn get_new_id(&mut self) -> EntryId {
         self.free_ids.pop().unwrap_or_else(|| {
             let id = self.next_id;
             self.next_id += 1;
@@ -384,7 +384,7 @@ impl GpuAllocator {
         self.gaps.iter().position(|x| x.length >= needed)
     }
 
-    fn insert_entry(&mut self, entry: MeshEntry) {
+    fn insert_entry(&mut self, entry: AllocEntry) {
         let entry_index = self
             .data
             .iter()
@@ -393,7 +393,7 @@ impl GpuAllocator {
         self.data.insert(entry_index, entry);
     }
 
-    fn get_data_next_gap(&self, entry: &MeshEntry) -> Option<usize> {
+    fn get_data_next_gap(&self, entry: &AllocEntry) -> Option<usize> {
         log_allocator!(
             "Getting data next gap for Mesh(id: {}, pos: {}, len: {}).",
             entry.id,
@@ -463,8 +463,13 @@ impl GpuAllocator {
         self.print_debug_infos();
     }
 
-    fn write_at(&mut self, offset: usize, data: &[u8], mesh_id: MeshId) {
-        log_allocator!("Writing at {} data of len {} and of Mesh(id: {})", offset, data.len(), mesh_id);
+    fn write_at(&mut self, offset: usize, data: &[u8], mesh_id: EntryId) {
+        log_allocator!(
+            "Writing at {} data of len {} and of Mesh(id: {})",
+            offset,
+            data.len(),
+            mesh_id
+        );
 
         let len = data.len();
         let arena_offset = self.arena.len();
@@ -521,7 +526,12 @@ impl GpuAllocator {
     }
 
     fn consume_gap_for(&mut self, gap_index: usize, id: u32, data: &[u8]) -> usize {
-        log_allocator!("Consume Gap(index: {}) for DataEntry(id: {}, len: {}).", gap_index, id, data.len());
+        log_allocator!(
+            "Consume Gap(index: {}) for DataEntry(id: {}, len: {}).",
+            gap_index,
+            id,
+            data.len()
+        );
         let gap_pos = self.gaps[gap_index].position;
         let data_length = data.len();
 

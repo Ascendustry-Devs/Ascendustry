@@ -1,4 +1,4 @@
-use crate::gpu::allocator::gpu_allocator::MeshId;
+use crate::gpu::allocator::gpu_allocator::EntryId;
 use std::fmt::Display;
 
 #[repr(u8)]
@@ -15,7 +15,7 @@ pub struct Gap {
 }
 
 pub struct WriteOperation {
-    pub mesh_id: MeshId,
+    pub mesh_id: EntryId,
     pub offset: usize,
     pub len: usize,
     pub arena_offset: usize,
@@ -37,7 +37,7 @@ impl Gap {
 }
 
 impl WriteOperation {
-    pub fn new(mesh_id: MeshId, offset: usize, len: usize, arena_offset: usize) -> Self {
+    pub fn new(mesh_id: EntryId, offset: usize, len: usize, arena_offset: usize) -> Self {
         Self {
             mesh_id,
             offset,

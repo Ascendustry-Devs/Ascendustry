@@ -41,7 +41,19 @@ impl Vertex {
         }
     }
 
-    pub const fn new_with_rgba(x: f32, y: f32, z: f32, r: u8, g: u8, b: u8, a: u8, tex_layer: u32, ao: f32, u: f32, v: f32) -> Vertex {
+    pub const fn new_with_rgba(
+        x: f32,
+        y: f32,
+        z: f32,
+        r: u8,
+        g: u8,
+        b: u8,
+        a: u8,
+        tex_layer: u32,
+        ao: f32,
+        u: f32,
+        v: f32,
+    ) -> Vertex {
         Vertex {
             position: [x, y, z],
             color: (a as u32) << 24 | (r as u32) << 16 | (g as u32) << 8 | (b as u32),

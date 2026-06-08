@@ -48,7 +48,11 @@ impl WorldMesh {
         self.listen(mesh_request);
     }
 
-    pub fn update(&mut self, mesh_manager: &mut Arc<RwLock<GpuAllocator>>, mesh_request: &mut MeshRequestMessage) -> Vec<MeshResponse> {
+    pub fn update(
+        &mut self,
+        mesh_manager: &mut Arc<RwLock<GpuAllocator>>,
+        mesh_request: &mut MeshRequestMessage,
+    ) -> Vec<MeshResponse> {
         self.listen(mesh_request);
         self.submit_meshes();
         self.compute_generated_meshes(&mut mesh_request.delete, mesh_manager)
@@ -150,7 +154,11 @@ impl WorldMesh {
         let mut responses = Vec::new();
 
         let alloc = &mut mesh_manager.write().unwrap();
-        while let Some(WorkResult { output: vertices_opt, id }) = self.mesh_worker.try_recv() {
+        while let Some(WorkResult {
+            output: vertices_opt,
+            id,
+        }) = self.mesh_worker.try_recv()
+        {
             // Si la mesh était dans la file d'attente on la retire, sinon on passe à la suivante (déjà traitée)
             let Some(key) = self.pending.remove(&id) else {
                 // Nettoyage
@@ -199,7 +207,9 @@ impl WorldMesh {
                                     // Si le mesh est vide, il est normal qu'on ne l'insère pas (l'id n'a pas été attribué donc on arrive ici).
                                     // En revanche, s'il contient des données, on l'affiche dans la console.
                                     if !vertices.is_empty() {
-                                        println!("WorldMesh compute_generated_meshes: Could not insert mesh, for unknown reason.");
+                                        println!(
+                                            "WorldMesh compute_generated_meshes: Could not insert mesh, for unknown reason."
+                                        );
                                     }
                                     self.mesh_worker.context().release_buffer(vertices);
                                     continue;

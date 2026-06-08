@@ -88,7 +88,10 @@ impl NetworkManager {
     pub fn connect(&mut self, server_addr: &str) {
         info!("NetworkManager: tentative de connexion...");
         if let Err(e) = self.connection.connect(server_addr) {
-            error!("NetworkManager: échec de la tentative de connexion au serveur.\nErreur : {}", e);
+            error!(
+                "NetworkManager: échec de la tentative de connexion au serveur.\nErreur : {}",
+                e
+            );
         }
     }
 

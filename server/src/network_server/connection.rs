@@ -51,7 +51,11 @@ impl ServerConnection {
     /// Envoie un paquet au client.
     ///
     /// Délègue à `EncryptedCodec::send_packet()`.
-    pub async fn send_packet<S: tokio::io::AsyncWrite + Unpin>(&self, stream: &mut S, packet: &Paquet) -> Result<(), NetworkError> {
+    pub async fn send_packet<S: tokio::io::AsyncWrite + Unpin>(
+        &self,
+        stream: &mut S,
+        packet: &Paquet,
+    ) -> Result<(), NetworkError> {
         self.codec.send_packet(stream, packet).await
     }
 

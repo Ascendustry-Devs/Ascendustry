@@ -1,13 +1,17 @@
-use std::sync::Arc;
+use std::{num::NonZero, sync::Arc};
 
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource,
-    BindingType, Buffer, SamplerBindingType, ShaderStages, TextureSampleType, TextureViewDimension,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry,
+    BindingResource, BindingType, Buffer, BufferBindingType, SamplerBindingType, ShaderStages, TextureSampleType,
+    TextureViewDimension,
 };
 
-use crate::gpu::{
-    textures::{array::Texture2DArray, atlas::Texture2DAtlas},
-    tools::GpuTools,
+use crate::{
+    gpu::{
+        textures::{array::Texture2DArray, atlas::Texture2DAtlas, manager::TextureManager},
+        tools::GpuTools,
+    },
+    render::modes::RenderMode,
 };
 
 pub struct BindGroupLayoutFactory {
@@ -125,6 +129,20 @@ impl BindGroupLayoutFactory {
         }];
         self.make(Some("Camera"), &entries)
     }
+
+    pub fn make_ui_uniform(&self) -> BindGroupLayout {
+        let entries = [BindGroupLayoutEntry {
+            binding: 0,
+            visibility: ShaderStages::VERTEX,
+            ty: BindingType::Buffer {
+                ty: BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: NonZero::new(size_of::<[[f32; 4]; 4]>() as u64),
+            },
+            count: None,
+        }];
+        self.make(Some("UI Render Pipeline Layout"), &entries)
+    }
 }
 
 pub struct BindGroupFactory {
@@ -171,17 +189,21 @@ impl BindGroupFactory {
     pub fn make_textures_entries(
         &self,
         layout: &BindGroupLayout,
-        arrays: &[&Texture2DArray; 4],
-        ui_atlas: &Texture2DAtlas,
-        // atlas_view: ,
+        texture_manager: &TextureManager,
         label: Option<&str>,
     ) -> BindGroup {
+        let opaque_array = texture_manager.get_array(&RenderMode::Opaque);
+        let alpha_cutout_array = texture_manager.get_array(&RenderMode::AlphaCutout);
+        let translucent_array = texture_manager.get_array(&RenderMode::Translucent);
+        let billboard_array = texture_manager.get_array(&RenderMode::Billboard);
+        let ui_atlas = texture_manager.get_ui_atlas();
+
         let entries: Vec<BindGroupEntry> = [
-            self.make_texture_array_entry(0, arrays[0]), // opaque
-            self.make_texture_array_entry(2, arrays[1]), // alpha cutout
-            self.make_texture_array_entry(4, arrays[2]), // translucent
-            self.make_texture_array_entry(6, arrays[3]), // billboard
-            self.make_texture_atlas_entry(8, ui_atlas),  // ui
+            self.make_texture_array_entry(0, opaque_array),
+            self.make_texture_array_entry(2, alpha_cutout_array),
+            self.make_texture_array_entry(4, translucent_array),
+            self.make_texture_array_entry(6, billboard_array),
+            self.make_texture_atlas_entry(8, ui_atlas),
         ]
         .into_iter()
         .flatten()

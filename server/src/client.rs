@@ -5,9 +5,10 @@ use crate::network_server::ServerConnection;
 use crate::persistence::PersistenceService;
 use crate::state::AppState;
 use anyhow::Result;
-use network::messages::{self, new_server_seed_paquet, BroadcastMessage, ContenuPaquet, Paquet, PlayerTransformation, TypePaquet};
+use network::messages::{
+    self, new_server_seed_paquet, BroadcastMessage, ContenuPaquet, Paquet, PlayerTransformation, TypePaquet,
+};
 use network::traits::PacketCodec;
-use project_core::geometry::plane;
 use project_core::log_err_server;
 use project_core::log_server;
 use tokio::io::split;
@@ -103,7 +104,9 @@ impl ClientSession {
                 if self.state.check_identity(player_unique_id, &username) {
                     self.state.register_identity(player_unique_id, username.clone());
                 } else {
-                    let kick = messages::new_kick_paquet("Identité invalide : ce pseudo ne correspond pas à l'ID enregistré".to_string());
+                    let kick = messages::new_kick_paquet(
+                        "Identité invalide : ce pseudo ne correspond pas à l'ID enregistré".to_string(),
+                    );
                     let _ = self.conn.send_packet(&mut stream, &kick).await;
                     return Ok(());
                 }
@@ -145,7 +148,8 @@ impl ClientSession {
         // Restauration de la position sauvegardée pour un joueur qui se reconnecte
         if self.player_unique_id != 0 {
             if let Some(saved) = self.state.take_saved_player_data(self.player_unique_id) {
-                self.state.restore_player(player_id, saved.position, saved.rotation, saved.gamemode);
+                self.state
+                    .restore_player(player_id, saved.position, saved.rotation, saved.gamemode);
                 let correction = Paquet::new(
                     TypePaquet::GuardCorrection,
                     ContenuPaquet::GuardCorrection {

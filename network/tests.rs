@@ -2,8 +2,8 @@
 mod tests {
     use crate::crypto::compute_shared_secret;
     use crate::messages::{
-        new_ping_paquet, new_pong_paquet, ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet,
-        CURRENT_VERSION,
+        new_ping_paquet, new_pong_paquet, ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation,
+        TypePaquet, CURRENT_VERSION,
     };
     use crate::network_protocol::create_codec;
     use crate::DEFAULT_SERVER_ADDRESS;

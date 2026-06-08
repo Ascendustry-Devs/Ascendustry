@@ -94,7 +94,11 @@ impl<P: Parallelizable> WorkerPool<P> {
         }
         let id = ID_COUNTER.fetch_add(1, Ordering::Relaxed);
         self.pending_count.fetch_add(1, Ordering::Relaxed);
-        let item = WorkItem { input, id, _phantom: None };
+        let item = WorkItem {
+            input,
+            id,
+            _phantom: None,
+        };
         let _ = self.request_tx.send(item);
         Ok(id)
     }

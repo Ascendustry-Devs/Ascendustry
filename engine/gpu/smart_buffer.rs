@@ -41,7 +41,8 @@ impl SmartBuffer {
 
     pub fn from_capacity(capacity_bytes: u32, device: &Device, format: Option<IndexFormat>, usages: BufferUsages) -> Self {
         let length = 0;
-        let capacity = ((capacity_bytes as f32 * BUFFER_CAPACITY_MARGIN).ceil() as u32).clamp(BUFFER_MIN_CAPACITY, BUFFER_MAX_CAPACITY);
+        let capacity =
+            ((capacity_bytes as f32 * BUFFER_CAPACITY_MARGIN).ceil() as u32).clamp(BUFFER_MIN_CAPACITY, BUFFER_MAX_CAPACITY);
 
         let buffer = device.create_buffer(&BufferDescriptor {
             label: Some(format!("SmartBuffer (c: {}, l: {})", capacity, length).as_str()),

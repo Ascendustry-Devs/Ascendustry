@@ -38,6 +38,7 @@ winit = "0.30.13"
 kira = { version = "0.12.0", default-features = false, features = ["cpal", "mp3"] }
 wgpu_text = "29.0.3"
 pollster = "0.4.0"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 
 [profile.dev]
 debug = true

@@ -96,7 +96,11 @@ impl PlayerRegistry {
     }
 
     pub fn all_required_chunks(&self) -> FxHashSet<(i32, i32, i32)> {
-        self.player_chunks.values().flat_map(|chunks| chunks.iter()).cloned().collect()
+        self.player_chunks
+            .values()
+            .flat_map(|chunks| chunks.iter())
+            .cloned()
+            .collect()
     }
 
     pub fn update_gamemode(&mut self, id: u64, gamemode: PlayerGameMode) {

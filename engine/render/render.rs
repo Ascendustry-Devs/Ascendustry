@@ -2,7 +2,7 @@ use std::{iter, mem};
 
 use game::world::data::chunk::CHUNK_SIZE_F;
 
-use crate::geometry::vertex::Vertex;
+use crate::{geometry::vertex::Vertex, render::ui::render::UiRenderer};
 use wgpu::{
     wgt::{CommandEncoderDescriptor, DrawIndirectArgs},
     Features, RenderPass, SurfaceTexture,
@@ -10,7 +10,9 @@ use wgpu::{
 
 use crate::{
     gpu::{context::GpuContext, resources::wrapper::GpuResources, textures::manager::TextureManager},
-    render::{camera::RenderCamera, debug::DebugRenderResources, manager::RenderManager, options::RenderOptions, text::TextRenderer},
+    render::{
+        camera::RenderCamera, debug::DebugRenderResources, manager::RenderManager, options::RenderOptions, text::TextRenderer,
+    },
 };
 
 pub struct Renderer {
@@ -20,6 +22,7 @@ pub struct Renderer {
 
     pub render_manager: RenderManager,
     pub texture_manager: TextureManager,
+    pub ui_renderer: UiRenderer,
 
     pub gpu_context: GpuContext,
     pub gpu_resources: GpuResources,
@@ -31,9 +34,11 @@ impl Renderer {
     pub fn new(
         is_surface_configured: bool,
 
-        render_manager: RenderManager,
         render_options: RenderOptions,
+
+        render_manager: RenderManager,
         texture_manager: TextureManager,
+        ui_renderer: UiRenderer,
 
         gpu_context: GpuContext,
         gpu_resources: GpuResources,
@@ -43,9 +48,11 @@ impl Renderer {
         Self {
             is_surface_configured,
 
-            render_manager,
             render_options,
+
+            render_manager,
             texture_manager,
+            ui_renderer,
 
             gpu_context,
             gpu_resources,
@@ -57,7 +64,7 @@ impl Renderer {
     fn world_pass(&self, render_pass: &mut RenderPass) {
         // World & Player meshes (other than local player)
         let mesh_count = self.render_manager.ids_to_render.len() as u32;
-        let alloc = &self.render_manager.mesh_manager.read().unwrap();
+        let alloc = &self.render_manager.world_buffer.read().unwrap();
         if mesh_count > 0 {
             render_pass.set_vertex_buffer(0, alloc.get_buffer().slice(..));
 
@@ -74,7 +81,12 @@ impl Renderer {
         }
     }
 
-    pub fn render<'a>(&'a mut self, output: SurfaceTexture, camera: &RenderCamera, text_renderer: Option<&'a mut TextRenderer>) {
+    pub fn render<'a>(
+        &'a mut self,
+        output: SurfaceTexture,
+        camera: &RenderCamera,
+        text_renderer: Option<&'a mut TextRenderer>,
+    ) {
         const CHUNK_BORDERS: [Vertex; 24] = [
             Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
             Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
@@ -121,7 +133,11 @@ impl Renderer {
             let chunk_borders_vertices =
                 CHUNK_BORDERS.map(|v| v.copy_with_pos(v.position[0] + cw[0], v.position[1] + cw[1], v.position[2] + cw[2]));
 
-            queue.write_buffer(&self.debug.chunk_borders_buffer, 0, bytemuck::cast_slice(&chunk_borders_vertices));
+            queue.write_buffer(
+                &self.debug.chunk_borders_buffer,
+                0,
+                bytemuck::cast_slice(&chunk_borders_vertices),
+            );
         };
 
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -172,9 +188,9 @@ impl Renderer {
         }
 
         // UI Pass
-        if let Some(text_renderer) = text_renderer {
-            let mut text_render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Text Render Pass"),
+        {
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("UI Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -189,7 +205,17 @@ impl Renderer {
                 timestamp_writes: None,
                 multiview_mask: None,
             });
-            text_renderer.render(device, queue, &mut text_render_pass);
+
+            self.ui_renderer.render(
+                &mut render_pass,
+                self.gpu_resources.pipelines.ui(),
+                &self.gpu_resources.texture_bind_group,
+                &self.gpu_resources.ui_uniform_bind_group,
+            );
+
+            if let Some(text_renderer) = text_renderer {
+                text_renderer.render(device, queue, &mut render_pass);
+            }
         }
 
         let encoder = {
@@ -203,7 +229,11 @@ impl Renderer {
         queue.submit(iter::once(encoder.finish()));
         output.present();
 
-        self.render_manager.mesh_manager.write().unwrap().process_pending_destructions();
+        self.render_manager
+            .world_buffer
+            .write()
+            .unwrap()
+            .process_pending_destructions();
         self.render_manager.clear_render_queue();
     }
 

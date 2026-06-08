@@ -54,8 +54,10 @@ impl TextureManager {
         };
 
         let ui = {
-            let width = max_texture_size;
-            let height = max_texture_size;
+            // let width = max_texture_size;
+            // let height = max_texture_size;
+            let width = 2170;
+            let height = 1132;
 
             Texture2DAtlas::new(String::from("UI Texture2DAtlas"), device, width, height)
         };
@@ -112,9 +114,9 @@ impl TextureManager {
 
     pub fn register_atlas(&mut self, texture: &[u8], x: u32, y: u32, width: u32, height: u32) -> Result<TextureID, Error> {
         let array = self.get_ui_atlas_mut();
-        if texture.len() != (width * height * 4) as usize {
+        if texture.len() * 4 < (width * height * 4) as usize {
             panic!(
-                "Texture data length does not match expected size for given dimensions.\n{} != {}*{}*4",
+                "Texture data length is smaller than given texture's size.\n{} != {}*{}*4",
                 texture.len(),
                 array.width(),
                 array.height()

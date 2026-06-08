@@ -12,7 +12,12 @@ pub struct DebugRenderResources {
 }
 
 impl DebugRenderResources {
-    pub fn new(pipelines: Pipelines, gizmo_render_pipeline: RenderPipeline, gizmo_buffer: Buffer, chunk_borders_buffer: Buffer) -> Self {
+    pub fn new(
+        pipelines: Pipelines,
+        gizmo_render_pipeline: RenderPipeline,
+        gizmo_buffer: Buffer,
+        chunk_borders_buffer: Buffer,
+    ) -> Self {
         Self {
             wireframe: false,
             pipelines,

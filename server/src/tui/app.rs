@@ -60,8 +60,8 @@ impl TuiApp {
             .scroll((app.scroll, 0));
         frame.render_widget(log_widget, body_chunks[1]);
 
-        let help =
-            Paragraph::new(" Ctrl+S: Save  Q: Quit  ↑↓: Select player  k: Kick selected ").style(Style::default().fg(Color::DarkGray));
+        let help = Paragraph::new(" Ctrl+S: Save  Q: Quit  ↑↓: Select player  k: Kick selected ")
+            .style(Style::default().fg(Color::DarkGray));
         frame.render_widget(help, chunks[2]);
     }
 

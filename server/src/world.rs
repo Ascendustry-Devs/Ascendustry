@@ -115,7 +115,11 @@ impl WorldState {
         chunks
     }
     /// /!\ Fonction UNIQUEMENT Itérative et bloquante
-    pub fn generate_chunks_between_2_pos(&mut self, p1: Point3<i32>, p2: Point3<i32>) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
+    pub fn generate_chunks_between_2_pos(
+        &mut self,
+        p1: Point3<i32>,
+        p2: Point3<i32>,
+    ) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
         let min_x = p1.x.min(p2.x);
         let max_x = p1.x.max(p2.x);
         let min_y = p1.y.min(p2.y);
@@ -135,7 +139,11 @@ impl WorldState {
         generate_chunks_sequential(Arc::clone(&self.block_manager), self.seed, coords)
     }
     /// /!\ Fonction UNIQUEMENT Itérative et bloquante
-    pub fn generate_chunks_in_radius(&mut self, center: Point3<i32>, radius: i32) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
+    pub fn generate_chunks_in_radius(
+        &mut self,
+        center: Point3<i32>,
+        radius: i32,
+    ) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
         let radius_sq = (radius as i64) * (radius as i64);
         let mut coords = Vec::new();
         for cx in (center.x - radius)..=(center.x + radius) {
@@ -165,13 +173,19 @@ impl WorldState {
                 // Appliquer les modifications par-dessus
                 if let Ok(modified) = self.modifications.get_chunk_at(cx, cy, cz) {
                     for (coords, block) in modified.blocks() {
-                        let idx = coords.x as usize + coords.y as usize * CHUNK_SIZE_USIZE + coords.z as usize * CHUNK_SIZE_SQR_USIZE;
+                        let idx =
+                            coords.x as usize + coords.y as usize * CHUNK_SIZE_USIZE + coords.z as usize * CHUNK_SIZE_SQR_USIZE;
                         blocks[idx] = *block;
                     }
                 }
                 // Sérialiser avec bincode (déjà utilisé partout)
                 let data = bincode::serialize(&blocks).unwrap();
-                ChunkData { x: cx, y: cy, z: cz, data }
+                ChunkData {
+                    x: cx,
+                    y: cy,
+                    z: cz,
+                    data,
+                }
             })
             .collect()
     }

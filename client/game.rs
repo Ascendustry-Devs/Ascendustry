@@ -17,6 +17,10 @@ use engine::core::frame::GameFrameData;
 use engine::geometry::vertex::generate_cube;
 use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use engine::render::render::Renderer;
+use engine::render::ui::interpreter::compiler::UiCompiler;
+use engine::render::ui::interpreter::translator::UiTranslator;
+use engine::render::ui::widgets::panel::Panel;
+use engine::render::ui::widgets::{Widget, WidgetTransform, WidgetType};
 use game::constants::CHUNK_VECTOR;
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::CHUNK_SIZE_F;
@@ -63,7 +67,10 @@ impl GameState {
             .expect("La seed n'existe pas ou est vide (serveur non lancé ? connexion échouée ? mauvaise adresse IP ?)");
 
         Self {
-            player: Player::new(Box::new(FreeCameraController::new(0.00390625)), Box::new(WalkPlayerController)),
+            player: Player::new(
+                Box::new(FreeCameraController::new(0.00390625)),
+                Box::new(WalkPlayerController),
+            ),
             world: World::new(server_seed),
             world_mesh: WorldMesh::new(),
             remote_players: RemotePlayersManager::new(),
@@ -79,7 +86,7 @@ impl AppState for GameState {
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>) {
         let mut tex_loader = TextureLoader::new(&mut renderer.texture_manager);
         let meshin = self.world.init(&mut tex_loader, &self.player);
-        let alloc = Arc::clone(&renderer.render_manager.mesh_manager);
+        let alloc = Arc::clone(&renderer.render_manager.world_buffer);
         self.world_mesh.init(alloc, meshin);
 
         if let Some(ref mut audio) = audio_manager {
@@ -88,6 +95,37 @@ impl AppState for GameState {
             }
             audio.stop_main_theme();
         }
+
+        // UI
+        // In 5 steps.
+
+        // 1. Widget tree
+        // Build everything you want with it.
+        let test_panel: Panel = {
+            let transform = WidgetTransform::new(8, 8, 160, 130);
+            let color = 0xFFCCAAAA;
+            let child = None;
+            Panel::new(transform, color, child)
+        };
+
+        let mut draw_commands = Vec::new();
+
+        // 2. Draw call
+        // At the top of the tree, call root.draw and give it an empty
+        // Vec of DrawCommand (it will call .draw() recursively).
+        test_panel.draw(&mut draw_commands);
+
+        // 3. Translation
+        // When commands are ready, we need to translate them
+        // into vertices to be compatible with the shader.
+        let vertices = UiTranslator::translate(draw_commands);
+
+        // 4. Compilation
+        // Transform our UiVertices into raw bytes.
+        let bytes = UiCompiler::compile(vertices);
+
+        // 5. Submit the bytes to the GPU, and voila.
+        renderer.ui_renderer.update_vertices(&bytes);
     }
 
     fn update(&mut self, frame: &EngineFrameData, data: &mut GameFrameData, renderer: &mut Renderer) {
@@ -101,7 +139,7 @@ impl AppState for GameState {
         self.delay_s -= DT_CAP;
 
         // Commande debug (touches)
-        self.update_debug_commands(&renderer.render_manager.mesh_manager);
+        self.update_debug_commands(&renderer.render_manager.world_buffer);
 
         // PHYSICS
         self.player
@@ -109,7 +147,7 @@ impl AppState for GameState {
 
         // LOGIC
         let network_commands = self.player.update(frame.dt, &mut self.world, &mut self.inputs);
-        let mesh_manager = &mut renderer.render_manager.mesh_manager;
+        let mesh_manager = &mut renderer.render_manager.world_buffer;
         let mesh_request = self.world.update(mesh_manager, &mut self.world_mesh, &self.player);
         let mut mesh_request = mem::replace(mesh_request, MeshRequestMessage::empty());
 
@@ -320,7 +358,10 @@ impl GameState {
                 let Some(data) = alloc.get_mesh_entry(id) else {
                     continue;
                 };
-                println!("  └─ Mesh (id: {:?}, pos: {:?}, len: {:?})", data.id, data.position, data.length);
+                println!(
+                    "  └─ Mesh (id: {:?}, pos: {:?}, len: {:?})",
+                    data.id, data.position, data.length
+                );
             }
             println!("==============================")
         }

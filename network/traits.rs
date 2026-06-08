@@ -42,7 +42,11 @@ pub trait PacketCodec: Clone + Send + Sync {
     ///
     /// * `Ok(())` si l'envoi a réussi
     /// * `Err(NetworkError)` en cas d'erreur
-    fn send_packet<S: AsyncWrite + Unpin>(&self, stream: &mut S, packet: &Paquet) -> impl Future<Output = Result<(), NetworkError>>;
+    fn send_packet<S: AsyncWrite + Unpin>(
+        &self,
+        stream: &mut S,
+        packet: &Paquet,
+    ) -> impl Future<Output = Result<(), NetworkError>>;
 
     /// Reçoit un paquet du flux fourni.
     ///

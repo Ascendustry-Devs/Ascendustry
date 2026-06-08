@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use wgpu::{
-    BindGroupLayout, DepthStencilState, FragmentState, PipelineLayout, PipelineLayoutDescriptor, PrimitiveState, RenderPipeline,
-    VertexState,
+    BindGroupLayout, BlendState, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Face,
+    Features, FragmentState, FrontFace, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
+    PrimitiveTopology, RenderPipeline, ShaderSource, SurfaceConfiguration, TextureFormat, VertexState,
 };
 
-use crate::gpu::tools::GpuTools;
+use crate::gpu::{layouts::BufferLayouts, tools::GpuTools};
 
 pub struct PipelineLayoutFactory {
     gpu_tools: Arc<GpuTools>,
@@ -60,5 +61,171 @@ impl PipelineFactory {
             cache: None,
         };
         self.gpu_tools.device().create_render_pipeline(&descriptor)
+    }
+
+    pub fn make_opaque(
+        &self,
+        layout: &PipelineLayout,
+        config: &SurfaceConfiguration,
+        features: &Features,
+    ) -> (RenderPipeline, RenderPipeline) {
+        let device = self.gpu_tools.device();
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Opaque Shader"),
+            source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/shader.wgsl").into()),
+        });
+
+        let vertex = VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[BufferLayouts::vertex()],
+            compilation_options: Default::default(),
+        };
+
+        let fragment = FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(ColorTargetState {
+                format: config.format,
+                blend: Some(BlendState::REPLACE),
+                write_mask: ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        };
+
+        let primitive = PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: FrontFace::Ccw,
+            cull_mode: Some(Face::Back),
+            polygon_mode: PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: features.contains(Features::CONSERVATIVE_RASTERIZATION),
+        };
+
+        let wireframe = PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: FrontFace::Ccw,
+            cull_mode: Some(Face::Back),
+            polygon_mode: PolygonMode::Line,
+            unclipped_depth: false,
+            conservative: false,
+        };
+
+        let depth_stencil = DepthStencilState {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(CompareFunction::Less),
+            bias: DepthBiasState {
+                constant: 0,
+                slope_scale: 0.0,
+                clamp: 0.0,
+            },
+            stencil: Default::default(),
+        };
+
+        (
+            self.make(
+                "Opaque",
+                layout,
+                vertex.clone(),
+                fragment.clone(),
+                primitive,
+                Some(depth_stencil.clone()),
+            ),
+            self.make("Opaque Wireframe", layout, vertex, fragment, wireframe, Some(depth_stencil)),
+        )
+    }
+
+    pub fn make_gizmo(&self, layout: &PipelineLayout, config: &SurfaceConfiguration) -> RenderPipeline {
+        let device = self.gpu_tools.device();
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Opaque Shader"),
+            source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/shader.wgsl").into()),
+        });
+
+        let vertex = VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[BufferLayouts::vertex()],
+            compilation_options: Default::default(),
+        };
+
+        let fragment = FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(ColorTargetState {
+                format: config.format,
+                blend: Some(BlendState::REPLACE),
+                write_mask: ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        };
+
+        let primitive = PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: FrontFace::Ccw,
+            cull_mode: Some(Face::Back),
+            polygon_mode: PolygonMode::Line,
+            unclipped_depth: false,
+            conservative: false,
+        };
+
+        let depth_stencil = DepthStencilState {
+            format: TextureFormat::Depth32Float,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(CompareFunction::Less),
+            bias: DepthBiasState {
+                constant: 0,
+                slope_scale: 0.0,
+                clamp: 0.0,
+            },
+            stencil: Default::default(),
+        };
+
+        self.make("Gizmo", layout, vertex, fragment, primitive, Some(depth_stencil))
+    }
+
+    pub fn make_ui(&self, layout: &PipelineLayout, config: &SurfaceConfiguration, features: &Features) -> RenderPipeline {
+        let device = self.gpu_tools.device();
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("UI Shader"),
+            source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/ui.wgsl").into()),
+        });
+
+        let vertex = VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[BufferLayouts::ui_vertex()],
+            compilation_options: Default::default(),
+        };
+
+        let fragment = FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(ColorTargetState {
+                format: config.format,
+                blend: Some(BlendState::ALPHA_BLENDING),
+                write_mask: ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        };
+
+        let primitive = PrimitiveState {
+            topology: PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: FrontFace::Ccw,
+            cull_mode: None,
+            polygon_mode: PolygonMode::Fill,
+            unclipped_depth: false,
+            conservative: features.contains(Features::CONSERVATIVE_RASTERIZATION),
+        };
+
+        self.make("UI", layout, vertex, fragment, primitive, None)
     }
 }

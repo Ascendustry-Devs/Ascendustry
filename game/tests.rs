@@ -1,9 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::constants::{
-        DIRECT_NORMALS_3D, GRAVITY, HORIZONTAL_RENDER_DISTANCE, JUMP_SPEED, PLAYER_HEIGHT, PLAYER_WIDTH, SPAWN_POSITION_X,
-        VERTICAL_RENDER_DISTANCE, WALK_SPEED,
-    };
+    use crate::constants::DIRECT_NORMALS_3D;
     use crate::world::data::block::{BlockInstance, BlockManager, BlockType};
     use crate::world::data::chunk::{global_position_to_chunk_pos, Chunk, ChunkData, ChunkState, IntraChunkCoords};
     use crate::world::modified_chunk::{ModifiedChunk, ModifiedWorld};
@@ -53,7 +50,12 @@ mod tests {
     #[test]
     fn test_chunk_get_set_block() {
         let blocks = vec![BlockInstance::air(); 32768];
-        let mut chunk = Chunk { blocks, x: 0, y: 0, z: 0 };
+        let mut chunk = Chunk {
+            blocks,
+            x: 0,
+            y: 0,
+            z: 0,
+        };
 
         let stone = BlockInstance::new(3);
         chunk.set_block_from_xyz(5, 10, 15, stone);
@@ -138,7 +140,12 @@ mod tests {
     #[test]
     fn test_chunk_checksum() {
         let blocks = vec![BlockInstance::air(); 32768];
-        let mut chunk = Chunk { blocks, x: 0, y: 0, z: 0 };
+        let mut chunk = Chunk {
+            blocks,
+            x: 0,
+            y: 0,
+            z: 0,
+        };
 
         let checksum1 = chunk.compute_checksum();
         chunk.set_block_from_xyz(0, 0, 0, BlockInstance::new(1));
@@ -159,8 +166,8 @@ mod tests {
 
     #[test]
     fn test_chunk_state() {
-        assert_eq!(ChunkState::Pending.to_str(), "Pending");
-        assert_eq!(ChunkState::Ready.to_str(), "Ready");
+        assert_eq!(ChunkState::Pending.to_string(), "Pending");
+        assert_eq!(ChunkState::Ready.to_string(), "Ready");
     }
 
     #[test]

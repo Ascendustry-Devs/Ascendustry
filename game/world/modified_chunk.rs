@@ -35,7 +35,10 @@ impl ModifiedChunk {
     }
 
     pub fn get_block_at(&self, coords: &IntraChunkCoords) -> Option<&BlockInstance> {
-        self.index.get(coords).and_then(|&i| self.blocks.get(i)).map(|(_, block)| block)
+        self.index
+            .get(coords)
+            .and_then(|&i| self.blocks.get(i))
+            .map(|(_, block)| block)
     }
 
     pub fn set_block_at(&mut self, coords: IntraChunkCoords, block: BlockInstance) {

@@ -8,18 +8,17 @@ use rustc_hash::{FxBuildHasher, FxHashSet};
 use wgpu::{wgt::DrawIndirectArgs, BufferUsages, CommandEncoder};
 
 use crate::gpu::{
-    allocator::gpu_allocator::{GpuAllocator, MeshId},
+    allocator::gpu_allocator::{EntryId, GpuAllocator},
     smart_buffer::SmartBuffer,
     tools::GpuTools,
 };
 
 pub struct RenderManager {
     pub gpu_tools: Arc<GpuTools>,
-    pub mesh_manager: Arc<RwLock<GpuAllocator>>,
+    pub world_buffer: Arc<RwLock<GpuAllocator>>,
     pub indirect_buffer: SmartBuffer,
     pub indirect_commands: Vec<DrawIndirectArgs>,
-    pub count_buffer: SmartBuffer,
-    pub ids_to_render: FxHashSet<MeshId>,
+    pub ids_to_render: FxHashSet<EntryId>,
 }
 
 impl RenderManager {
@@ -27,41 +26,45 @@ impl RenderManager {
         let device = gpu_tools.device();
         let usages = BufferUsages::INDIRECT | BufferUsages::COPY_DST | BufferUsages::COPY_SRC;
         let indirect_buffer = SmartBuffer::from_capacity(0, device, None, usages);
-        let count_buffer = SmartBuffer::from_capacity(4, device, None, usages);
 
-        let mesh_manager = Arc::new(RwLock::new(GpuAllocator::new(Arc::clone(&gpu_tools), frame_encoder)));
+        let world_buffer = Arc::new(RwLock::new(GpuAllocator::new(Arc::clone(&gpu_tools), frame_encoder)));
         let indirect_commands = Vec::with_capacity(64);
         let ids_to_render = HashSet::with_capacity_and_hasher(128, FxBuildHasher);
 
         Self {
             gpu_tools,
-            mesh_manager,
+            world_buffer,
             indirect_buffer,
             indirect_commands,
-            count_buffer,
             ids_to_render,
         }
     }
 
-    pub fn get_meshes_to_render(&self) -> Vec<MeshId> {
-        self.mesh_manager
+    pub fn get_meshes_to_render(&self) -> Vec<EntryId> {
+        self.world_buffer
             .read()
             .unwrap()
             .data
             .iter()
-            .filter_map(|x| if self.ids_to_render.contains(&x.id) { Some(x.id) } else { None })
+            .filter_map(|x| {
+                if self.ids_to_render.contains(&x.id) {
+                    Some(x.id)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
-    pub fn mark_mesh_for_rendering(&mut self, id: MeshId) {
+    pub fn mark_mesh_for_rendering(&mut self, id: EntryId) {
         self.ids_to_render.insert(id);
     }
 
-    pub fn mark_meshes_for_rendering(&mut self, ids: &FxHashSet<MeshId>) {
+    pub fn mark_meshes_for_rendering(&mut self, ids: &FxHashSet<EntryId>) {
         self.ids_to_render.extend(ids);
     }
 
-    pub fn replace_rendering_queue(&mut self, ids: FxHashSet<MeshId>) {
+    pub fn replace_rendering_queue(&mut self, ids: FxHashSet<EntryId>) {
         self.ids_to_render = ids;
     }
 
@@ -76,7 +79,7 @@ impl RenderManager {
 
         self.indirect_commands.clear();
 
-        let alloc = &self.mesh_manager.read().unwrap();
+        let alloc = &self.world_buffer.read().unwrap();
 
         for m in &alloc.data {
             if !self.ids_to_render.contains(&m.id) {
@@ -93,10 +96,6 @@ impl RenderManager {
         if self.indirect_commands.is_empty() {
             return;
         }
-
-        let count = self.indirect_commands.len();
-        let count_raw = bytemuck::bytes_of(&count);
-        self.count_buffer.update(device, queue, count_raw);
 
         let data = bytemuck::cast_slice(&self.indirect_commands);
         self.indirect_buffer.update(device, queue, data);
