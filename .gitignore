@@ -7,5 +7,5 @@ plan.md
 flamegraph.svg
 perf.data
 perf.data.old
-plan*.md
+*plan*.md
 flamegraph*.svg
