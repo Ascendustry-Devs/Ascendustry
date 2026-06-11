@@ -12,10 +12,21 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    pub const fn new(x: f32, y: f32, z: f32, tex_layer: u32, ao: f32, u: f32, v: f32) -> Vertex {
+    pub const fn new(x: f32, y: f32, z: f32, tex_layer: u32, ao: f32, u: f32, v: f32) -> Self {
+        const AMBIENT: f32 = 0.25;
+        const ONE_MINUS_AMBIENT_DIV_3: f32 = (1.0 - AMBIENT) / 3.0;
+
+        let mut ao = ao * ONE_MINUS_AMBIENT_DIV_3 + AMBIENT;
+
+        if ao < 0.0 {
+            ao = 0.0
+        } else if ao > 1.0 {
+            ao = 1.0
+        }
+
         Vertex {
             position: [x, y, z],
-            color: 4294967295,
+            color: 0xFFFFFFFF,
             tex_layer,
             ao,
             u,
@@ -23,19 +34,12 @@ impl Vertex {
         }
     }
 
-    pub fn copy_with_pos(&self, x: f32, y: f32, z: f32) -> Self {
-        let mut copy = self.clone();
-        copy.position = [x, y, z];
-        copy
-    }
-
-    pub const fn player_vertex(pos: (f32, f32, f32), u: f32, v: f32) -> Vertex {
-        let (x, y, z) = pos;
+    pub const fn new_with_color(x: f32, y: f32, z: f32, color: u32, tex_layer: u32, ao: f32, u: f32, v: f32) -> Self {
         Vertex {
             position: [x, y, z],
-            color: 0x00FFFFFF,
-            tex_layer: 1,
-            ao: 3.0,
+            color,
+            tex_layer,
+            ao,
             u,
             v,
         }
@@ -53,26 +57,20 @@ impl Vertex {
         ao: f32,
         u: f32,
         v: f32,
-    ) -> Vertex {
-        Vertex {
-            position: [x, y, z],
-            color: (a as u32) << 24 | (r as u32) << 16 | (g as u32) << 8 | (b as u32),
-            tex_layer,
-            ao,
-            u,
-            v,
-        }
+    ) -> Self {
+        let color = (a as u32) << 24 | (r as u32) << 16 | (g as u32) << 8 | (b as u32);
+        Self::new_with_color(x, y, z, color, tex_layer, ao, u, v)
     }
 
-    pub const fn new_with_color(x: f32, y: f32, z: f32, color: u32, tex_layer: u32, ao: f32, u: f32, v: f32) -> Vertex {
-        Vertex {
-            position: [x, y, z],
-            color,
-            tex_layer,
-            ao,
-            u,
-            v,
-        }
+    pub fn copy_with_pos(&self, x: f32, y: f32, z: f32) -> Self {
+        let mut copy = self.clone();
+        copy.position = [x, y, z];
+        copy
+    }
+
+    pub const fn player_vertex(pos: (f32, f32, f32), u: f32, v: f32) -> Self {
+        let (x, y, z) = pos;
+        Self::new(x, y, z, 1, 3.0, u, v)
     }
 }
 

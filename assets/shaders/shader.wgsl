@@ -51,23 +51,20 @@ var s_diffuse: sampler;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // return vec4<f32>(0.0, 0.0, 0.0, 1.0);
     var tex_color: vec4<f32>;
-    tex_color = textureSample(
+    tex_color = textureSampleLevel(
         t_diffuse,
         s_diffuse,
         vec2<f32>(in.u, in.v),
-        in.tex_layer
+        in.tex_layer,
+        0.0
     );
 
-    // AO: 0 = fully occluded (dark), 3 = fully lit (bright)
-    let ambient = 0.25;
-    let one_minus_ambient = 1.0 - ambient;
-    let ao = clamp(in.ao / 3.0 * one_minus_ambient + ambient, 0.0, 1.0);
+    // AO: 0.0 = fully occluded (dark), 1.0 = fully lit (bright)
     return vec4<f32>(
-        tex_color.r * in.color[0] * ao,
-        tex_color.g * in.color[1] * ao,
-        tex_color.b * in.color[2] * ao,
+        tex_color.r * in.color[0] * in.ao,
+        tex_color.g * in.color[1] * in.ao,
+        tex_color.b * in.color[2] * in.ao,
         tex_color.a * in.color[3],
     );
 }

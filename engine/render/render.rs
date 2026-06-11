@@ -118,9 +118,7 @@ impl Renderer {
             return;
         }
 
-        let device = self.gpu_context.tools.device();
-        let queue = self.gpu_context.tools.queue();
-        self.render_manager.update_indirect_buffer();
+        let (device, queue) = self.gpu_context.tools.device_queue();
 
         let encoder = self.gpu_context.get_encoder();
         let mut encoder = encoder.write().unwrap();

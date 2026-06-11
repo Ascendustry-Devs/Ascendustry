@@ -8,7 +8,6 @@ use crate::render::meshing::world::WorldMesh;
 use crate::systems::inputs::InputState;
 use crate::world::world::{MeshRequestMessage, World};
 use bytemuck::cast_slice;
-use cgmath::EuclideanSpace;
 use cgmath::{dot, Vector3};
 use engine::audio::GameAudioManager;
 use engine::core::application::AppState;
@@ -21,7 +20,7 @@ use engine::render::ui::interpreter::compiler::UiCompiler;
 use engine::render::ui::interpreter::translator::UiTranslator;
 use engine::render::ui::widgets::panel::Panel;
 use engine::render::ui::widgets::{Widget, WidgetTransform};
-use game::constants::{CHUNK_VECTOR, HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE};
+use game::constants::{HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE};
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::CHUNK_SIZE_F;
 use network::messages::new_save_request_paquet;
@@ -185,61 +184,66 @@ impl GameState {
         self.remote_players.cleanup_stale(Duration::from_secs(30));
     }
 
-    fn cull_chunks_recursive(&self, aabb: &AABB, frustum: &[Plane; 6], out: &mut FxHashSet<u32>) {
-        // let Some(id) = mesh.id else {
-        //     continue;
-        // };
-
-        // if !chunks_to_render.contains(key) {
-        //     continue;
-        // }
-
-        // First, we check simply if the chunk to render is behind the camera.
-        // if is_chunk_behind_camera(&min, &max, &cam_forward, &cam_position.to_vec()) {
-        //     continue;
-        // }
-
-        // Second, we check if the chunk is within the field of view of the camera.
-        let size = aabb.x_length();
-
-        if size == CHUNK_SIZE_F {
-            self.cull_chunk_leaf(aabb, frustum, out);
-            return;
-        }
+    fn cull_chunks_recursive(
+        &self,
+        aabb: &AABB,
+        frustum: &[Plane; 6],
+        out: &mut FxHashSet<u32>,
+        chunks_to_render: &FxHashSet<(i32, i32, i32)>,
+    ) {
+        let mut size = Vector3::new(aabb.x_length(), aabb.y_length(), aabb.z_length());
 
         if !is_chunk_in_camera_frustum(&aabb.min, &aabb.max, frustum) {
             return;
         }
 
+        if size.x <= CHUNK_SIZE_F && size.y <= CHUNK_SIZE_F && size.z <= CHUNK_SIZE_F {
+            let coords = (
+                (aabb.min.x / CHUNK_SIZE_F).floor() as i32,
+                (aabb.min.y / CHUNK_SIZE_F).floor() as i32,
+                (aabb.min.z / CHUNK_SIZE_F).floor() as i32,
+            );
+            self.cull_chunk_leaf(&coords, out, chunks_to_render);
+            return;
+        }
+
         let center = aabb.center();
-        let half_size = size / 2.0;
+        size *= 0.25;
+        let he = &size; // half extent
 
         let children_aabbs = [
-            AABB::new(center + Vector3::new(half_size, half_size, half_size), half_size),
-            AABB::new(center + Vector3::new(-half_size, half_size, half_size), half_size),
-            AABB::new(center + Vector3::new(half_size, -half_size, half_size), half_size),
-            AABB::new(center + Vector3::new(-half_size, -half_size, half_size), half_size),
-            AABB::new(center + Vector3::new(half_size, half_size, -half_size), half_size),
-            AABB::new(center + Vector3::new(-half_size, half_size, -half_size), half_size),
-            AABB::new(center + Vector3::new(half_size, -half_size, -half_size), half_size),
-            AABB::new(center + Vector3::new(-half_size, -half_size, -half_size), half_size),
+            AABB::new_sized(center + Vector3::new(he.x, he.y, he.z), size),
+            AABB::new_sized(center + Vector3::new(-he.x, he.y, he.z), size),
+            AABB::new_sized(center + Vector3::new(he.x, -he.y, he.z), size),
+            AABB::new_sized(center + Vector3::new(-he.x, -he.y, he.z), size),
+            AABB::new_sized(center + Vector3::new(he.x, he.y, -he.z), size),
+            AABB::new_sized(center + Vector3::new(-he.x, he.y, -he.z), size),
+            AABB::new_sized(center + Vector3::new(he.x, -he.y, -he.z), size),
+            AABB::new_sized(center + Vector3::new(-he.x, -he.y, -he.z), size),
         ];
 
         for aabb in children_aabbs {
-            self.cull_chunks_recursive(&aabb, frustum, out);
+            self.cull_chunks_recursive(&aabb, frustum, out, chunks_to_render);
         }
     }
 
-    fn cull_chunk_leaf(&self, aabb: &AABB, frustum: &[Plane; 6], out: &mut FxHashSet<u32>) {
-        if is_chunk_in_camera_frustum(&aabb.min, &aabb.max, frustum) {
-            let meshes = &self.world_mesh.meshes;
-            let coords = (aabb.min.x as i32, aabb.min.y as i32, aabb.min.z as i32);
-            if let Some(mesh) = meshes.get(&coords) {
-                if let Some(id) = mesh.id {
-                    out.insert(id);
-                }
-            }
+    fn cull_chunk_leaf(
+        &self,
+        coords: &(i32, i32, i32),
+        out: &mut FxHashSet<u32>,
+        chunks_to_render: &FxHashSet<(i32, i32, i32)>,
+    ) {
+        let meshes = &self.world_mesh.meshes;
+        if !chunks_to_render.contains(coords) {
+            return;
         }
+        let Some(mesh) = meshes.get(coords) else {
+            return;
+        };
+        let Some(id) = mesh.id else {
+            return;
+        };
+        out.insert(id);
     }
 
     #[inline(never)]
@@ -254,83 +258,22 @@ impl GameState {
             data.camera.update(cam_x, cam_y, cam_z, (*view_proj).into());
 
             self.player.state.camera.aspect.update(renderer.render_options.aspect);
-            let cam_position = (*self.player.state.camera.eye()).to_vec();
-            let cam_forward = self.player.state.camera.forward();
+
+            const BASE_REGION_HEIGHT: f32 = (VERTICAL_RENDER_DISTANCE + 1) as f32;
+            const BASE_REGION_WIDTH: f32 = (HORIZONTAL_RENDER_DISTANCE + 1) as f32;
+
+            let cam_position_chunk_aligned = (*self.player.state.camera.eye()).map(|coord| coord - coord % CHUNK_SIZE_F);
             let cam_frustum = self.player.state.camera.get_frustum_planes();
 
+            let aabb = AABB::new_sized(
+                cam_position_chunk_aligned,
+                Vector3::new(BASE_REGION_WIDTH, BASE_REGION_HEIGHT, BASE_REGION_WIDTH) * CHUNK_SIZE_F,
+            );
             let chunks_to_render = self.player.get_rendered_chunk_keys_set();
 
             data.visible_meshes.clear();
 
-            // let base_region_height = (VERTICAL_RENDER_DISTANCE / 2) as f32;
-            // let base_region_width = (HORIZONTAL_RENDER_DISTANCE / 2) as f32;
-            // let aabbs = [
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(base_region_width, base_region_height, base_region_width),
-            //     ),
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(-base_region_width, base_region_height, base_region_width),
-            //     ),
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(base_region_width, -base_region_height, base_region_width),
-            //     ),
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(-base_region_width, -base_region_height, base_region_width),
-            //     ),
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(base_region_width, base_region_height, -base_region_width),
-            //     ),
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(-base_region_width, base_region_height, -base_region_width),
-            //     ),
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(base_region_width, -base_region_height, -base_region_width),
-            //     ),
-            //     AABB::new_from_corner_and_dir(
-            //         cam_position,
-            //         Vector3::new(-base_region_width, -base_region_height, -base_region_width),
-            //     ),
-            // ];
-
-            // for aabb in aabbs {
-            //     self.cull_chunks_recursive(&aabb, &mut data.visible_meshes);
-            // }
-
-            for (key, mesh) in self.world_mesh.meshes.iter() {
-                let Some(id) = mesh.id else {
-                    continue;
-                };
-
-                if !chunks_to_render.contains(key) {
-                    continue;
-                }
-
-                let min = Vector3::new((key.0) as f32, (key.1) as f32, (key.2) as f32) * CHUNK_SIZE_F;
-                let max = min + CHUNK_VECTOR;
-
-                // First, we check simply if the chunk to render is behind the camera.
-                if is_chunk_behind_camera(&min, &max, &cam_forward, &cam_position) {
-                    continue;
-                }
-
-                // Second, we check if the chunk is within the field of view of the camera.
-                if !is_chunk_in_camera_frustum(&min, &max, &cam_frustum) {
-                    continue;
-                }
-
-                // If any of the above is true, we do not render the chunk.
-                // We do the frustum check lately because it is more expansive,
-                // on top of this, the first check would already eliminate ~50% of the candidates.
-
-                data.visible_meshes.insert(id);
-            }
+            self.cull_chunks_recursive(&aabb, &cam_frustum, &mut data.visible_meshes, &chunks_to_render);
         };
         // Update renderer with remote player positions
         let alloc = &mut renderer.render_manager.world_buffer.write().unwrap();

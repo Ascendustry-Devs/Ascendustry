@@ -20,6 +20,10 @@ impl GpuTools {
         &self.queue
     }
 
+    pub fn device_queue(&self) -> (&Device, &Queue) {
+        (&self.device, &self.queue)
+    }
+
     pub fn from_arc(gpu_tools: &Arc<Self>) -> Arc<GpuTools> {
         Arc::clone(gpu_tools)
     }
