@@ -2,9 +2,8 @@ use core::str;
 use std::path::PathBuf;
 
 use anyhow::Result;
-use network::messages::PlayerGameMode;
-use network::messages::Position;
-use network::messages::Rotation;
+use game::player::PlayerGameMode;
+use game::types::{Position, Rotation};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 

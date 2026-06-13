@@ -14,7 +14,9 @@ use game::constants::{
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};
 use game::world::raycast::voxel_raycast;
-use network::messages::{Paquet, PlayerGameMode, Position, Rotation};
+use game::player::PlayerGameMode;
+use game::types::{Position, Rotation};
+use network::messages::Paquet;
 use physics::{body::PhysicsBody, collision::resolve_collision};
 use project_core::log_client;
 use project_core::utils::updatable::Updatable;

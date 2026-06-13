@@ -1,6 +1,7 @@
 use game::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use game::world::data::chunk::CHUNK_SIZE_F;
-use network::messages::{PlayerGameMode, Position, Rotation};
+use game::player::PlayerGameMode;
+use game::types::{Position, Rotation};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

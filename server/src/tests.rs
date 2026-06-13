@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod tests {
     use crate::state::AppState;
-    use network::messages::{PlayerGameMode, Position, Rotation};
+    use game::player::PlayerGameMode;
+    use game::types::{Position, Rotation};
 
     #[tokio::test]
     async fn test_app_state_new() {
@@ -61,7 +62,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_app_state_gamemode_change() {
-        use network::messages::PlayerGameMode;
+        use game::player::PlayerGameMode;
 
         let state = AppState::new();
         state.init_seed(42).await;

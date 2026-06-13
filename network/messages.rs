@@ -1,20 +1,9 @@
-use std::fmt::Display;
-
+use game::player::{PlayerGameMode, PlayerTransformation};
+use game::types::{Position, Rotation};
 use serde::{Deserialize, Serialize};
 
 pub const CURRENT_VERSION: u8 = 1;
 pub const MAX_PAQUET_SIZE: usize = 4 * 1024 * 1024;
-
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct PublicPlayerData {
-    player_id: u64,
-    position: Position,
-    rotation: Rotation,
-}
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct PrivatePlayerData {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum BroadcastMessage {
@@ -92,42 +81,6 @@ pub enum ContenuPaquet {
         player_id: u64,
         username: String,
     },
-}
-
-#[derive(Clone, Copy, Serialize, Debug, Deserialize, PartialEq)]
-pub enum PlayerGameMode {
-    // God,
-    Spectator,
-    Survival,
-}
-
-impl Display for PlayerGameMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match *self {
-            PlayerGameMode::Survival => "PlayerGameMode::Survival",
-            PlayerGameMode::Spectator => "PlayerGameMode::Spectator",
-        })
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct Position {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct Rotation {
-    pub x: f32,
-    pub y: f32,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PlayerTransformation {
-    pub player_id: u64,
-    pub position: Position,
-    pub rotation: Rotation,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

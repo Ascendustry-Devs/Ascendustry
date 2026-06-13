@@ -5,8 +5,9 @@ use crate::network_server::ServerConnection;
 use crate::persistence::PersistenceService;
 use crate::state::AppState;
 use anyhow::Result;
+use game::player::PlayerTransformation;
 use network::messages::{
-    self, new_server_seed_paquet, BroadcastMessage, ContenuPaquet, Paquet, PlayerTransformation, TypePaquet,
+    self, new_server_seed_paquet, BroadcastMessage, ContenuPaquet, Paquet, TypePaquet,
 };
 use network::traits::PacketCodec;
 use project_core::log_err_server;

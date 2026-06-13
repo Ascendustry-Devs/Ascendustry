@@ -3,8 +3,10 @@ use crate::persistence::{PlayerSave, SaveData, SaveWorld};
 use crate::player::PlayerRegistry;
 use crate::world::WorldState;
 use game::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
+use game::player::{PlayerGameMode, PlayerTransformation};
+use game::types::{Position, Rotation};
 use network::messages::{
-    BroadcastMessage, ChunkData, ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet,
+    BroadcastMessage, ChunkData, ContenuPaquet, Paquet, TypePaquet,
 };
 use physics::position::{find_safe_spawn_point, is_position_free};
 use physics::validator::is_movement_plausible;

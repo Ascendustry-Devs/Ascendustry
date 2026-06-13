@@ -18,3 +18,5 @@ sha2 = { workspace = true }
 getrandom = { workspace = true }
 aes-gcm = { workspace = true }
 log = { workspace = true }
+
+game = { path = "../game" }

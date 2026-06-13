@@ -8,7 +8,9 @@
 use game::world::data::block::BlockInstance;
 use network;
 use network::messages;
-use network::messages::{ContenuPaquet, Paquet, PlayerGameMode, PlayerTransformation, Position, Rotation, TypePaquet};
+use game::player::{PlayerGameMode, PlayerTransformation};
+use game::types::{Position, Rotation};
+use network::messages::{ContenuPaquet, Paquet, TypePaquet};
 
 /// Protocol de jeu pour le client.
 ///
