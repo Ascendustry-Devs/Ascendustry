@@ -74,6 +74,10 @@ impl PlayerState {
 
         let mut commands = Vec::new();
 
+        if inputs.take_key_pressed(KeyCode::KeyE) {
+            log_client!("{}", self.inventory);
+        }
+
         if inputs.take_key_pressed(KeyCode::KeyB) {
             self.break_block(world, &mut commands);
         }

@@ -84,6 +84,13 @@ impl ItemStack {
     pub fn new(item: ItemData, quantity: u32) -> Self {
         Self { item, quantity }
     }
+    pub fn empty() -> Self {
+        Self {
+            item: ItemData::new(Item::Dirt, None),
+            quantity: 0,
+        }
+    }
+
     /// Retourne true si l'item peut être empilé avec l'autre item, false sinon.
     pub fn can_stack_with(&self, other: &ItemStack) -> bool {
         self.item == other.item
@@ -180,7 +187,10 @@ impl Inventory {
 
     pub fn update_slots(&mut self, modified_slots: Vec<SlotData>) {
         for slot in modified_slots {
-            if self.is_slot_correct(slot.index) {
+            if slot.index < self.max_slot_number {
+                while slot.index >= self.slot_data.len() {
+                    self.slot_data.push(ItemStack::empty());
+                }
                 self.slot_data[slot.index] = slot.item;
             }
         }
