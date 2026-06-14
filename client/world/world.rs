@@ -378,6 +378,19 @@ impl World {
             }
         }
         true
+        // let keys = DIRECT_NORMALS_3D.map(|(x, y, z)| (cx + x, cy + y, cz + z));
+        // let keys_refs = [&keys[0], &keys[1], &keys[2], &keys[3], &keys[4], &keys[5]];
+        // unsafe {
+        //     for result in self.chunks.get_disjoint_unchecked_mut(keys_refs) {
+        //         let Some(chunk) = result else {
+        //             return false;
+        //         };
+        //         if chunk.state != ChunkState::Ready {
+        //             return false;
+        //         }
+        //     }
+        // }
+        // true
     }
 
     pub fn chunk_infos_at(&self, cpos: &(i32, i32, i32)) -> Option<(ChunkState, bool)> {

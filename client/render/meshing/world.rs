@@ -19,7 +19,7 @@ use std::{
 
 pub struct WorldMesh {
     pub meshes: FxHashMap<(i32, i32, i32), ChunkMesh>,
-    chunk_meshes: FxHashSet<(i32, i32, i32)>,
+    pub chunk_meshes: FxHashSet<(i32, i32, i32)>,
     mesh_worker: WorkerPool<GreedyMeshingProcessor>,
     pending: FxHashMap<usize, MeshRequestAdd>,
     pending_keys: FxHashMap<(i32, i32, i32), MeshSnapshot>,

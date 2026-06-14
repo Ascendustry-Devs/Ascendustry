@@ -317,6 +317,7 @@ impl GameState {
         let cam_eye = *self.player.state.camera.eye();
         let cam_position_chunk_aligned = cam_eye.map(|coord| coord - coord % CHUNK_SIZE_F);
         let cam_aabb = AABB::new_sized(
+            // 3. Pour chaque coin, calculer la direction en espace chunk
             cam_position_chunk_aligned,
             Vector3::new(BASE_REGION_WIDTH, BASE_REGION_HEIGHT, BASE_REGION_WIDTH) * CHUNK_SIZE_F,
         );
@@ -325,15 +326,16 @@ impl GameState {
         let cam_frustum = self.player.state.camera.get_frustum_planes();
 
         let chunks_to_render = self.player.get_rendered_chunk_keys_set();
+        let meshes = &self.world_mesh.meshes;
 
-        for (key, mesh) in self.world_mesh.meshes.iter() {
-            let Some(id) = mesh.id else {
-                continue;
-            };
-
+        for key in self.world_mesh.chunk_meshes.iter() {
             if !chunks_to_render.contains(key) {
                 continue;
             }
+
+            let Some(Some(id)) = meshes.get(key).map(|mesh| mesh.id) else {
+                continue;
+            };
 
             let min = Point3::new((key.0) as f32, (key.1) as f32, (key.2) as f32) * CHUNK_SIZE_F;
             let chunk_aabb = AABB::new_from_corner_and_dir(min, CHUNK_VECTOR);
