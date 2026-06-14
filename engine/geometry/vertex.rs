@@ -16,13 +16,7 @@ impl Vertex {
         const AMBIENT: f32 = 0.25;
         const ONE_MINUS_AMBIENT_DIV_3: f32 = (1.0 - AMBIENT) / 3.0;
 
-        let mut ao = ao * ONE_MINUS_AMBIENT_DIV_3 + AMBIENT;
-
-        if ao < 0.0 {
-            ao = 0.0
-        } else if ao > 1.0 {
-            ao = 1.0
-        }
+        let ao = (ao * ONE_MINUS_AMBIENT_DIV_3 + AMBIENT).clamp(0.0, 1.0);
 
         Vertex {
             position: [x, y, z],
