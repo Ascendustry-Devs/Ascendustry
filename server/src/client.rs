@@ -325,6 +325,11 @@ impl ClientSession {
             }
         }
 
+        let data = self.state.export_save().await;
+        if let Err(e) = self.persistence.save(data).await {
+            log_err_server!("Échec de la sauvegarde du joueur.\nErreur : {}", e);
+        }
+
         self.state.remove_player(&player_id).await;
         log_server!("Joueur {}: déconnexion.", player_id);
         Ok(())

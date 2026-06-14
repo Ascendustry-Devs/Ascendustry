@@ -66,10 +66,11 @@ impl GameState {
         let server_seed = network
             .get_server_seed()
             .expect("La seed n'existe pas ou est vide (serveur non lancé ? connexion échouée ? mauvaise adresse IP ?)");
+        let server_player_id = network.player_id();
 
         Self {
             player: Player::new(
-                player_id,
+                server_player_id,
                 Box::new(FreeCameraController::new(0.00390625)),
                 Box::new(WalkPlayerController),
             ),

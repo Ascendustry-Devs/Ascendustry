@@ -1,5 +1,6 @@
 use core::str;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::Result;
 use game::inventory::Inventory;
@@ -7,6 +8,7 @@ use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::IntraChunkCoords;
@@ -90,11 +92,15 @@ impl From<SaveChunk> for ModifiedChunk {
 #[derive(Clone)]
 pub struct PersistenceService {
     save_path: PathBuf,
+    save_lock: Arc<Mutex<()>>,
 }
 
 impl PersistenceService {
     pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { save_path: path.into() }
+        Self {
+            save_path: path.into(),
+            save_lock: Arc::new(Mutex::new(())),
+        }
     }
 
     pub fn exists(&self) -> bool {
@@ -102,11 +108,13 @@ impl PersistenceService {
     }
 
     pub async fn save(&self, data: SaveData) -> Result<()> {
+        let _lock = self.save_lock.lock().await;
         if let Some(parent) = self.save_path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
+        let path = self.save_path.clone();
         let bytes = tokio::task::spawn_blocking(move || bincode::serialize(&data)).await??;
-        tokio::fs::write(&self.save_path, bytes).await?;
+        tokio::fs::write(&path, bytes).await?;
         Ok(())
     }
 

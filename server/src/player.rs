@@ -41,6 +41,9 @@ impl PlayerRegistry {
     }
 
     pub fn add(&mut self, id: u64, username: String) {
+        if self.players.contains_key(&id) {
+            return;
+        }
         let position = Position {
             x: SPAWN_POSITION_X,
             y: SPAWN_POSITION_Y,
