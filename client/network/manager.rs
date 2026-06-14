@@ -22,7 +22,7 @@
 //! Cela évite de saturer le réseau avec des mises à jour trop fréquentes.
 
 use crate::network::protocol::GameProtocol;
-use game::player::PlayerGameMode;
+use game::{inventory::SlotData, player::PlayerGameMode};
 use log::{error, info};
 use network::client_connection::ClientConnection;
 use network::messages::Paquet;
@@ -166,6 +166,15 @@ impl NetworkManager {
     pub fn send_gamemode_change(&mut self, gamemode: PlayerGameMode) -> Result<(), String> {
         if let Some(protocol) = &self.protocol {
             let packet = protocol.create_gamemode_change(gamemode);
+            self.connection.send_packet(packet)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn send_inventory_update(&mut self, modified_slots: Vec<SlotData>) -> Result<(), String> {
+        if let Some(protocol) = &self.protocol {
+            let packet = protocol.create_inventory_update(modified_slots);
             self.connection.send_packet(packet)
         } else {
             Ok(())

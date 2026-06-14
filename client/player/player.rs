@@ -27,7 +27,6 @@ use winit::keyboard::KeyCode;
 /// État pur du joueur : position, caméra, contrôleurs, distances de rendu.
 /// Séparé de `Player` pour permettre l'ajout d'un corps physique sans tout casser.
 pub struct PlayerState {
-    uuid: i32,
     pub pos: Updatable<Point3<f32>>,
     pub cpos: Updatable<Point3<i32>>,
     pub chunk_keys: FxHashSet<(i32, i32, i32)>,
@@ -50,7 +49,6 @@ impl PlayerState {
     ) -> PlayerState {
         PlayerState {
             game_mode: PlayerGameMode::Survival,
-            uuid: -1,
             inventory: Inventory::default(DEFAULT_INVENTORY_SIZE),
             pos: Updatable::new(spawn_pos),
             cpos: Updatable::new(spawn_pos.map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32)),
@@ -109,8 +107,7 @@ impl PlayerState {
 
     pub fn teleport(&mut self, x: f32, y: f32, z: f32) {
         log_client!(
-            "Joueur {}: téléportation de {:?} à {:?}",
-            self.uuid,
+            "Téléportation du joueur de {:?} à {:?}",
             self.get_pos(),
             Point3 { x: x, y: y, z: z }
         );

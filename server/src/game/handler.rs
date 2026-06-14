@@ -102,12 +102,18 @@ impl PacketHandler for ProductionHandler {
                 Some(packet)
             }
 
-            ContenuPaquet::InventorySet { inventory } => {
-                ctx.state.set_inventory(ctx.player_id, inventory.clone()).await;
+            ContenuPaquet::InventorySet { .. } => {
+                println!(
+                    "Tentative de set de l'inventaire du serveur depuis le client (joueur {}), erreur du protocole",
+                    ctx.player_id
+                );
                 Some(packet)
             }
 
-            ContenuPaquet::InventoryUpdate { inventory, player_id } => {
+            ContenuPaquet::InventoryUpdate {
+                modified_slots: inventory,
+                player_id,
+            } => {
                 ctx.state.update_inventory(*player_id, inventory.clone()).await;
                 Some(packet)
             }

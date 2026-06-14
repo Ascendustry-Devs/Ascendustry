@@ -84,10 +84,12 @@ pub enum ContenuPaquet {
         player_id: u64,
         username: String,
     },
+    /// Modification sur l'inventaire (serveur => client et client => serveur)
     InventoryUpdate {
         player_id: u64,
-        inventory: Vec<SlotData>, // Slots modifié seulement
+        modified_slots: Vec<SlotData>, // Slots modifié seulement
     },
+    /// Inventaire complet du serveur => client
     InventorySet {
         inventory: Inventory, // Inventaire complet
     },

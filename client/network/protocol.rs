@@ -5,6 +5,7 @@
 //!
 //! Il fait la ponte entre la logique de jeu (positions, chunks) et le système
 //! de paquets réseau.
+use game::inventory::SlotData;
 use game::player::{PlayerGameMode, PlayerTransformation};
 use game::types::{Position, Rotation};
 use game::world::data::block::BlockInstance;
@@ -88,6 +89,16 @@ impl GameProtocol {
                 y,
                 z,
                 block_id: block.id,
+            },
+        )
+    }
+
+    pub fn create_inventory_update(&self, slots: Vec<SlotData>) -> Paquet {
+        Paquet::new(
+            TypePaquet::InventoryUpdate,
+            ContenuPaquet::InventoryUpdate {
+                player_id: self.player_id,
+                modified_slots: slots,
             },
         )
     }

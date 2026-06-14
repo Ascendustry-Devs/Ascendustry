@@ -204,6 +204,18 @@ impl ClientSession {
             }
         }
 
+        if let Some(player) = self.state.get_player(player_id).await {
+            let inventory_packet = Paquet::new(
+                TypePaquet::InventorySet,
+                ContenuPaquet::InventorySet {
+                    inventory: player.inventory,
+                },
+            );
+            if let Err(e) = self.conn.send_packet(&mut stream, &inventory_packet).await {
+                log_err_server!("Échec de l'envoi de l'inventaire initial.\nErreur : {}", e);
+            }
+        }
+
         // Séparation lecture/écriture pour la suite
         let (mut read_half, write_half) = split(stream);
         let codec = self.conn.get_codec();

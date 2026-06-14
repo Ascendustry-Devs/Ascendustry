@@ -232,6 +232,17 @@ impl GameState {
                     log_client!("Kicked by server: {}", reason);
                     exit(0);
                 }
+                ContenuPaquet::InventorySet { inventory } => {
+                    self.player.state.inventory = inventory;
+                }
+                ContenuPaquet::InventoryUpdate {
+                    player_id,
+                    modified_slots: inventory,
+                } => {
+                    if player_id == net.player_id() {
+                        self.player.state.inventory.update_slots(inventory);
+                    }
+                }
                 _ => {}
             }
         }
