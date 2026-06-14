@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use wgpu::{
     BindGroupLayout, BlendState, ColorTargetState, ColorWrites, CompareFunction, DepthBiasState, DepthStencilState, Face,
-    Features, FragmentState, FrontFace, PipelineLayout, PipelineLayoutDescriptor, PolygonMode, PrimitiveState,
-    PrimitiveTopology, RenderPipeline, ShaderSource, SurfaceConfiguration, TextureFormat, VertexState,
+    Features, FragmentState, FrontFace, MultisampleState, PipelineLayout, PipelineLayoutDescriptor, PolygonMode,
+    PrimitiveState, PrimitiveTopology, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderSource,
+    SurfaceConfiguration, TextureFormat, VertexState,
 };
 
 use crate::gpu::{layouts::BufferLayouts, tools::GpuTools};
@@ -45,14 +46,14 @@ impl PipelineFactory {
         primitive: PrimitiveState,
         depth_stencil: Option<DepthStencilState>,
     ) -> RenderPipeline {
-        let descriptor = wgpu::RenderPipelineDescriptor {
+        let descriptor = RenderPipelineDescriptor {
             label: Some(label),
             layout: Some(layout),
             vertex: vertex,
             fragment: Some(fragment),
             primitive: primitive,
             depth_stencil: depth_stencil,
-            multisample: wgpu::MultisampleState {
+            multisample: MultisampleState {
                 count: 1,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
@@ -71,7 +72,7 @@ impl PipelineFactory {
     ) -> (RenderPipeline, RenderPipeline) {
         let device = self.gpu_tools.device();
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Opaque Shader"),
             source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/shader.wgsl").into()),
         });
@@ -143,7 +144,7 @@ impl PipelineFactory {
     pub fn make_gizmo(&self, layout: &PipelineLayout, config: &SurfaceConfiguration) -> RenderPipeline {
         let device = self.gpu_tools.device();
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Opaque Shader"),
             source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/shader.wgsl").into()),
         });
@@ -194,7 +195,7 @@ impl PipelineFactory {
     pub fn make_ui(&self, layout: &PipelineLayout, config: &SurfaceConfiguration) -> RenderPipeline {
         let device = self.gpu_tools.device();
 
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("UI Shader"),
             source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/ui.wgsl").into()),
         });

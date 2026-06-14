@@ -22,17 +22,18 @@ impl GpuContext {
     pub fn new(window: Arc<Window>, display_handle: OwnedDisplayHandle) -> anyhow::Result<Self> {
         let size = window.inner_size();
         let instance = {
-            let descriptor = InstanceDescriptor::new_without_display_handle().with_display_handle(Box::new(display_handle));
+            let descriptor = InstanceDescriptor::new_with_display_handle(Box::new(display_handle));
             Instance::new(descriptor)
         };
 
         let surface = instance.create_surface(window).unwrap();
 
-        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
+        let adapter_request = instance.request_adapter(&RequestAdapterOptions {
             power_preference: PowerPreference::default(),
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
-        }))?;
+        });
+        let adapter = pollster::block_on(adapter_request)?;
 
         let features = {
             let mut requested = vec![
@@ -46,14 +47,15 @@ impl GpuContext {
             result
         };
 
-        let (device, queue) = pollster::block_on(adapter.request_device(&DeviceDescriptor {
+        let device_request = adapter.request_device(&DeviceDescriptor {
             label: None,
             required_features: features,
             experimental_features: ExperimentalFeatures::disabled(),
             required_limits: Limits::default(),
             memory_hints: Default::default(),
             trace: Trace::Off,
-        }))?;
+        });
+        let (device, queue) = pollster::block_on(device_request)?;
 
         let frame_encoder = device.create_command_encoder(&CommandEncoderDescriptor {
             label: Some("Frame encoder"),

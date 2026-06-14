@@ -24,10 +24,6 @@ impl GameFrameData {
             visible_meshes: HashSet::with_hasher(FxBuildHasher),
         }
     }
-
-    pub fn reset(&mut self) {
-        self.visible_meshes.clear();
-    }
 }
 
 impl EngineFrameData {

@@ -26,10 +26,10 @@ use crate::geometry::vertex::Vertex;
 use std::time::Instant;
 use std::{num::NonZero, sync::Arc};
 use wgpu::{
-    util::DeviceExt, wgt::BufferDescriptor, BindGroup, BindGroupEntry, BindGroupLayout, BindingResource, Buffer, BufferBinding,
-    BufferUsages, CurrentSurfaceTexture, PipelineLayout, RenderPipeline, TextureView,
+    util::DeviceExt, wgt::BufferDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, BufferBinding, BufferUsages,
+    CurrentSurfaceTexture, PipelineLayout,
 };
-use winit::{dpi::PhysicalSize, event_loop::ActiveEventLoop, window::Window};
+use winit::{event_loop::ActiveEventLoop, window::Window};
 
 pub struct State {
     pub window: Arc<Window>,
@@ -46,23 +46,133 @@ impl State {
 
         let size = window.inner_size();
 
+        const GIZMO: [Vertex; 6] = [
+            Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 0.0),
+            Vertex::new_with_rgba(1.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 0.0),
+            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 0.0),
+            Vertex::new_with_rgba(0.0, 1.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 0.0),
+            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 0.0),
+            Vertex::new_with_rgba(0.0, 0.0, 1.0, 0, 0, 255, 255, 0, 3.0, 0.0, 0.0),
+        ];
+        const CHUNK_BORDERS: [Vertex; 24] = [
+            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
+        ];
+        let gpu_context = GpuContext::new(Arc::clone(&window), event_loop.owned_display_handle()).unwrap();
+        let device = gpu_context.tools.device();
+        let config = &gpu_context.config;
+        let mut texture_manager = TextureManager::new(
+            gpu_context.get_tools(),
+            gpu_context.limits.max_texture_dimension_2d,
+            gpu_context.limits.max_texture_array_layers,
+        );
+        let atlas = image::open("assets/ui/texture_atlas.png").unwrap();
+        let _id = texture_manager
+            .register_atlas(atlas.as_bytes(), 0, 0, atlas.width(), atlas.height())
+            .unwrap();
+        let render_camera = RenderCamera::new();
+        let camera_buffer = gpu_context.tools.device().create_buffer(&BufferDescriptor {
+            label: Some("Camera Buffer"),
+            size: size_of::<[[f32; 4]; 4]>() as u64,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let gpu_factory = GpuFactory::new(&gpu_context);
         let (
-            gpu_context,
-            texture_manager,
-            texture_bind_group,
-            render_camera,
-            camera_buffer,
-            camera_bind_group,
-            gizmo_render_pipeline,
-            gizmo_buffer,
-            chunk_borders_buffer,
-            depth_texture,
-            depth_view,
-            pipelines,
-            debug_pipelines,
-            ui_uniform_bind_group,
-            ui_renderer,
-        ) = fun_name(size, &window, event_loop);
+            texture_bind_group_layout,
+            camera_bind_group_layout,
+            ui_uniform_bind_group_layout,
+            opaque_render_pipeline_layout,
+            ui_render_pipeline_layout,
+        ) = make_bind_group_layouts(&gpu_factory);
+        let textures_bind_group = gpu_factory.bind_group().make_textures_entries(
+            &texture_bind_group_layout,
+            &texture_manager,
+            Some("Texture Bind Group"),
+        );
+        let camera_bind_group = gpu_factory
+            .bind_group()
+            .make_camera(&camera_bind_group_layout, &camera_buffer);
+        let ui_renderer = UiRenderer::new(gpu_context.get_tools());
+        let ui_uniform_bind_group = gpu_factory.bind_group().make(
+            Some("UI Uniform"),
+            &ui_uniform_bind_group_layout,
+            &[BindGroupEntry {
+                binding: 0,
+                resource: BindingResource::Buffer(BufferBinding {
+                    buffer: ui_renderer.proj_buffer(),
+                    offset: 0,
+                    size: NonZero::new(size_of::<[[f32; 4]; 4]>() as u64),
+                }),
+            }],
+        );
+        let (opaque_render_pipeline, opaque_wireframe_render_pipeline) =
+            gpu_factory
+                .pipeline()
+                .make_opaque(&opaque_render_pipeline_layout, config, &gpu_context.features);
+        let gizmo_render_pipeline = gpu_factory.pipeline().make_gizmo(&opaque_render_pipeline_layout, config);
+        let ui_render_pipeline = gpu_factory.pipeline().make_ui(&ui_render_pipeline_layout, config);
+        let gizmo_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Gizmo Buffer"),
+            contents: bytemuck::cast_slice(&GIZMO),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let chunk_borders_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Chunk Borders Buffer"),
+            contents: bytemuck::cast_slice(&CHUNK_BORDERS),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: size.width,
+                height: size.height,
+                depth_or_array_layers: 1,
+            },
+            view_formats: &[wgpu::TextureFormat::Depth32Float],
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        });
+        let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let pipelines = Pipelines::new(
+            opaque_render_pipeline.clone(),
+            opaque_render_pipeline.clone(),
+            opaque_render_pipeline.clone(),
+            opaque_render_pipeline.clone(),
+            ui_render_pipeline,
+        );
+        let debug_pipelines = Pipelines::new(
+            opaque_wireframe_render_pipeline.clone(),
+            opaque_wireframe_render_pipeline.clone(),
+            opaque_wireframe_render_pipeline.clone(),
+            opaque_wireframe_render_pipeline.clone(),
+            opaque_wireframe_render_pipeline.clone(),
+        );
 
         let device = gpu_context.tools.device();
         let queue = gpu_context.tools.queue();
@@ -83,7 +193,7 @@ impl State {
         let gpu_tools = GpuResources::new(
             pipelines,
             camera_bind_group,
-            texture_bind_group,
+            textures_bind_group,
             ui_uniform_bind_group,
             camera_buffer,
             depth_texture,
@@ -200,8 +310,12 @@ impl State {
         let output = self.renderer.gpu_context.surface.get_current_texture();
         match output {
             CurrentSurfaceTexture::Success(surface_texture) => {
-                self.renderer
-                    .render(surface_texture, &self.game_frame_data.camera, Some(&mut self.text_renderer));
+                self.renderer.render(
+                    &self.window,
+                    surface_texture,
+                    &self.game_frame_data.camera,
+                    Some(&mut self.text_renderer),
+                );
             }
             CurrentSurfaceTexture::Suboptimal(old) => {
                 drop(old);
@@ -232,197 +346,6 @@ impl State {
         self.text_renderer.dispose();
         self.renderer.dispose();
     }
-}
-
-fn fun_name(
-    size: PhysicalSize<u32>,
-    window: &Arc<Window>,
-    event_loop: &ActiveEventLoop,
-) -> (
-    GpuContext,
-    TextureManager,
-    BindGroup,
-    RenderCamera,
-    Buffer,
-    BindGroup,
-    RenderPipeline,
-    Buffer,
-    Buffer,
-    wgpu::Texture,
-    TextureView,
-    Pipelines,
-    Pipelines,
-    BindGroup,
-    UiRenderer,
-) {
-    const GIZMO: [Vertex; 6] = [
-        Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 0.0),
-        Vertex::new_with_rgba(1.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 0.0),
-        Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 0.0),
-        Vertex::new_with_rgba(0.0, 1.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 0.0),
-        Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 0.0),
-        Vertex::new_with_rgba(0.0, 0.0, 1.0, 0, 0, 255, 255, 0, 3.0, 0.0, 0.0),
-    ];
-
-    const CHUNK_BORDERS: [Vertex; 24] = [
-        Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-    ];
-
-    let gpu_context = GpuContext::new(Arc::clone(window), event_loop.owned_display_handle()).unwrap();
-
-    let device = gpu_context.tools.device();
-    let config = &gpu_context.config;
-
-    let mut texture_manager = TextureManager::new(
-        gpu_context.get_tools(),
-        gpu_context.limits.max_texture_dimension_2d,
-        gpu_context.limits.max_texture_array_layers,
-    );
-
-    let atlas = image::open("assets/ui/texture_atlas.png").unwrap();
-    let id = texture_manager
-        .register_atlas(atlas.as_bytes(), 0, 0, atlas.width(), atlas.height())
-        .unwrap();
-
-    let render_camera = RenderCamera::new();
-
-    let camera_buffer = gpu_context.tools.device().create_buffer(&BufferDescriptor {
-        label: Some("Camera Buffer"),
-        size: size_of::<[[f32; 4]; 4]>() as u64,
-        usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
-
-    let gpu_factory = GpuFactory::new(&gpu_context);
-
-    let (
-        texture_bind_group_layout,
-        camera_bind_group_layout,
-        ui_uniform_bind_group_layout,
-        opaque_render_pipeline_layout,
-        ui_render_pipeline_layout,
-    ) = make_bind_group_layouts(&gpu_factory);
-
-    let textures_bind_group = gpu_factory.bind_group().make_textures_entries(
-        &texture_bind_group_layout,
-        &texture_manager,
-        Some("Texture Bind Group"),
-    );
-
-    let camera_bind_group = gpu_factory
-        .bind_group()
-        .make_camera(&camera_bind_group_layout, &camera_buffer);
-
-    let ui_renderer = UiRenderer::new(gpu_context.get_tools());
-
-    let ui_uniform_bind_group = gpu_factory.bind_group().make(
-        Some("UI Uniform"),
-        &ui_uniform_bind_group_layout,
-        &[BindGroupEntry {
-            binding: 0,
-            resource: BindingResource::Buffer(BufferBinding {
-                buffer: ui_renderer.proj_buffer(),
-                offset: 0,
-                size: NonZero::new(size_of::<[[f32; 4]; 4]>() as u64),
-            }),
-        }],
-    );
-
-    let (opaque_render_pipeline, opaque_wireframe_render_pipeline) =
-        gpu_factory
-            .pipeline()
-            .make_opaque(&opaque_render_pipeline_layout, config, &gpu_context.features);
-
-    let gizmo_render_pipeline = gpu_factory.pipeline().make_gizmo(&opaque_render_pipeline_layout, config);
-
-    let ui_render_pipeline = gpu_factory.pipeline().make_ui(&ui_render_pipeline_layout, config);
-
-    let gizmo_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Gizmo Buffer"),
-        contents: bytemuck::cast_slice(&GIZMO),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-
-    let chunk_borders_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Chunk Borders Buffer"),
-        contents: bytemuck::cast_slice(&CHUNK_BORDERS),
-        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-    });
-
-    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("Depth Texture"),
-        size: wgpu::Extent3d {
-            width: size.width,
-            height: size.height,
-            depth_or_array_layers: 1,
-        },
-        view_formats: &[wgpu::TextureFormat::Depth32Float],
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Depth32Float,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-    });
-
-    let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-    // TODO: faire les autres pipelines
-    let pipelines = Pipelines::new(
-        opaque_render_pipeline.clone(),
-        opaque_render_pipeline.clone(),
-        opaque_render_pipeline.clone(),
-        opaque_render_pipeline.clone(),
-        ui_render_pipeline,
-    );
-
-    // TODO (wireframe)
-    let debug_pipelines = Pipelines::new(
-        opaque_wireframe_render_pipeline.clone(),
-        opaque_wireframe_render_pipeline.clone(),
-        opaque_wireframe_render_pipeline.clone(),
-        opaque_wireframe_render_pipeline.clone(),
-        opaque_wireframe_render_pipeline.clone(),
-    );
-    (
-        gpu_context,
-        texture_manager,
-        textures_bind_group,
-        render_camera,
-        camera_buffer,
-        camera_bind_group,
-        gizmo_render_pipeline,
-        gizmo_buffer,
-        chunk_borders_buffer,
-        depth_texture,
-        depth_view,
-        pipelines,
-        debug_pipelines,
-        ui_uniform_bind_group,
-        ui_renderer,
-    )
 }
 
 fn make_bind_group_layouts(

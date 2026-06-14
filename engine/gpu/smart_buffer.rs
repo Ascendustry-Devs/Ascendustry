@@ -9,7 +9,6 @@ pub struct SmartBuffer {
     length: u32,
     capacity: u32,
     format: Option<IndexFormat>,
-    usage: BufferUsages,
 }
 
 impl SmartBuffer {
@@ -35,7 +34,6 @@ impl SmartBuffer {
             length,
             capacity,
             format: format,
-            usage: usages,
         }
     }
 
@@ -56,7 +54,6 @@ impl SmartBuffer {
             length,
             capacity,
             format: format,
-            usage: usages,
         }
     }
 
@@ -82,7 +79,7 @@ impl SmartBuffer {
 
     #[inline(always)]
     pub fn usages(&self) -> BufferUsages {
-        return self.usage;
+        return self.buffer.usage();
     }
 
     pub fn update(&mut self, device: &Device, queue: &Queue, data: &[u8]) {
@@ -93,7 +90,7 @@ impl SmartBuffer {
             queue.write_buffer(&self.buffer, 0, data);
         } else {
             self.buffer.destroy();
-            *self = SmartBuffer::from_data(data, device, queue, self.format, self.usage);
+            *self = SmartBuffer::from_data(data, device, queue, self.format, self.usages());
         }
     }
 

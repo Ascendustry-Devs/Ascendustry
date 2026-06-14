@@ -297,10 +297,7 @@ impl GameState {
     }
 
     #[inline(never)]
-    fn cull_chunks(
-        &self,
-        out: &mut FxHashSet<u32>,
-    ) {
+    fn cull_chunks(&self, out: &mut FxHashSet<u32>) {
         const BASE_REGION_HEIGHT: f32 = (VERTICAL_RENDER_DISTANCE + 1) as f32;
         const BASE_REGION_WIDTH: f32 = (HORIZONTAL_RENDER_DISTANCE + 1) as f32;
 

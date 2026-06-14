@@ -16,6 +16,7 @@ use crate::{
     render::modes::RenderMode,
 };
 
+#[allow(unused)]
 pub struct TextureManager {
     gpu_resources: Arc<GpuTools>,
 

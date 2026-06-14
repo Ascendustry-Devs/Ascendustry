@@ -121,7 +121,7 @@ impl BindGroupLayoutFactory {
             binding: 0,
             visibility: ShaderStages::VERTEX,
             ty: BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
+                ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
                 min_binding_size: None,
             },

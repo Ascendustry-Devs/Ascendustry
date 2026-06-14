@@ -1,6 +1,7 @@
-use std::{iter, mem};
+use std::{iter, mem, sync::Arc};
 
 use game::world::data::chunk::CHUNK_SIZE_F;
+use winit::window::Window;
 
 use crate::{geometry::vertex::Vertex, render::ui::render::UiRenderer};
 use wgpu::{
@@ -83,6 +84,7 @@ impl Renderer {
 
     pub fn render<'a>(
         &'a mut self,
+        window: &Arc<Window>,
         output: SurfaceTexture,
         camera: &RenderCamera,
         text_renderer: Option<&'a mut TextRenderer>,
@@ -215,6 +217,8 @@ impl Renderer {
                 text_renderer.render(device, queue, &mut render_pass);
             }
         }
+
+        window.pre_present_notify();
 
         let encoder = {
             let new_encoder = device.create_command_encoder(&CommandEncoderDescriptor {

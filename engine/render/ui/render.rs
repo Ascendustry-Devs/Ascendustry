@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use bytemuck::cast_slice;
+use cgmath::ortho;
 use wgpu::{BindGroup, Buffer, BufferDescriptor, BufferUsages, RenderPass, RenderPipeline};
 
 use crate::{
@@ -40,10 +42,10 @@ impl UiRenderer {
 
     pub fn update_proj(&self, width: u32, height: u32) {
         let (w, h) = (width as f32, height as f32);
-        let proj: [[f32; 4]; 4] = cgmath::ortho(0.0, w, h, 0.0, -1.0, 1.0).into();
+        let proj: [[f32; 4]; 4] = ortho(0.0, w, h, 0.0, -1.0, 1.0).into();
         self.gpu_tools
             .queue()
-            .write_buffer(&self.projection_buffer, 0, bytemuck::cast_slice(&proj));
+            .write_buffer(&self.projection_buffer, 0, cast_slice(&proj));
     }
 
     pub fn update_vertices(&mut self, data: &[u8]) {
