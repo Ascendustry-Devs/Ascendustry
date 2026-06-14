@@ -86,7 +86,7 @@ impl ItemStack {
     }
     /// Retourne true si l'item peut être empilé avec l'autre item, false sinon.
     pub fn can_stack_with(&self, other: &ItemStack) -> bool {
-        self.item.item == other.item.item
+        self.item == other.item
     }
 
     pub fn stack_with(&mut self, other: &mut ItemStack) {
@@ -119,24 +119,37 @@ impl Inventory {
         }
     }
 
-    /// Ajoute un item à l'inventaire, en utilisant un slot existant si possible, sinon en crée un nouveau. (s'il reste un slot libre)
-    pub fn add_item(&mut self, item: ItemData, quantity: u32) -> u32 {
-        // Cherche slot existant avec même item
-        for slot in &mut self.slot_data {
-            if slot.can_stack_with(&ItemStack {
-                item: item.clone(),
-                quantity: 0,
-            }) {
-                slot.add(quantity);
-                return quantity;
+    /// Ajoute un item à l'inventaire en respectant les limites de stack.
+    /// Retourne le SlotData modifié/créé, ou None si inventaire plein.
+    pub fn add_item(&mut self, item: ItemData, quantity: u32, rules: &ItemRules) -> Option<SlotData> {
+        let max = rules
+            .max_quantity_per_stack
+            .get(&item.get_item_type(rules))
+            .copied()
+            .unwrap_or(u32::MAX);
+
+        for (index, slot) in self.slot_data.iter_mut().enumerate() {
+            if slot.can_stack_with(&ItemStack::new(item.clone(), quantity)) && slot.quantity < max {
+                let to_add = quantity.min(max - slot.quantity);
+                slot.add(to_add);
+                return Some(SlotData {
+                    index,
+                    item: slot.clone(),
+                });
             }
         }
 
-        // Pas de slot existant → nouveau slot
         if self.is_remaining_free_slot() {
-            self.slot_data.push(ItemStack::new(item, quantity));
+            let to_add = quantity.min(max);
+            let stack = ItemStack::new(item, to_add);
+            self.slot_data.push(stack.clone());
+            return Some(SlotData {
+                index: self.slot_data.len() - 1,
+                item: stack,
+            });
         }
-        quantity
+
+        None
     }
 
     /// Supprime un item de l'inventaire à partir d'un slot spécifié.

@@ -99,9 +99,9 @@ mod tests {
         let mut inv = Inventory::default(5);
         let item = ItemData::new(Item::Dirt, None);
 
-        let returned = inv.add_item(item, 10);
+        let returned = inv.add_item(item, 10, &ItemRules::default());
 
-        assert_eq!(returned, 10);
+        assert!(returned.is_some());
         assert_eq!(inv.slot_count(), 1);
         assert_eq!(inv.get_slot_quantity(0), 10);
     }
@@ -109,8 +109,8 @@ mod tests {
     #[test]
     fn test_inventory_add_item_stacks_existing() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
-        inv.add_item(ItemData::new(Item::Dirt, None), 20);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Dirt, None), 20, &ItemRules::default());
 
         assert_eq!(inv.slot_count(), 1);
         assert_eq!(inv.get_slot_quantity(0), 30);
@@ -119,8 +119,8 @@ mod tests {
     #[test]
     fn test_inventory_add_item_different_items_separate_slots() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
 
         assert_eq!(inv.slot_count(), 2);
         assert_eq!(inv.get_slot_quantity(0), 10);
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_inventory_remove_item() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
         inv.remove_item(ItemData::new(Item::Dirt, None), 4, 0);
 
         assert_eq!(inv.get_slot_quantity(0), 6);
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_inventory_remove_item_removes_empty_slot() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 5);
+        inv.add_item(ItemData::new(Item::Dirt, None), 5, &ItemRules::default());
         inv.remove_item(ItemData::new(Item::Dirt, None), 5, 0);
 
         assert!(inv.is_empty());
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn test_inventory_remove_item_invalid_slot() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 5);
+        inv.add_item(ItemData::new(Item::Dirt, None), 5, &ItemRules::default());
         // Removing from out-of-bounds slot should be a no-op
         inv.remove_item(ItemData::new(Item::Dirt, None), 1, 99);
         assert_eq!(inv.slot_count(), 1);
@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn test_inventory_get_slot() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
 
         let slot = inv.get_slot(0);
         assert!(slot.is_some());
@@ -176,8 +176,8 @@ mod tests {
     #[test]
     fn test_inventory_swap_slots() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
 
         inv.swap_slots(0, 1);
 
@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn test_inventory_swap_slots_invalid() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
 
         inv.swap_slots(0, 99); // should be no-op
         assert_eq!(inv.slot_count(), 1);
@@ -199,17 +199,17 @@ mod tests {
     fn test_inventory_slot_count() {
         let mut inv = Inventory::default(10);
         assert_eq!(inv.slot_count(), 0);
-        inv.add_item(ItemData::new(Item::Dirt, None), 5);
+        inv.add_item(ItemData::new(Item::Dirt, None), 5, &ItemRules::default());
         assert_eq!(inv.slot_count(), 1);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
         assert_eq!(inv.slot_count(), 2);
     }
 
     #[test]
     fn test_inventory_clear() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
 
         inv.clear();
         assert!(inv.is_empty());
@@ -222,7 +222,7 @@ mod tests {
         assert!(inv.is_empty());
 
         let mut inv2 = Inventory::default(5);
-        inv2.add_item(ItemData::new(Item::Dirt, None), 1);
+        inv2.add_item(ItemData::new(Item::Dirt, None), 1, &ItemRules::default());
         assert!(!inv2.is_empty());
     }
 
@@ -231,18 +231,18 @@ mod tests {
         let mut inv = Inventory::default(2);
         assert!(!inv.is_full());
 
-        inv.add_item(ItemData::new(Item::Dirt, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 1, &ItemRules::default());
         assert!(!inv.is_full());
 
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
         assert!(inv.is_full());
     }
 
     #[test]
     fn test_inventory_get_all_items() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
 
         let items = inv.get_all_items();
         assert_eq!(items.len(), 2);
@@ -255,8 +255,8 @@ mod tests {
     #[test]
     fn test_inventory_is_slot_correct() {
         let mut inv = Inventory::default(3);
-        inv.add_item(ItemData::new(Item::Dirt, None), 5);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 5, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
 
         assert!(inv.is_slot_correct(0));
         assert!(inv.is_slot_correct(1));
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn test_inventory_get_slot_quantity() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 42);
+        inv.add_item(ItemData::new(Item::Dirt, None), 42, &ItemRules::default());
 
         assert_eq!(inv.get_slot_quantity(0), 42);
         assert_eq!(inv.get_slot_quantity(1), 0); // invalid slot
@@ -278,8 +278,8 @@ mod tests {
     #[test]
     fn test_inventory_retain() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 5);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 5, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
 
         // Manually set a slot to zero to simulate an empty slot
         inv.slot_data[0].quantity = 0;
@@ -298,8 +298,8 @@ mod tests {
     #[test]
     fn test_inventory_display_with_items() {
         let mut inv = Inventory::default(5);
-        inv.add_item(ItemData::new(Item::Dirt, None), 10);
-        inv.add_item(ItemData::new(Item::Sword, None), 1);
+        inv.add_item(ItemData::new(Item::Dirt, None), 10, &ItemRules::default());
+        inv.add_item(ItemData::new(Item::Sword, None), 1, &ItemRules::default());
         assert_eq!(format!("{}", inv), "Inventory: [0: 10, 1: 1]");
     }
 }

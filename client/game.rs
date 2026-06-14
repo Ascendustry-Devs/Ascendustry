@@ -69,6 +69,7 @@ impl GameState {
 
         Self {
             player: Player::new(
+                player_id,
                 Box::new(FreeCameraController::new(0.00390625)),
                 Box::new(WalkPlayerController),
             ),

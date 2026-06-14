@@ -24,8 +24,8 @@
 use crate::network::protocol::GameProtocol;
 use game::{inventory::SlotData, player::PlayerGameMode};
 use log::{error, info};
-use network::client_connection::ClientConnection;
 use network::messages::Paquet;
+use network::{client_connection::ClientConnection, messages::new_inventory_update_paquet};
 use std::time::{Duration, Instant};
 
 /// Intervalle entre deux envois de position (50ms = 20 updates/sec)
@@ -173,12 +173,8 @@ impl NetworkManager {
     }
 
     pub fn send_inventory_update(&mut self, modified_slots: Vec<SlotData>) -> Result<(), String> {
-        if let Some(protocol) = &self.protocol {
-            let packet = protocol.create_inventory_update(modified_slots);
-            self.connection.send_packet(packet)
-        } else {
-            Ok(())
-        }
+        let packet = new_inventory_update_paquet(self.player_id(), modified_slots);
+        self.connection.send_packet(packet)
     }
 
     pub fn send_packet(&mut self, packet: Paquet) -> Result<(), String> {

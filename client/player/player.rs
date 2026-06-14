@@ -11,13 +11,13 @@ use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X,
     SPAWN_POSITION_Y, SPAWN_POSITION_Z, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use game::inventory::{Inventory, DEFAULT_INVENTORY_SIZE};
+use game::inventory::{Inventory, Item, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
-use game::world::data::block::BlockInstance;
+use game::world::data::block::{BlockInstance, BlockType};
 use game::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};
 use game::world::raycast::voxel_raycast;
-use network::messages::Paquet;
+use network::messages::{new_inventory_update_paquet, Paquet};
 use physics::{body::PhysicsBody, collision::resolve_collision};
 use project_core::log_client;
 use project_core::utils::updatable::Updatable;
@@ -27,6 +27,7 @@ use winit::keyboard::KeyCode;
 /// État pur du joueur : position, caméra, contrôleurs, distances de rendu.
 /// Séparé de `Player` pour permettre l'ajout d'un corps physique sans tout casser.
 pub struct PlayerState {
+    pub player_id: u64,
     pub pos: Updatable<Point3<f32>>,
     pub cpos: Updatable<Point3<i32>>,
     pub chunk_keys: FxHashSet<(i32, i32, i32)>,
@@ -43,11 +44,13 @@ pub struct PlayerState {
 
 impl PlayerState {
     pub fn new(
+        player_id: u64,
         camera_controller: Box<dyn CameraController>,
         player_controller: Box<dyn PlayerController>,
         spawn_pos: Point3<f32>,
     ) -> PlayerState {
         PlayerState {
+            player_id,
             game_mode: PlayerGameMode::Survival,
             inventory: Inventory::default(DEFAULT_INVENTORY_SIZE),
             pos: Updatable::new(spawn_pos),
@@ -84,6 +87,18 @@ impl PlayerState {
         });
         if let Some(hit) = hit {
             let (x, y, z) = hit.block_pos;
+            match world.get_block_from_xyz(x, y, z).block_type() {
+                BlockType::Dirt | BlockType::Grass => {
+                    log_client!("Ajout d'un item dans l'inventaire");
+                    if let Some(slot) = self
+                        .inventory
+                        .add_item(ItemData::new(Item::Dirt, None), 1, &ItemRules::default())
+                    {
+                        commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
+                    }
+                }
+                _ => {}
+            }
             let air = BlockInstance::air();
             let success = world.set_block(x, y, z, air);
             if success {
@@ -212,10 +227,14 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new(camera_controller: Box<dyn CameraController>, player_controller: Box<dyn PlayerController>) -> Player {
+    pub fn new(
+        player_id: u64,
+        camera_controller: Box<dyn CameraController>,
+        player_controller: Box<dyn PlayerController>,
+    ) -> Player {
         let spawn_pos = Point3::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
         Player {
-            state: PlayerState::new(camera_controller, player_controller, spawn_pos),
+            state: PlayerState::new(player_id, camera_controller, player_controller, spawn_pos),
             physics_body: PhysicsBody::new(spawn_pos, 0.49),
         }
     }

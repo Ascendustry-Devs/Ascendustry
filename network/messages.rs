@@ -195,3 +195,12 @@ pub fn new_client_identity_paquet(player_id: u64, username: String) -> Paquet {
         ContenuPaquet::ClientIdentity { player_id, username },
     )
 }
+pub fn new_inventory_update_paquet(player_id: u64, slots: Vec<SlotData>) -> Paquet {
+    Paquet::new(
+        TypePaquet::InventoryUpdate,
+        ContenuPaquet::InventoryUpdate {
+            player_id,
+            modified_slots: slots,
+        },
+    )
+}
