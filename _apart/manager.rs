@@ -445,7 +445,12 @@ impl MeshManager {
     }
 
     fn write_at(&mut self, position: usize, data: &[u8], mesh_id: MeshId) {
-        log_allocator!("Writing at {} data of len {} and of Mesh(id: {})", position, data.len(), mesh_id);
+        log_allocator!(
+            "Writing at {} data of len {} and of Mesh(id: {})",
+            position,
+            data.len(),
+            mesh_id
+        );
         let arena_offset = self.arena.len();
         self.arena.extend_from_slice(data);
         self.write_operations.push(WriteOperation {
@@ -501,7 +506,12 @@ impl MeshManager {
     }
 
     fn consume_gap_for(&mut self, gap_index: usize, id: u32, data: &[u8]) -> usize {
-        log_allocator!("Consume Gap(index: {}) for DataEntry(id: {}, len: {}).", gap_index, id, data.len());
+        log_allocator!(
+            "Consume Gap(index: {}) for DataEntry(id: {}, len: {}).",
+            gap_index,
+            id,
+            data.len()
+        );
         let position = self.gaps[gap_index].position;
         let data_length = data.len();
 

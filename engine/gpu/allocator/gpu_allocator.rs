@@ -20,6 +20,7 @@ const MESH_BUFFER_EXPAND_COEF: f32 = 1.25; // allocates 1.25x more than needed t
 
 pub type EntryId = u32;
 
+#[derive(Debug, PartialEq, Eq)]
 pub struct AllocEntry {
     pub id: EntryId,
     pub position: usize,
@@ -29,6 +30,23 @@ pub struct AllocEntry {
 impl AllocEntry {
     pub fn new(id: EntryId, position: usize, length: usize) -> Self {
         Self { id, position, length }
+    }
+}
+
+trait IdManager {
+    fn next_id(&mut self) -> &mut u32;
+    fn free_ids(&mut self) -> &mut Vec<u32>;
+
+    fn get_new_id(&mut self) -> u32 {
+        self.free_ids().pop().unwrap_or_else(|| {
+            let id = *self.next_id();
+            *self.next_id() += 1;
+            id
+        })
+    }
+
+    fn free_id(&mut self, id: u32) {
+        self.free_ids().push(id);
     }
 }
 
@@ -47,6 +65,16 @@ pub struct GpuAllocator {
     buffer: SmartBuffer,
     gpu_tools: Arc<GpuTools>,
     frame_encoder: Arc<RwLock<CommandEncoder>>,
+}
+
+impl IdManager for GpuAllocator {
+    fn next_id(&mut self) -> &mut u32 {
+        &mut self.next_id
+    }
+
+    fn free_ids(&mut self) -> &mut Vec<u32> {
+        &mut self.free_ids
+    }
 }
 
 const LOG_ALLOCATOR: bool = false;
@@ -332,7 +360,7 @@ impl GpuAllocator {
         self.data.remove(data_index);
         self.write_operations.retain(|element| element.mesh_id != id);
 
-        self.free_ids.push(id);
+        self.free_id(id);
 
         self.print_debug_infos();
 
@@ -371,14 +399,6 @@ impl GpuAllocator {
         }
     }
 
-    fn get_new_id(&mut self) -> EntryId {
-        self.free_ids.pop().unwrap_or_else(|| {
-            let id = self.next_id;
-            self.next_id += 1;
-            id
-        })
-    }
-
     fn find_place(&self, needed: usize) -> Option<usize> {
         log_allocator!("Finding place for {} bytes.", needed);
         self.gaps.iter().position(|x| x.length >= needed)
@@ -409,7 +429,7 @@ impl GpuAllocator {
         self.data.iter().fold(0, |acc, v| acc + v.length)
     }
 
-    fn reallocate_defragment(&mut self, needed: usize) {
+    pub fn reallocate_defragment(&mut self, needed: usize) {
         log_allocator!(
             "Reallocate and defragment because current buffer has {} bytes of capacity but we need {} bytes.",
             self.total_data_length(),

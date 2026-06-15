@@ -2,7 +2,7 @@ use crate::gpu::allocator::gpu_allocator::EntryId;
 use std::fmt::Display;
 
 #[repr(u8)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum AllocError {
     InvalidId = 0,
     NotEnoughSpace = 1,
