@@ -139,7 +139,7 @@ impl Camera {
         let right = self.right();
         let up = right.cross(forward);
 
-        let tan_half_fov = (fov / 2.0).tan();
+        let tan_half_fov = (fov / 2.0_f32).to_radians().tan();
         let nh = tan_half_fov * znear;
         let nw = nh * aspect;
         let fh = tan_half_fov * zfar;
