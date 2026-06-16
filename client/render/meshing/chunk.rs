@@ -2,10 +2,7 @@ use crate::render::utils::{face_mask::FaceMask, padded_chunk::*};
 use bytemuck::cast_slice;
 use engine::{
     geometry::vertex::Vertex,
-    gpu::allocator::{
-        data_structures::AllocError,
-        gpu_allocator::{EntryId, GpuAllocator},
-    },
+    gpu::allocator::{entry::EntryId, error::AllocError, gpu_allocator::GpuAllocator},
 };
 use game::world::data::chunk::{CHUNK_SIZE, LAST_CHUNK_AXIS_INDEX_USIZE};
 use project_core::geometry::corner::SquareCorner;

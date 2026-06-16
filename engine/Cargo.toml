@@ -22,7 +22,6 @@ pollster = { workspace = true }
 anyhow = { workspace = true }
 image = { workspace = true }
 project_core = { path = "../project_core" }
-network = { path = "../network" }
 game = { path = "../game" }
 
 # log = { workspace = true }

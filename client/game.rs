@@ -101,7 +101,7 @@ impl GameState {
                 let Some(id) = mesh.id else {
                     continue;
                 };
-                let Some(data) = alloc.get_mesh_entry(id) else {
+                let Ok(data) = alloc.get_entry(id) else {
                     continue;
                 };
                 println!(

@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 #[cfg(test)]
 use wgpu::{Adapter, CommandEncoder, CommandEncoderDescriptor, Instance};
 
-use crate::gpu::allocator::gpu_allocator::{AllocEntry, GpuAllocator};
+use crate::gpu::allocator::{entry::AllocEntry, gpu_allocator::GpuAllocator};
 #[cfg(test)]
 use crate::gpu::tools::GpuTools;
 
@@ -36,8 +36,8 @@ fn allocator() {
 
     assert_eq!(alloc.add(&[0, 2, 4, 8]), Ok(0));
     assert_eq!(
-        alloc.get_mesh_entry(0),
-        Some(&AllocEntry {
+        alloc.get_entry(0),
+        Ok(&AllocEntry {
             id: 0,
             position: 0,
             length: 4

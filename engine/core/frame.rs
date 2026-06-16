@@ -2,7 +2,7 @@ use std::{collections::HashSet, time::Instant};
 
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
-use crate::{gpu::allocator::gpu_allocator::EntryId, render::camera::RenderCamera};
+use crate::{gpu::allocator::entry::EntryId, render::camera::RenderCamera};
 
 pub struct EngineFrameData {
     pub dt: f32,

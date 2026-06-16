@@ -1,17 +1,15 @@
 use std::{
     collections::HashSet,
+    mem::size_of,
     sync::{Arc, RwLock},
 };
 
-use crate::geometry::vertex::Vertex;
+use crate::{geometry::vertex::Vertex, gpu::allocator::entry::EntryId};
+use bytemuck::cast_slice;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 use wgpu::{wgt::DrawIndirectArgs, BufferUsages, CommandEncoder};
 
-use crate::gpu::{
-    allocator::gpu_allocator::{EntryId, GpuAllocator},
-    smart_buffer::SmartBuffer,
-    tools::GpuTools,
-};
+use crate::gpu::{allocator::gpu_allocator::GpuAllocator, smart_buffer::SmartBuffer, tools::GpuTools};
 
 pub struct RenderManager {
     pub gpu_tools: Arc<GpuTools>,
@@ -75,20 +73,17 @@ impl RenderManager {
     pub fn update_indirect_buffer(&mut self) {
         let device = self.gpu_tools.device();
         let queue = self.gpu_tools.queue();
-        const VERTEX_SIZE: usize = std::mem::size_of::<Vertex>();
+        const VERTEX_SIZE: usize = size_of::<Vertex>();
 
         self.indirect_commands.clear();
 
         let alloc = &self.world_buffer.read().unwrap();
 
-        for m in &alloc.data {
-            if !self.ids_to_render.contains(&m.id) {
-                continue;
-            }
+        for entry in alloc.iter_entries_by_intersection(&self.ids_to_render) {
             self.indirect_commands.push(DrawIndirectArgs {
-                vertex_count: (m.length / VERTEX_SIZE) as u32,
+                vertex_count: (entry.length / VERTEX_SIZE) as u32,
                 instance_count: 1,
-                first_vertex: (m.position / VERTEX_SIZE) as u32,
+                first_vertex: (entry.position / VERTEX_SIZE) as u32,
                 first_instance: 0,
             });
         }
@@ -97,7 +92,7 @@ impl RenderManager {
             return;
         }
 
-        let data = bytemuck::cast_slice(&self.indirect_commands);
+        let data = cast_slice(&self.indirect_commands);
         self.indirect_buffer.update(device, queue, data);
     }
 }

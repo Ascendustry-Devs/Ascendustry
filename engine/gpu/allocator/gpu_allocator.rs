@@ -1,61 +1,36 @@
 use std::{
-    mem,
+    mem::replace,
     sync::{Arc, RwLock},
 };
 
-use wgpu::{Buffer, BufferUsages, CommandEncoder};
+use project_core::utils::id_pool::IdPool;
+use rustc_hash::FxHashSet;
+use wgpu::{Buffer, BufferAddress, BufferUsages, CommandEncoder};
 
-use crate::gpu::{
-    allocator::data_structures::{AllocError, Gap, WriteOperation},
-    smart_buffer::SmartBuffer,
-    tools::GpuTools,
+use crate::{
+    gpu::{
+        allocator::{
+            entry::{AllocEntry, EntryId},
+            error::AllocError,
+            gap_manager::{Gap, GapManager},
+            write_operation::WriteOperation,
+            ARENA_MIN_SIZE, BUFFER_BASE_SIZE, BUFFER_EXPAND_COEF, LOG_ALLOCATOR,
+        },
+        smart_buffer::SmartBuffer,
+        tools::GpuTools,
+    },
+    log_allocator,
 };
-
-// const BYTES_PER_FRAME_CAP: usize = 1024 * 1024 * 8;
-// const MAX_MILLIS_PER_FRAME_CAP: u128 = 8;
-// const MAX_WRITE_OPERATIONS_PER_FRAME: usize = 5;
-const ARENA_MIN_SIZE: usize = 1024 * 1024 * 4; // 4Mb
-const MESH_BUFFER_BASE_SIZE: usize = 1024 * 1024 * 4; // 4Mb
-const MESH_BUFFER_EXPAND_COEF: f32 = 1.25; // allocates 1.25x more than needed to prevent quick reallocates.
-
-pub type EntryId = u32;
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct AllocEntry {
-    pub id: EntryId,
-    pub position: usize,
-    pub length: usize,
-}
-
-impl AllocEntry {
-    pub fn new(id: EntryId, position: usize, length: usize) -> Self {
-        Self { id, position, length }
-    }
-}
-
-trait IdManager {
-    fn next_id(&mut self) -> &mut u32;
-    fn free_ids(&mut self) -> &mut Vec<u32>;
-
-    fn get_new_id(&mut self) -> u32 {
-        self.free_ids().pop().unwrap_or_else(|| {
-            let id = *self.next_id();
-            *self.next_id() += 1;
-            id
-        })
-    }
-
-    fn free_id(&mut self, id: u32) {
-        self.free_ids().push(id);
-    }
-}
 
 pub struct GpuAllocator {
     pub data: Vec<AllocEntry>,
-    next_id: EntryId,
-    free_ids: Vec<EntryId>,
 
+    id_pool: IdPool,
+
+    // GapManager
     gaps: Vec<Gap>,
+
+    // Interface
     pending_destruction: Vec<SmartBuffer>,
     write_operations: Vec<WriteOperation>,
     schedule_batch: bool,
@@ -67,36 +42,20 @@ pub struct GpuAllocator {
     frame_encoder: Arc<RwLock<CommandEncoder>>,
 }
 
-impl IdManager for GpuAllocator {
-    fn next_id(&mut self) -> &mut u32 {
-        &mut self.next_id
+impl GapManager for GpuAllocator {
+    fn gaps(&self) -> &Vec<Gap> {
+        &self.gaps
     }
 
-    fn free_ids(&mut self) -> &mut Vec<u32> {
-        &mut self.free_ids
+    fn gaps_mut(&mut self) -> &mut Vec<Gap> {
+        &mut self.gaps
     }
-}
-
-const LOG_ALLOCATOR: bool = false;
-
-macro_rules! log_allocator {
-    () => {
-        if LOG_ALLOCATOR {
-            println!();
-        }
-    };
-
-    ($($arg:tt)*) => {
-        if LOG_ALLOCATOR {
-            println!($($arg)*);
-        }
-    };
 }
 
 impl GpuAllocator {
     pub fn new(gpu_tools: Arc<GpuTools>, frame_encoder: Arc<RwLock<CommandEncoder>>) -> Self {
         let buffer = SmartBuffer::from_capacity(
-            MESH_BUFFER_BASE_SIZE as u32,
+            BUFFER_BASE_SIZE as u32,
             gpu_tools.device(),
             None,
             BufferUsages::COPY_DST | BufferUsages::COPY_SRC | BufferUsages::VERTEX,
@@ -109,23 +68,31 @@ impl GpuAllocator {
             data: Vec::with_capacity(256),
             gaps: Vec::with_capacity(32),
             pending_destruction: Vec::with_capacity(1),
-            next_id: 0,
-            free_ids: Vec::with_capacity(8),
+            id_pool: IdPool::new(),
             write_operations: vec![],
             schedule_batch: false,
             arena: Vec::with_capacity(ARENA_MIN_SIZE),
         }
     }
 
-    pub fn get_mesh_entry(&self, id: EntryId) -> Option<&AllocEntry> {
-        if let Some(i) = self.data.iter().position(|entry| entry.id == id) {
-            return self.data.get(i);
+    pub fn get_entry_index(&self, id: EntryId) -> Result<usize, AllocError> {
+        match self.data.iter().position(|x| x.id == id) {
+            Some(index) => Ok(index),
+            None => Err(AllocError::InvalidId),
         }
-        None
     }
 
-    pub fn get_entries_difference_by_ids(&self, ids: Vec<EntryId>) -> Vec<&AllocEntry> {
-        self.data.iter().filter(|entry| !ids.contains(&entry.id)).collect()
+    pub fn get_entry(&self, id: EntryId) -> Result<&AllocEntry, AllocError> {
+        let index = self.get_entry_index(id)?;
+        Ok(&self.data[index])
+    }
+
+    pub fn iter_entries_by_intersection<'a>(&'a self, ids: &'a FxHashSet<EntryId>) -> impl Iterator<Item = &'a AllocEntry> {
+        self.data.iter().filter(move |e| ids.contains(&e.id))
+    }
+
+    fn get_entries_length(&self) -> usize {
+        self.data.iter().fold(0, |acc, x| acc + x.length)
     }
 
     pub fn print_debug_infos(&self) {
@@ -144,7 +111,7 @@ impl GpuAllocator {
         let mesh_count = self.data.len();
 
         let used_cpu = (self.arena.len()
-            + self.free_ids.len() * size_of::<u32>()
+            + self.id_pool.len() * size_of::<u32>()
             + self.gaps.len() * size_of::<Gap>()
             + self.pending_destruction.len() * size_of::<SmartBuffer>()
             + self.write_operations.len() * size_of::<WriteOperation>()
@@ -152,14 +119,14 @@ impl GpuAllocator {
         let (used_cpu_mb, used_cpu_kb, used_cpu_b) = conversion(used_cpu);
 
         let alloc_cpu = (self.arena.capacity()
-            + self.free_ids.capacity() * size_of::<u32>() // Ceci est un easter egg: https://pastebin.com/demZGt0P
+            + self.id_pool.capacity() * size_of::<u32>() // Ceci est un easter egg: https://pastebin.com/demZGt0P
             + self.gaps.capacity() * size_of::<Gap>()
             + self.pending_destruction.capacity() * size_of::<SmartBuffer>()
             + self.write_operations.capacity() * size_of::<WriteOperation>()
             + self.data.capacity() * size_of::<AllocEntry>()) as u32;
         let (alloc_cpu_mb, alloc_cpu_kb, alloc_cpu_b) = conversion(alloc_cpu);
 
-        let data_length = self.total_data_length() as u32;
+        let data_length = self.get_entries_length() as u32;
         let (data_mb, data_kb, data_b) = conversion(data_length);
 
         let alloc_gpu = self.buffer.capacity();
@@ -198,43 +165,26 @@ impl GpuAllocator {
     }
 
     pub fn add(&mut self, data: &[u8]) -> Result<EntryId, AllocError> {
-        log_allocator!("Adding data for data of len: {}.", data.len());
-        let mut index = self.find_place(data.len());
+        let mut position = self.find_place(data.len());
 
-        if index.is_none() {
-            let needed = self.total_data_length() + data.len();
+        // If we could not find enough space,
+        // we need to reallocate to get more.
+        if position.is_none() {
+            let needed = self.get_entries_length() + data.len();
             self.reallocate_defragment(needed);
 
-            index = self.find_place(data.len());
+            position = self.find_place(data.len());
         }
 
-        let Some(index) = index else {
+        // If we STILL can not find enough space,
+        // it means that we reached the maximum capacity.
+        let Some(gap_index) = position else {
             return Err(AllocError::NotEnoughSpace);
         };
 
-        let (position, gap_length) = {
-            let gap = &mut self.gaps[index];
+        let id = self.insert_data_at_gap(None, data, gap_index);
 
-            let pos = gap.position;
-            let len = gap.length;
-
-            gap.position += data.len();
-            gap.length -= data.len();
-
-            (pos, len)
-        };
-
-        if gap_length == 0 {
-            self.gaps.remove(index);
-        }
-
-        let id = self.get_new_id();
-
-        self.write_at(position, data, id);
-
-        let entry = AllocEntry::new(id, position, data.len());
-        self.insert_entry(entry);
-
+        log_allocator!("Added entry for data of len {}.", data.len());
         self.print_debug_infos();
 
         Ok(id)
@@ -242,9 +192,7 @@ impl GpuAllocator {
 
     pub fn update(&mut self, id: u32, data: &[u8]) -> Result<(), AllocError> {
         log_allocator!("Updating data for DataEntry(id: {}, len: {}).", id, data.len());
-        let Some(index) = self.data.iter().position(|x| x.id == id) else {
-            return Err(AllocError::InvalidId);
-        };
+        let index = self.get_entry_index(id)?;
 
         let (position, old_len) = {
             let entry = &self.data[index];
@@ -254,89 +202,65 @@ impl GpuAllocator {
 
         // Cas 1: les nouvelles données ont une taille inférieure ou égale aux précédentes
         if new_len <= old_len {
-            self.write_at(position, data, id);
-
             if new_len < old_len {
-                if let Some(gap_index) = self.get_data_next_gap(&self.data[index]) {
-                    let gap = &mut self.gaps[gap_index];
-
-                    let delta_length = old_len - new_len;
-                    gap.position -= delta_length;
-                    gap.length += delta_length;
-                } else {
-                    let gap = Gap::new(position + new_len, old_len - new_len);
-                    self.insert_gap_after(gap, position);
-                }
+                self.release_after(position + new_len, old_len - new_len);
             }
 
             self.data[index].length = new_len;
+            self.write_at(position, data, id);
 
             return Ok(());
         }
 
         // Cas 2: on regarde si la taille des anciennes données + le trou qui les suit est suffisant pour accueillir les nouvelles données
-        let gap_index = self.gaps.iter().position(|x| x.position == position + old_len);
+        let gap_index = self.get_gap_index_at(position + old_len).ok();
 
         // S'il y a un trou après
         if let Some(gap_index) = gap_index {
-            let gap_length = self.gaps[gap_index].length;
+            let gap = &mut self.gaps[gap_index];
+            let available_space = old_len + gap.length; // anciennes données + trou
 
-            // Si taille(anciennes données + trou) suffisent
-            if new_len <= old_len + gap_length {
-                self.write_at(position, data, id);
-
-                let gap = &mut self.gaps[gap_index];
-                gap.position = position + new_len;
-                gap.length = old_len + gap.length - new_len;
-
-                if gap.length == 0 {
-                    self.gaps.remove(gap_index);
-                }
+            // Si taille suffisent
+            if new_len <= available_space {
+                let delta_len = new_len - old_len;
+                self.consume_gap(gap_index, delta_len);
 
                 self.data[index].length = new_len;
-
-                self.try_merge_gap(self.gaps[gap_index].position);
+                // self.try_merge_gap(self.gaps[gap_index].position);
+                self.write_at(position, data, id);
 
                 return Ok(());
             }
             // Si ça suffit pas, on élargit le trou à (ancienne données + trou actuel) et donc on marque l'emplacement comme libre
-            else {
-                let gap = &mut self.gaps[gap_index];
-                gap.position = position;
-                gap.length += old_len;
-
-                self.data.remove(index);
-                self.write_operations.retain(|e| e.mesh_id != id);
-            }
+            gap.extend_left(old_len);
         }
         // S'il n'y a pas de trou après les données actuelle, on a pas la place pour stocker les nouvelles. On marque alors l'emplacement actuel comme libre
         else {
             let gap = Gap::new(position, old_len);
-            self.insert_gap_after(gap, position);
-
-            self.data.remove(index);
-            self.write_operations.retain(|e| e.mesh_id != id);
+            self.insert_gap_at(gap, position);
         }
+
+        // On ne peut plus garder l'emplacement actuel pour cette entrée.
+        // On doit la supprimer entièrement pour l'instant.
+        self.delete_entry(index, id);
 
         // Cas 3: on regarde s'il existe un trou suffisant pour accueillir les nouvelles données...
         if let Some(gap_index) = self.find_place(new_len) {
-            let position = self.consume_gap_for(gap_index, id, data);
-            let entry = AllocEntry::new(id, position, new_len);
-            self.insert_entry(entry);
-
+            self.insert_data_at_gap(Some(id), data, gap_index);
             return Ok(());
         }
 
         // Cas 4: c'est la merde, donc on réalloue et défragmente pour avoir assez d'espace pour les nouvelles données (DERNIER RECOURS)
-        let needed = self.data.iter().fold(0, |acc, x| acc + x.length) + new_len;
+        let needed = self.get_entries_length() + new_len;
         self.reallocate_defragment(needed);
 
+        // If after all these efforts we STILL can't find enough space,
+        // it means that we reached the maximum capacity.
         let Some(gap_index) = self.find_place(new_len) else {
             return Err(AllocError::NotEnoughSpace);
         };
-        let position = self.consume_gap_for(gap_index, id, data);
-        let entry = AllocEntry::new(id, position, new_len);
-        self.insert_entry(entry);
+
+        self.insert_data_at_gap(Some(id), data, gap_index);
 
         self.print_debug_infos();
 
@@ -345,22 +269,17 @@ impl GpuAllocator {
 
     pub fn free(&mut self, id: EntryId) -> Result<(), AllocError> {
         log_allocator!("Freeing data of mesh id: {}.", id);
-        let Some(data_index) = self.data.iter().position(|x| x.id == id) else {
-            return Err(AllocError::InvalidId);
+        let entry_index = self.get_entry_index(id)?;
+
+        let (position, length) = {
+            let entry = &self.data[entry_index];
+            (entry.position, entry.length)
         };
 
-        let entry = &self.data[data_index];
-        let (position, length) = (entry.position, entry.length);
+        self.delete_entry(entry_index, id);
+        self.release_after(position, length);
 
-        let gap = Gap::new(position, length);
-
-        self.insert_gap_after(gap, position);
-        self.try_merge_gap(position);
-
-        self.data.remove(data_index);
-        self.write_operations.retain(|element| element.mesh_id != id);
-
-        self.free_id(id);
+        self.id_pool.free_id(id);
 
         self.print_debug_infos();
 
@@ -371,22 +290,26 @@ impl GpuAllocator {
         if self.write_operations.is_empty() {
             return;
         }
-        log_allocator!("Flushing!");
 
         if self.schedule_batch {
             self.batch_commands();
             self.schedule_batch = false;
         }
 
+        let buffer = self.buffer.buffer();
+        let arena = &self.arena;
+
         for op in self.write_operations.drain(..) {
             self.gpu_tools.queue().write_buffer(
-                self.buffer.buffer(),
-                op.offset as u64,
-                &self.arena[op.arena_offset..op.arena_offset + op.len],
+                buffer,
+                op.buffer_offset as u64,
+                &arena[op.arena_offset..op.arena_offset + op.len],
             );
         }
 
         self.arena.clear();
+
+        log_allocator!("Flushed!");
     }
 
     pub fn process_pending_destructions(&mut self) {
@@ -399,43 +322,41 @@ impl GpuAllocator {
         }
     }
 
-    fn find_place(&self, needed: usize) -> Option<usize> {
-        log_allocator!("Finding place for {} bytes.", needed);
-        self.gaps.iter().position(|x| x.length >= needed)
-    }
-
     fn insert_entry(&mut self, entry: AllocEntry) {
-        let entry_index = self
-            .data
-            .iter()
-            .position(|x| x.position > entry.position)
-            .unwrap_or(self.data.len());
-        self.data.insert(entry_index, entry);
+        let index = match self.data.binary_search_by_key(&entry.position, |e| e.position) {
+            Ok(i) => i,
+            Err(i) => i,
+        };
+        self.data.insert(index, entry);
     }
 
-    fn get_data_next_gap(&self, entry: &AllocEntry) -> Option<usize> {
-        log_allocator!(
-            "Getting data next gap for Mesh(id: {}, pos: {}, len: {}).",
-            entry.id,
-            entry.position,
-            entry.length
-        );
-        let position = entry.position + entry.length;
-        // self.gaps.iter().position(|gap| gap.position == position)
-        self.gaps.binary_search_by_key(&position, |gap| gap.position).ok()
+    /// Returns `Some(id)` if no id was provided.
+    fn insert_data_at_gap(&mut self, id: Option<EntryId>, data: &[u8], gap_index: usize) -> EntryId {
+        let data_length = data.len();
+        let id = match id {
+            Some(id) => id,
+            None => self.id_pool.get_new_id(),
+        };
+
+        let position = self.consume_gap(gap_index, data_length);
+        let entry = AllocEntry::new(id, position, data_length);
+        self.insert_entry(entry);
+        self.write_at(position, data, id);
+
+        id
     }
 
-    fn total_data_length(&self) -> usize {
-        self.data.iter().fold(0, |acc, v| acc + v.length)
+    fn delete_entry(&mut self, entry_index: usize, entry_id: EntryId) {
+        self.data.remove(entry_index);
+        self.write_operations.retain(|operation| operation.id != entry_id);
     }
 
     pub fn reallocate_defragment(&mut self, needed: usize) {
         log_allocator!(
             "Reallocate and defragment because current buffer has {} bytes of capacity but we need {} bytes.",
-            self.total_data_length(),
+            self.get_entries_length(),
             needed
         );
-        let needed = (needed as f32 * MESH_BUFFER_EXPAND_COEF) as u32;
 
         if !self.write_operations.is_empty() {
             self.flush();
@@ -443,24 +364,25 @@ impl GpuAllocator {
 
         let device = self.gpu_tools.device();
 
+        let old_smart_buffer = &self.buffer;
+        let old_buffer = old_smart_buffer.buffer();
+
         // Reallocate
-        let new_buffer = SmartBuffer::from_capacity(
-            needed,
-            device,
-            None,
-            BufferUsages::COPY_DST | BufferUsages::COPY_SRC | BufferUsages::VERTEX,
-        );
+        let needed = (needed as f32 * BUFFER_EXPAND_COEF) as u32;
+        let new_smart_buffer = SmartBuffer::from_capacity(needed, device, old_smart_buffer.format(), old_smart_buffer.usages());
+        let new_buffer = new_smart_buffer.buffer();
 
         let mut current_position = 0;
+        let mut encoder = self.frame_encoder.write().unwrap();
 
         // Copy each entry to the new buffer without any gaps
         for entry in &mut self.data {
-            self.frame_encoder.write().unwrap().copy_buffer_to_buffer(
-                self.buffer.buffer(),
-                entry.position as u64,
-                new_buffer.buffer(),
-                current_position as u64,
-                entry.length as u64,
+            encoder.copy_buffer_to_buffer(
+                old_buffer,
+                entry.position as BufferAddress,
+                new_buffer,
+                current_position as BufferAddress,
+                entry.length as BufferAddress,
             );
 
             // Update entry
@@ -471,22 +393,22 @@ impl GpuAllocator {
 
         // Update gaps
         self.gaps.clear();
-        let gap_length = new_buffer.capacity() as usize - current_position;
+        let gap_length = new_smart_buffer.capacity() as usize - current_position;
         if gap_length != 0 {
             let gap = Gap::new(current_position, gap_length);
             self.gaps.push(gap);
         }
 
-        // Update buffer
-        self.pending_destruction.push(mem::replace(&mut self.buffer, new_buffer));
+        // Update buffer with the newer and destroy the older one
+        self.pending_destruction.push(replace(&mut self.buffer, new_smart_buffer));
 
         self.print_debug_infos();
     }
 
-    fn write_at(&mut self, offset: usize, data: &[u8], mesh_id: EntryId) {
+    fn write_at(&mut self, buffer_offset: usize, data: &[u8], mesh_id: EntryId) {
         log_allocator!(
             "Writing at {} data of len {} and of Mesh(id: {})",
-            offset,
+            buffer_offset,
             data.len(),
             mesh_id
         );
@@ -496,109 +418,37 @@ impl GpuAllocator {
 
         self.arena.extend_from_slice(data);
 
-        let operation = WriteOperation::new(mesh_id, offset, len, arena_offset);
+        let operation = WriteOperation::new(mesh_id, len, buffer_offset, arena_offset);
         self.write_operations.push(operation);
 
         self.schedule_batch = true;
     }
 
     fn batch_commands(&mut self) {
-        let base_length = self.write_operations.len();
+        let base_len = self.write_operations.len();
+        if base_len <= 1 {
+            return;
+        }
 
-        let mut batched: Vec<WriteOperation> = Vec::with_capacity(self.write_operations.len());
+        let mut head = 0;
 
-        for op in self.write_operations.drain(..) {
-            if let Some(last) = batched.last_mut() {
-                if last.arena_offset + last.len == op.arena_offset && last.offset + last.len == op.offset {
-                    last.len += op.len;
-                    continue;
+        for i in 1..base_len {
+            let can_merge = {
+                let curr = &self.write_operations[head];
+                let next = &self.write_operations[i];
+                curr.arena_offset + curr.len == next.arena_offset && curr.buffer_offset + curr.len == next.buffer_offset
+            };
+            if can_merge {
+                let consumed_len = self.write_operations[i].len;
+                self.write_operations[head].len += consumed_len;
+            } else {
+                head += 1;
+                if head != i {
+                    self.write_operations.swap(head, i);
                 }
             }
-            batched.push(op);
         }
 
-        self.write_operations = batched;
-
-        let new_length = self.write_operations.len();
-        let diff = base_length - new_length;
-        if diff > 0 {
-            log_allocator!("Successfully batched {} gpu commands!", diff);
-        } else {
-            log_allocator!("Nothing to batch.");
-        }
-        log_allocator!("Commands count: {}.", new_length);
-    }
-
-    fn insert_gap_after(&mut self, new_gap: Gap, position: usize) {
-        log_allocator!(
-            "Inserting Gap(pos: {}, len: {}) after pos: {}.",
-            new_gap.position,
-            new_gap.length,
-            position
-        );
-        let index = self
-            .gaps
-            .iter()
-            .position(|gap| gap.position > new_gap.position)
-            .unwrap_or(self.gaps.len());
-
-        self.gaps.insert(index, new_gap);
-    }
-
-    fn consume_gap_for(&mut self, gap_index: usize, id: u32, data: &[u8]) -> usize {
-        log_allocator!(
-            "Consume Gap(index: {}) for DataEntry(id: {}, len: {}).",
-            gap_index,
-            id,
-            data.len()
-        );
-        let gap_pos = self.gaps[gap_index].position;
-        let data_length = data.len();
-
-        self.write_at(gap_pos, data, id);
-
-        let gap = &mut self.gaps[gap_index];
-        gap.position += data_length;
-        gap.length -= data_length;
-
-        if gap.length == 0 {
-            self.gaps.remove(gap_index);
-        }
-
-        gap_pos
-    }
-
-    fn try_merge_gap(&mut self, position: usize) {
-        log_allocator!("Trying to merge gap of pos: {}.", position);
-        let Some(mut current_index) = self.gaps.iter().position(|x| x.position == position) else {
-            return;
-        };
-
-        self.try_merge_prev_gap(&mut current_index);
-        self.try_merge_next_gap(current_index);
-    }
-
-    fn try_merge_prev_gap(&mut self, current_index: &mut usize) {
-        let idx = *current_index;
-        if idx > 0 {
-            let prev = &self.gaps[idx - 1];
-            let curr = &self.gaps[idx];
-            if prev.position + prev.length == curr.position {
-                self.gaps[idx - 1].length += curr.length;
-                self.gaps.remove(idx);
-                *current_index -= 1;
-            }
-        }
-    }
-
-    fn try_merge_next_gap(&mut self, current_index: usize) {
-        if current_index + 1 < self.gaps.len() {
-            let curr = &self.gaps[current_index];
-            let next = &self.gaps[current_index + 1];
-            if curr.position + curr.length == next.position {
-                self.gaps[current_index].length += next.length;
-                self.gaps.remove(current_index + 1);
-            }
-        }
+        self.write_operations.truncate(head + 1);
     }
 }
