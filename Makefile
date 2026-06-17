@@ -23,7 +23,7 @@ check: fmt
 test:
 	cargo test
 
-clean: clean
+clean:
 	cargo clean
 
 clean-all: clean clean-doc clean-profiler clean-flame

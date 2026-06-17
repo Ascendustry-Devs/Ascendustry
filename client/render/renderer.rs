@@ -1,10 +1,7 @@
 use bytemuck::cast_slice;
-use cgmath::{dot, EuclideanSpace, Point3, Vector3};
+use cgmath::Vector3;
 use engine::{core::frame::GameFrameData, geometry::vertex::generate_cube, render::render::Renderer};
-use game::{
-    constants::{CHUNK_VECTOR, HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE},
-    world::data::chunk::CHUNK_SIZE_F,
-};
+use game::{constants::CHUNK_VECTOR, world::data::chunk::CHUNK_SIZE_F};
 use physics::aabb::AABB;
 use project_core::geometry::plane::Plane;
 use rustc_hash::FxHashSet;
@@ -50,75 +47,50 @@ impl GameRenderer {
 
     #[inline(never)]
     fn cull_chunks(state: &GameState, out: &mut FxHashSet<u32>) {
-        const BASE_REGION_HEIGHT: f32 = (VERTICAL_RENDER_DISTANCE + 1) as f32;
-        const BASE_REGION_WIDTH: f32 = (HORIZONTAL_RENDER_DISTANCE + 1) as f32;
+        let cam = &state.player.state.camera;
+        let cam_frustum_aabb = cam.get_frustum_aabb();
+        let cam_frustum = cam.get_frustum_planes();
 
-        let cam_eye = *state.player.state.camera.eye();
-        let cam_position_chunk_aligned = cam_eye.map(|coord| coord - coord % CHUNK_SIZE_F);
-        let cam_aabb = AABB::new_sized(
-            // 3. Pour chaque coin, calculer la direction en espace chunk
-            cam_position_chunk_aligned,
-            Vector3::new(BASE_REGION_WIDTH, BASE_REGION_HEIGHT, BASE_REGION_WIDTH) * CHUNK_SIZE_F,
-        );
-        let cam_eye = cam_eye.to_vec();
-        let cam_forward = state.player.state.camera.forward();
-        let cam_frustum = state.player.state.camera.get_frustum_planes();
-
-        let chunks_to_render = state.player.get_rendered_chunk_keys_set();
         let meshes = &state.world_mesh.meshes;
+        let chunks_to_render = state.player.get_rendered_chunk_keys_set();
 
-        for key in state.world_mesh.chunk_meshes.iter() {
-            if !chunks_to_render.contains(key) {
-                continue;
-            }
-
-            let Some(Some(id)) = meshes.get(key).map(|mesh| mesh.id) else {
-                continue;
-            };
-
-            let min = Point3::new((key.0) as f32, (key.1) as f32, (key.2) as f32) * CHUNK_SIZE_F;
-            let chunk_aabb = AABB::new_from_corner_and_dir(min, CHUNK_VECTOR);
-
-            if !chunk_aabb.overlaps(&cam_aabb) {
-                continue;
-            }
-
-            let min = min.to_vec();
+        for (coords, mesh) in meshes.iter() {
+            let (x, y, z) = *coords;
+            let min = Vector3::new(x as f32, y as f32, z as f32) * CHUNK_SIZE_F;
             let max = min + CHUNK_VECTOR;
 
-            // First, we check simply if the chunk to render is behind the camera.
-            if Self::is_chunk_behind_camera(&min, &max, &cam_forward, &cam_eye) {
+            // AABB pre-check : ~80% of chunks are eliminated in 6 simple checks.
+            if Self::is_chunk_outside_aabb(&min, &max, &cam_frustum_aabb) {
                 continue;
             }
 
-            // Second, we check if the chunk is within the field of view of the camera.
+            // Frustum check: we eliminate chunks whose AABB is outside the frustum of the camera (not visible).
             if !Self::is_chunk_in_camera_frustum(&min, &max, &cam_frustum) {
                 continue;
             }
 
-            // If any of the above is true, we do not render the chunk.
-            // We do the frustum check lately because it is more expansive,
-            // on top of this, the first check would already eliminate ~50% of the candidates.
+            // Last check to avoid edge cases & not-to-render chunks (in the future, e.g.: occluded chunks).
+            // Hash lookup is the slowest part of the hot loop.
+            if !chunks_to_render.contains(coords) {
+                continue;
+            }
+
+            let Some(id) = mesh.id else {
+                continue;
+            };
 
             out.insert(id);
         }
     }
 
     #[inline(never)]
-    fn is_chunk_behind_camera(
-        min: &Vector3<f32>,
-        max: &Vector3<f32>,
-        cam_forward: &Vector3<f32>,
-        cam_eye: &Vector3<f32>,
-    ) -> bool {
-        let extent = (max - min) * 0.5;
-        let center = min + extent;
-
-        let radius = extent.x * cam_forward.x.abs() + extent.y * cam_forward.y.abs() + extent.z * cam_forward.z.abs();
-
-        let distance = dot(*cam_forward, center - *cam_eye);
-
-        distance + radius < 0.0
+    fn is_chunk_outside_aabb(min: &Vector3<f32>, max: &Vector3<f32>, aabb: &AABB) -> bool {
+        min.x > aabb.max.x
+            || max.x < aabb.min.x
+            || min.y > aabb.max.y
+            || max.y < aabb.min.y
+            || min.z > aabb.max.z
+            || max.z < aabb.min.z
     }
 
     #[inline(never)]
