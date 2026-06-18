@@ -27,6 +27,7 @@ use std::process::exit;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::time::Instant;
+use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
 const FPS_CAP: u32 = u32::MAX;
@@ -347,6 +348,10 @@ impl AppState for GameState {
 
     fn on_mouse_move(&mut self, dx: f64, dy: f64) {
         self.inputs.set_mouse_delta((dx, dy));
+    }
+
+    fn on_mouse_button(&mut self, button: MouseButton, is_pressed: bool) {
+        self.inputs.set_mouse_button_press(button, is_pressed);
     }
 
     fn on_key(&mut self, code: KeyCode, is_pressed: bool) {

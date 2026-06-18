@@ -12,7 +12,7 @@ use crate::core::frame::{EngineFrameData, GameFrameData};
 use crate::core::state::State;
 use crate::gpu::allocator::gpu_allocator::GpuAllocator;
 use crate::render::render::Renderer;
-use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, KeyEvent, MouseButton, WindowEvent};
 use winit::window::{CursorGrabMode, Window};
 
 #[allow(unused)]
@@ -33,6 +33,7 @@ pub trait AppState {
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>);
     fn update(&mut self, frame: &EngineFrameData, data: &mut GameFrameData, renderer: &mut Renderer);
     fn on_mouse_move(&mut self, dx: f64, dy: f64);
+    fn on_mouse_button(&mut self, button: MouseButton, is_pressed: bool);
     fn on_key(&mut self, code: KeyCode, is_pressed: bool);
     fn dispose(&mut self, alloc: &mut Arc<RwLock<GpuAllocator>>);
 }
@@ -117,6 +118,13 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
                 state.window.set_cursor_grab(CursorGrabMode::None).unwrap_or(());
             }
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::MouseInput {
+                button,
+                state: button_state,
+                ..
+            } => {
+                self.app_state.on_mouse_button(button, button_state.is_pressed());
+            }
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
             WindowEvent::RedrawRequested => state.render(),
             WindowEvent::KeyboardInput {

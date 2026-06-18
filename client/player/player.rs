@@ -22,6 +22,7 @@ use physics::{body::PhysicsBody, collision::resolve_collision};
 use project_core::log_client;
 use project_core::utils::updatable::Updatable;
 use rustc_hash::{FxBuildHasher, FxHashSet};
+use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
 /// État pur du joueur : position, caméra, contrôleurs, distances de rendu.
@@ -78,7 +79,7 @@ impl PlayerState {
             log_client!("{}", self.inventory);
         }
 
-        if inputs.take_key_pressed(KeyCode::KeyB) {
+        if inputs.take_mouse_button_pressed(MouseButton::Left) {
             self.break_block(world, &mut commands);
         }
 
