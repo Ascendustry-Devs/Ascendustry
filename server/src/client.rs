@@ -1,8 +1,10 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::game::{HandlerContext, PacketHandler, ProductionHandler};
 use crate::network_server::ServerConnection;
 use crate::persistence::PersistenceService;
+use crate::rate_limiter::RateLimiter;
 use crate::state::AppState;
 use anyhow::Result;
 use game::player::PlayerTransformation;
@@ -45,6 +47,10 @@ pub struct ClientSession {
     persistence: Arc<PersistenceService>,
     /// Récepteur pour les notifications de kick.
     kick_rx: oneshot::Receiver<()>,
+    /// Timeout d'inactivité (déconnexion si aucun paquet reçu).
+    connection_timeout: Duration,
+    /// Rate limiter pour limiter le nombre de paquets par seconde.
+    rate_limiter: RateLimiter,
 }
 
 impl ClientSession {
@@ -57,6 +63,8 @@ impl ClientSession {
         broadcaster: TokioBroadcastSender<BroadcastMessage>,
         persistence: Arc<PersistenceService>,
         kick_rx: oneshot::Receiver<()>,
+        connection_timeout: Duration,
+        max_packets_per_second: usize,
     ) -> Self {
         let conn = ServerConnection::new(player_id, server_id);
         Self {
@@ -69,6 +77,8 @@ impl ClientSession {
             broadcaster,
             persistence,
             kick_rx,
+            connection_timeout,
+            rate_limiter: RateLimiter::new(max_packets_per_second),
         }
     }
 
@@ -269,12 +279,21 @@ impl ClientSession {
         // réponse, elle est envoyée via le canal mpsc. S'il retourne None,
         // le client est éjecté (paquet non géré ou déconnexion volontaire).
         // Le canal kick_rx est écouté en parallèle pour gérer les kicks distants.
+        let timeout = self.connection_timeout;
         let mut kick_rx = self.kick_rx;
         loop {
             tokio::select! {
                 result = self.conn.receive_packet(&mut read_half) => {
                     match result {
                         Ok(packet) => {
+                            // Vérification du rate limiting
+                            if !self.rate_limiter.check_and_update() {
+                                log_server!("Joueur {}: rate limit dépassé, déconnexion.", player_id);
+                                let kick = messages::new_kick_paquet("OOH MOLO L'ASTICOT !!".to_string());
+                                let _ = write_tx.send(kick).await;
+                                break;
+                            }
+
                             let ctx = HandlerContext {
                                 player_id,
                                 state: Arc::clone(&self.state),
@@ -302,6 +321,10 @@ impl ClientSession {
                     if write_tx.send(kick_packet).await.is_err() {
                         log_err_server!("Impossible d'envoyer le paquet de kick au joueur {}.", player_id);
                     }
+                    break;
+                }
+                _ = tokio::time::sleep(timeout) => {
+                    log_server!("Joueur {}: timeout d'inactivité ({}s), déconnexion.", player_id, timeout.as_secs());
                     break;
                 }
             }

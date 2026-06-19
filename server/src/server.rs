@@ -1,4 +1,5 @@
 use crate::client::ClientSession;
+use crate::config::ServerConfig;
 use crate::game::ProductionHandler;
 use crate::persistence::PersistenceService;
 use crate::state::AppState;
@@ -31,10 +32,11 @@ pub struct Server {
     #[cfg(feature = "tui")]
     bridge: Option<TuiBridge>,
     active_sessions: Arc<Mutex<HashMap<u64, oneshot::Sender<()>>>>,
+    config: ServerConfig,
 }
 
 impl Server {
-    pub async fn new(address: &str, save_path: &str, bridge: BridgeOption) -> Result<Self> {
+    pub async fn new(address: &str, save_path: &str, bridge: BridgeOption, config: ServerConfig) -> Result<Self> {
         let listener = TcpListener::bind(address).await?;
         let state = Arc::new(AppState::new());
         let persistence = Arc::new(PersistenceService::new(save_path));
@@ -55,6 +57,7 @@ impl Server {
             #[cfg(feature = "tui")]
             bridge: bridge,
             active_sessions: Arc::new(Mutex::new(HashMap::new())),
+            config,
         })
     }
 
@@ -131,6 +134,8 @@ impl Server {
                 self.broadcaster.clone(),
                 Arc::clone(&self.persistence),
                 kick_rx,
+                self.config.connection_timeout,
+                self.config.max_packets_per_second,
             );
             let sessions = Arc::clone(&self.active_sessions);
 

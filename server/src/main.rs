@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use network::DEFAULT_SERVER_ADDRESS;
 use project_core::log_server;
+use server::config::ServerConfig;
 use server::server::Server;
 use std::sync::Arc;
 
@@ -30,7 +31,7 @@ async fn main() -> Result<()> {
 async fn run_headless(args: &Args) -> Result<()> {
     log_server!("Serveur: lancement (mode headless).");
 
-    let server = Server::new(&args.address, &args.save_path, None).await?;
+    let server = Server::new(&args.address, &args.save_path, None, ServerConfig::default()).await?;
     server.run().await
 }
 
@@ -87,7 +88,7 @@ async fn run_with_tui(args: &Args) -> Result<()> {
         crossterm::execute!(std::io::stdout(), LeaveAlternateScreen).unwrap();
     });
 
-    let server = Arc::new(Server::new(&args.address, &args.save_path, Some(bridge)).await?);
+    let server = Arc::new(Server::new(&args.address, &args.save_path, Some(bridge), ServerConfig::default()).await?);
 
     let srv = Arc::clone(&server);
     tokio::spawn(async move {
