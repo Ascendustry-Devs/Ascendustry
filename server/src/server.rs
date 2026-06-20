@@ -115,6 +115,7 @@ impl Server {
 
         loop {
             let (stream, addr) = self.listener.accept().await?;
+            self.state.metrics.record_connection();
             log_server!("Serveur: connexion de l'adresse {}.", addr);
 
             let player_id = self.next_id.fetch_add(1, Ordering::SeqCst);

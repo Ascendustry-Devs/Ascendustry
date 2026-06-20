@@ -1,4 +1,5 @@
 use crate::identity::IdentityRegistry;
+use crate::metrics::ServerMetrics;
 use crate::persistence::{PlayerSave, SaveData, SaveWorld};
 use crate::player::PlayerRegistry;
 use crate::world::WorldState;
@@ -17,6 +18,7 @@ pub struct AppState {
     world: RwLock<WorldState>,
     players: RwLock<PlayerRegistry>,
     identity: RwLock<IdentityRegistry>,
+    pub metrics: ServerMetrics,
 }
 
 impl AppState {
@@ -25,6 +27,7 @@ impl AppState {
             world: RwLock::new(WorldState::new()),
             players: RwLock::new(PlayerRegistry::new()),
             identity: RwLock::new(IdentityRegistry::new()),
+            metrics: ServerMetrics::new(),
         }
     }
 
@@ -159,6 +162,7 @@ impl AppState {
 
     // Le guard cycle permet de vérifier si les positions des joueurs sont valides et de les déplacer si nécessaire.
     pub async fn run_guard_cycle(&self, broadcaster: &broadcast::Sender<BroadcastMessage>) {
+        let start = std::time::Instant::now();
         // Phase 1 : évaluation sous read lock
         let evaluations = {
             let mut evals = Vec::new();
@@ -227,6 +231,9 @@ impl AppState {
             );
             let _ = broadcaster.send(BroadcastMessage::All(packet));
         }
+
+        let elapsed = start.elapsed().as_nanos() as u64;
+        self.metrics.record_guard_cycle(elapsed);
     }
     pub async fn get_chunk_count(&self) -> usize {
         self.world.read().await.world_generated_chunks.len()

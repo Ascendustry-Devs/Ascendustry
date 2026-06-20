@@ -3,6 +3,7 @@ pub mod client;
 pub mod config;
 pub mod game;
 pub mod identity;
+pub mod metrics;
 pub mod network_server;
 pub mod persistence;
 pub mod player;

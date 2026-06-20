@@ -286,8 +286,11 @@ impl ClientSession {
                 result = self.conn.receive_packet(&mut read_half) => {
                     match result {
                         Ok(packet) => {
+                            self.state.metrics.record_packet_received();
+
                             // Vérification du rate limiting
                             if !self.rate_limiter.check_and_update() {
+                                self.state.metrics.record_packet_rejected();
                                 log_server!("Joueur {}: rate limit dépassé, déconnexion.", player_id);
                                 let kick = messages::new_kick_paquet("OOH MOLO L'ASTICOT !!".to_string());
                                 let _ = write_tx.send(kick).await;
