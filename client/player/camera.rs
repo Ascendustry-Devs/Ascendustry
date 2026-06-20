@@ -124,6 +124,7 @@ impl Camera {
         self.frustum_planes.update(new);
     }
 
+    #[inline(never)]
     pub fn get_frustum_planes(&self) -> &[Plane; 6] {
         self.frustum_planes.current()
     }

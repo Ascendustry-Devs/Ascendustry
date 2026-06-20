@@ -61,7 +61,7 @@ strip = true
 
 [profile.flamegraph]
 inherits = "release"
-debug = 2
+debug = true
 opt-level = 2
 codegen-units = 4
 incremental = true

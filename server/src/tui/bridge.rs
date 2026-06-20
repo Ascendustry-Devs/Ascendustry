@@ -132,7 +132,8 @@ impl TuiBridge {
         let mut health = 20u8;
         let half_interval = GUARD_CYCLE_INTERVAL_MS as f64 * 0.5;
         if s.guard_cycle_avg_ms > half_interval {
-            health = health.saturating_sub(((s.guard_cycle_avg_ms - half_interval) / GUARD_CYCLE_INTERVAL_MS as f64 * 10.0) as u8);
+            health =
+                health.saturating_sub(((s.guard_cycle_avg_ms - half_interval) / GUARD_CYCLE_INTERVAL_MS as f64 * 10.0) as u8);
         }
         health = health.saturating_sub((s.packets_rejected as f64 * 0.5).min(5.0) as u8);
         if s.chunk_count > 100_000 {
