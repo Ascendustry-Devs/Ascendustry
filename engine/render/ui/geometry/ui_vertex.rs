@@ -11,11 +11,15 @@ pub struct UiVertex {
 }
 
 impl UiVertex {
-    pub fn new(x: u32, y: u32, u: f32, v: f32, color: u32) -> Self {
+    pub const fn new(x: u32, y: u32, u: f32, v: f32, color: u32) -> Self {
         Self { x, y, u, v, color }
     }
 
-    pub fn with_no_texture(x: u32, y: u32, color: u32) -> Self {
+    pub const fn colored(x: u32, y: u32, color: u32) -> Self {
         Self::new(x, y, -1.0, -1.0, color)
+    }
+
+    pub const fn textured(x: u32, y: u32, u: f32, v: f32) -> Self {
+        Self::new(x, y, u, v, 0xFFFFFFFF)
     }
 }

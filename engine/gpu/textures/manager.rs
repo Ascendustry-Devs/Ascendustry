@@ -91,6 +91,24 @@ impl TextureManager {
         &self.ui
     }
 
+    // TODO: à refaire dans le futur pour coller avec la nouvelle implémentation
+    pub fn get_ui_uvs(&self, id: &TextureID) -> Option<(f32, f32, f32, f32)> {
+        let atlas_width = self.ui.width() as f32;
+        let atlas_height = self.ui.height() as f32;
+        match self.texture_ids.get(id) {
+            Some(data) => match data {
+                TextureData::OfAtlas { x, y, width, height } => Some((
+                    *x as f32 / atlas_width,
+                    (*x + *width) as f32 / atlas_width,
+                    *y as f32 / atlas_height,
+                    (*y + *height) as f32 / atlas_height,
+                )),
+                _ => None,
+            },
+            None => None,
+        }
+    }
+
     pub fn register_array(&mut self, render_mode: RenderMode, texture: &[u8]) -> Result<TextureID, Error> {
         assert!(render_mode != RenderMode::UI);
 

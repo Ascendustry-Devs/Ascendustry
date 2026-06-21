@@ -1,6 +1,10 @@
-use crate::render::ui::widgets::panel::Panel;
+use project_core::utils::data_manager::Id;
 
+use crate::render::ui::widgets::{list::List, panel::Panel, textured_panel::TexturedPanel};
+
+pub mod list;
 pub mod panel;
+pub mod textured_panel;
 // pub mod window;
 
 #[derive(Clone)]
@@ -12,11 +16,11 @@ pub struct WidgetTransform {
 }
 
 impl WidgetTransform {
-    pub fn new(x: u32, y: u32, w: u32, h: u32) -> Self {
+    pub const fn new(x: u32, y: u32, w: u32, h: u32) -> Self {
         Self { x, y, w, h }
     }
 
-    pub fn from_lrtb(space: (u32, u32), l: u32, r: u32, t: u32, b: u32) -> Self {
+    pub const fn from_lrtb(space: (u32, u32), l: u32, r: u32, t: u32, b: u32) -> Self {
         let x = l;
         let y = t;
         let w = space.0 - l - r;
@@ -24,23 +28,23 @@ impl WidgetTransform {
         Self::new(x, y, w, h)
     }
 
-    pub fn x(&self) -> u32 {
+    pub const fn x(&self) -> u32 {
         self.x
     }
 
-    pub fn y(&self) -> u32 {
+    pub const fn y(&self) -> u32 {
         self.y
     }
 
-    pub fn w(&self) -> u32 {
+    pub const fn w(&self) -> u32 {
         self.w
     }
 
-    pub fn h(&self) -> u32 {
+    pub const fn h(&self) -> u32 {
         self.h
     }
 
-    pub fn extract(&self) -> (u32, u32, u32, u32) {
+    pub const fn extract(&self) -> (u32, u32, u32, u32) {
         (self.x(), self.y(), self.w(), self.h())
     }
 }
@@ -83,17 +87,26 @@ pub trait Widget {
 }
 
 pub enum WidgetType {
+    List(List),
     Panel(Panel),
+    TexturedPanel(TexturedPanel),
 }
 
 impl WidgetType {
     fn draw(&self, commands: &mut Vec<DrawCommand>) {
         match self {
+            WidgetType::List(p) => {
+                for child in p.children() {
+                    child.draw(commands);
+                }
+            }
             WidgetType::Panel(p) => p.draw(commands),
+            WidgetType::TexturedPanel(p) => p.draw(commands),
         }
     }
 }
 
 pub enum DrawCommand {
     Panel { transform: WidgetTransform, color: u32 },
+    TexturedPanel { transform: WidgetTransform, texture: Id },
 }

@@ -310,7 +310,7 @@ impl AppState for GameState {
         // 3. Translation
         // When commands are ready, we need to translate them
         // into vertices to be compatible with the shader.
-        let vertices = UiTranslator::translate(draw_commands);
+        let vertices = UiTranslator::translate(draw_commands, &renderer.texture_manager);
 
         // 4. Compilation
         // Transform our UiVertices into raw bytes.
