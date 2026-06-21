@@ -16,6 +16,8 @@ pub enum ItemType {
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub enum Item {
     Dirt,
+    Grass,
+    Stone,
     Sword,
 }
 
@@ -39,6 +41,8 @@ impl ItemRules {
 
         let mut item_type = FxHashMap::default();
         item_type.insert(Item::Dirt, ItemType::Placeable);
+        item_type.insert(Item::Grass, ItemType::Placeable);
+        item_type.insert(Item::Stone, ItemType::Placeable);
         item_type.insert(Item::Sword, ItemType::Weapon);
 
         Self {

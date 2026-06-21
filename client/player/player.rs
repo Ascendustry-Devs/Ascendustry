@@ -11,10 +11,10 @@ use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X,
     SPAWN_POSITION_Y, SPAWN_POSITION_Z, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use game::inventory::{Inventory, Item, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
+use game::inventory::{Inventory, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
-use game::world::data::block::{BlockInstance, BlockType};
+use game::world::data::block::BlockInstance;
 use game::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};
 use game::world::raycast::voxel_raycast;
 use network::messages::{new_inventory_update_paquet, Paquet};
@@ -92,17 +92,12 @@ impl PlayerState {
         });
         if let Some(hit) = hit {
             let (x, y, z) = hit.block_pos;
-            match world.get_block_from_xyz(x, y, z).block_type() {
-                BlockType::Dirt | BlockType::Grass => {
-                    log_client!("Ajout d'un item dans l'inventaire");
-                    if let Some(slot) = self
-                        .inventory
-                        .add_item(ItemData::new(Item::Dirt, None), 1, &ItemRules::default())
-                    {
-                        commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
-                    }
+            let block_type = world.get_block_from_xyz(x, y, z).block_type();
+            if let Some(item) = block_type.to_item() {
+                log_client!("Ajout d'un item dans l'inventaire");
+                if let Some(slot) = self.inventory.add_item(ItemData::new(item, None), 1, &ItemRules::default()) {
+                    commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
                 }
-                _ => {}
             }
             let air = BlockInstance::air();
             let success = world.set_block(x, y, z, air);

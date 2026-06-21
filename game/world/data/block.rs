@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
+use crate::inventory::Item;
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum BlockType {
     Air = 0,
@@ -32,6 +34,15 @@ impl BlockType {
 
     pub const fn to_u32(&self) -> u32 {
         *self as u32
+    }
+
+    pub fn to_item(&self) -> Option<Item> {
+        match self {
+            BlockType::Air => None,
+            BlockType::Grass => Some(Item::Grass),
+            BlockType::Dirt => Some(Item::Dirt),
+            BlockType::Stone => Some(Item::Stone),
+        }
     }
 }
 
