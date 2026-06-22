@@ -139,11 +139,11 @@ impl PlayerState {
         self.player_controller = player_controller;
     }
 
-    pub fn get_pos(&self) -> cgmath::Point3<f32> {
+    pub fn get_pos(&self) -> Point3<f32> {
         self.pos.current().clone()
     }
 
-    pub fn get_cpos(&self) -> cgmath::Point3<i32> {
+    pub fn get_cpos(&self) -> Point3<i32> {
         self.cpos.current().clone()
     }
 
@@ -278,11 +278,11 @@ impl Player {
         self.state.set_render_distance(horizontal, vertical);
     }
 
-    pub fn get_pos(&self) -> cgmath::Point3<f32> {
+    pub fn get_pos(&self) -> Point3<f32> {
         self.state.get_pos()
     }
 
-    pub fn get_cpos(&self) -> cgmath::Point3<i32> {
+    pub fn get_cpos(&self) -> Point3<i32> {
         self.state.get_cpos()
     }
 
@@ -290,7 +290,7 @@ impl Player {
         self.state.has_moved()
     }
 
-    pub fn set_pos(&mut self, pos: cgmath::Point3<f32>) {
+    pub fn set_pos(&mut self, pos: Point3<f32>) {
         self.state.set_pos(pos);
     }
 

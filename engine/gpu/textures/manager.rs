@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Error;
+use project_core::geometry::rect::Rect2;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use crate::{
@@ -131,24 +132,40 @@ impl TextureManager {
         Ok(id)
     }
 
-    pub fn register_atlas(&mut self, texture: &[u8], x: u32, y: u32, width: u32, height: u32) -> Result<TextureID, Error> {
-        let array = self.get_ui_atlas_mut();
-        if texture.len() * 4 < (width * height * 4) as usize {
-            panic!(
-                "Texture data length is smaller than given texture's size.\n{} != {}*{}*4",
-                texture.len(),
-                array.width(),
-                array.height()
-            );
+    pub fn register_atlas(&mut self, data: &[u8], width: u32, height: u32) -> Result<TextureID, Error> {
+        let (x, y) = self.ui.allocate(width, height).ok_or(Error::msg("Atlas plein"))?;
+        let queue = self.gpu_resources.queue();
+        self.ui.write_at(queue, x, y, width, height, data);
+        let id = TextureID::new(RenderMode::UI, self.next_ui_id);
+        self.texture_ids
+            .insert(id.clone(), TextureData::OfAtlas { x, y, width, height });
+        self.next_ui_id += 1;
+        Ok(id)
+    }
+
+    pub fn register_atlas_multiple(&mut self, textures: &[&[u8]], infos: &[Rect2]) -> Vec<Result<TextureID, Error>> {
+        let mut output = Vec::with_capacity(infos.len());
+
+        let queue = self.gpu_resources.queue();
+
+        for (index, texture) in infos.iter().enumerate() {
+            let width = texture.w();
+            let height = texture.h();
+            let new = match self.ui.allocate(width, height).ok_or(Error::msg("Atlas plein")) {
+                Ok((x, y)) => {
+                    self.ui.write_at(queue, x, y, width, height, textures[index]);
+                    let id = TextureID::new(RenderMode::UI, self.next_ui_id);
+                    self.texture_ids
+                        .insert(id.clone(), TextureData::OfAtlas { x, y, width, height });
+                    self.next_ui_id += 1;
+                    Ok(id)
+                }
+                Err(e) => Err(e),
+            };
+            output.push(new);
         }
 
-        let id = self.find_place_ui_atlas().unwrap();
-        let texture_data = TextureData::for_atlas(x, y, width, height);
-
-        self.texture_ids.insert(id.clone(), texture_data);
-        self.write(texture, &id);
-
-        Ok(id)
+        output
     }
 
     fn write(&mut self, texture: &[u8], id: &TextureID) {
@@ -187,14 +204,6 @@ impl TextureManager {
         } else {
             return Ok(TextureID::new((*render_mode).clone(), depth));
         }
-    }
-
-    fn find_place_ui_atlas(&mut self) -> Result<TextureID, Error> {
-        let id = self.next_ui_id;
-        self.next_ui_id += 1;
-
-        let texture_id = TextureID::new(RenderMode::UI, id);
-        return Ok(texture_id);
     }
 
     fn get_array_mut(&mut self, render_mode: &RenderMode) -> &mut Texture2DArray {

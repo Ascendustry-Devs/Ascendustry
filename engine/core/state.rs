@@ -90,7 +90,7 @@ impl State {
         );
         let atlas = image::open("assets/ui/texture_atlas.png").unwrap();
         let _id = texture_manager
-            .register_atlas(atlas.as_bytes(), 0, 0, atlas.width(), atlas.height())
+            .register_atlas(atlas.as_bytes(), atlas.width(), atlas.height())
             .unwrap();
         let render_camera = RenderCamera::new();
         let camera_buffer = gpu_context.tools.device().create_buffer(&BufferDescriptor {

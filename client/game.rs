@@ -16,7 +16,7 @@ use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use engine::render::render::Renderer;
 use engine::render::ui::interpreter::compiler::UiCompiler;
 use engine::render::ui::interpreter::translator::UiTranslator;
-use engine::render::ui::widgets::panel::Panel;
+use engine::render::ui::widgets::textured_panel::TexturedPanel;
 use engine::render::ui::widgets::{Widget, WidgetTransform};
 use game::world::data::block::BlockInstance;
 use network::messages::new_save_request_paquet;
@@ -295,11 +295,17 @@ impl AppState for GameState {
 
         // 1. Widget tree
         // Build everything you want with it.
-        let test_panel: Panel = {
+        // let test_panel: Panel = {
+        //     let transform = WidgetTransform::new(8, 8, 160, 130);
+        //     let color = 0xFFCCAAAA;
+        //     let child = None;
+        //     Panel::new(transform, color, child)
+        // };
+        let test_panel: TexturedPanel = {
             let transform = WidgetTransform::new(8, 8, 160, 130);
-            let color = 0xFFCCAAAA;
+            let texture = 0;
             let child = None;
-            Panel::new(transform, color, child)
+            TexturedPanel::new(transform, texture, child)
         };
 
         let mut draw_commands = Vec::new();

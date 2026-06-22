@@ -1,4 +1,4 @@
-use cgmath::{Deg, InnerSpace, Matrix4, Point3, Vector3, Vector4};
+use cgmath::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3, Vector4};
 use engine::render::camera::OPENGL_TO_WGPU_MATRIX;
 use game::constants::UP;
 use physics::aabb::AABB;
@@ -70,7 +70,7 @@ impl Camera {
 
     pub fn set_view_proj(&mut self) {
         let view = Matrix4::look_at_rh(*self.eye.current(), self.target(), UP);
-        let proj = cgmath::perspective(Deg(*self.fovy.current()), *self.aspect.current(), self.znear, self.zfar);
+        let proj = perspective(Deg(*self.fovy.current()), *self.aspect.current(), self.znear, self.zfar);
         self.view_proj.update(OPENGL_TO_WGPU_MATRIX * proj * view);
     }
 
@@ -78,7 +78,7 @@ impl Camera {
         &self.view_proj
     }
 
-    pub fn set_position(&mut self, position: cgmath::Point3<f32>) {
+    pub fn set_position(&mut self, position: Point3<f32>) {
         self.eye.update(position);
     }
 

@@ -10,6 +10,9 @@ pub struct Texture2DAtlas {
     sampler: Sampler,
     width: u32,
     height: u32,
+    cursor_x: u32,
+    cursor_y: u32,
+    row_height: u32,
 }
 
 impl Texture2DAtlas {
@@ -50,7 +53,26 @@ impl Texture2DAtlas {
             sampler,
             width,
             height,
+            cursor_x: 0,
+            cursor_y: 0,
+            row_height: 0,
         }
+    }
+
+    pub fn allocate(&mut self, w: u32, h: u32) -> Option<(u32, u32)> {
+        if self.cursor_x + w > self.width {
+            // Nouvelle ligne
+            self.cursor_x = 0;
+            self.cursor_y += self.row_height;
+            self.row_height = 0;
+        }
+        if self.cursor_y + h > self.height {
+            return None; // Atlas plein
+        }
+        let pos = (self.cursor_x, self.cursor_y);
+        self.cursor_x += w;
+        self.row_height = self.row_height.max(h);
+        Some(pos)
     }
 
     pub fn write_at(&mut self, queue: &Queue, x: u32, y: u32, width: u32, height: u32, data: &[u8]) {

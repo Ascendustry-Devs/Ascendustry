@@ -1,7 +1,7 @@
 use std::{collections::HashSet, ops::ControlFlow};
 
 use bytemuck::cast_slice;
-use cgmath::Vector3;
+use cgmath::{Matrix4, Vector3};
 use engine::{core::frame::GameFrameData, geometry::vertex::generate_cube, render::render::Renderer};
 use game::{constants::CHUNK_VECTOR, world::data::chunk::CHUNK_SIZE_F};
 use physics::aabb::AABB;
@@ -23,12 +23,7 @@ impl GameRenderer {
     }
 
     #[inline(never)]
-    fn update_chunks(
-        state: &mut GameState,
-        data: &mut GameFrameData,
-        renderer: &mut Renderer,
-        view_proj: &cgmath::Matrix4<f32>,
-    ) {
+    fn update_chunks(state: &mut GameState, data: &mut GameFrameData, renderer: &mut Renderer, view_proj: &Matrix4<f32>) {
         state.player.state.camera.aspect.update(renderer.render_options.aspect);
 
         let (cam_x, cam_y, cam_z) = {
