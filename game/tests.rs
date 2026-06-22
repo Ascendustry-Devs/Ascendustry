@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::constants::DIRECT_NORMALS_3D;
-    use crate::world::data::block::{BlockInstance, BlockManager, BlockType};
+    use crate::world::data::block::{BlockInstance, BlockManager};
     use crate::world::data::chunk::{global_position_to_chunk_pos, Chunk, ChunkData, ChunkState, IntraChunkCoords};
     use crate::world::modified_chunk::{ModifiedChunk, ModifiedWorld};
     use crate::world::raycast::voxel_raycast;
@@ -15,19 +15,27 @@ mod tests {
         let stone = BlockInstance::new(3);
         assert!(!stone.is_air());
         assert!(stone.is_solid());
-        assert_eq!(stone.to_bits(), 3);
-    }
-
-    #[test]
-    fn test_block_type_from_id() {
-        assert_eq!(BlockType::from_id(0) as u32, 0);
-        assert_eq!(BlockType::from_id(3) as u32, 3);
-        assert_eq!(BlockType::from_id(99) as u32, 2);
+        assert_eq!(stone.get_block_id(), 3);
     }
 
     #[test]
     fn test_block_manager_default() {
-        let bm = BlockManager::default();
+        let mut bm = BlockManager::new();
+        use crate::world::data::block::BlockData;
+        for id in &["air", "stone", "dirt", "grass"] {
+            bm.register(BlockData {
+                id: None,
+                id_str: id.to_string(),
+                name: id.to_string(),
+                solid: true,
+                hardness: 0.5,
+                texture_path: None,
+                texture_index: None,
+                render_mode: "opaque".to_string(),
+                drop: None,
+                has_item: true,
+            });
+        }
         assert_eq!(bm.block_count(), 4);
         let block = bm.get_block_by_string("dirt".to_string());
         assert!(block.is_some());
@@ -131,7 +139,23 @@ mod tests {
     fn test_chunk_generation_deterministic() {
         use std::sync::{Arc, RwLock};
 
-        let bm = Arc::new(RwLock::new(BlockManager::default()));
+        let mut bm = BlockManager::new();
+        use crate::world::data::block::BlockData;
+        for id in &["air", "stone", "dirt", "grass"] {
+            bm.register(BlockData {
+                id: None,
+                id_str: id.to_string(),
+                name: id.to_string(),
+                solid: true,
+                hardness: 0.5,
+                texture_path: None,
+                texture_index: None,
+                render_mode: "opaque".to_string(),
+                drop: None,
+                has_item: true,
+            });
+        }
+        let bm = Arc::new(RwLock::new(bm));
         let chunk1 = Chunk::generate(Arc::clone(&bm), 0, 2, 0, 42);
         let chunk2 = Chunk::generate(Arc::clone(&bm), 0, 2, 0, 42);
         assert_eq!(chunk1.blocks, chunk2.blocks);

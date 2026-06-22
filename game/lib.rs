@@ -1,3 +1,4 @@
+pub mod assets;
 pub mod constants;
 pub mod inventory;
 pub mod player;

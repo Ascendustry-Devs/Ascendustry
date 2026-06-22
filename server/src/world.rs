@@ -1,5 +1,4 @@
 use cgmath::Point3;
-use game::world::data::block::BlockData;
 use game::world::data::block::{BlockInstance, BlockManager};
 use game::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE, CHUNK_SIZE_SQR_USIZE, CHUNK_SIZE_USIZE};
 use game::world::generation::chunk::ChunkWithChecksum;
@@ -21,7 +20,7 @@ pub struct WorldState {
 }
 
 impl WorldState {
-    pub fn new() -> Self {
+    pub fn new(blocks_path: &str) -> Self {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
 
         let mut instance = Self {
@@ -31,24 +30,17 @@ impl WorldState {
             modifications: ModifiedWorld::new(),
         };
 
-        instance.init();
+        instance.init(blocks_path);
 
         instance
     }
 
-    pub fn init(&mut self) {
+    pub fn init(&mut self, blocks_path: &str) {
         let mut block_manager = self.block_manager.write().unwrap();
 
-        let blocks = [
-            BlockData::new("air"),
-            BlockData::new("stone"),
-            BlockData::new("dirt"),
-            BlockData::new("grass"),
-        ];
-
-        for block in blocks {
-            block_manager.register(block);
-        }
+        block_manager
+            .load_from_directory(blocks_path)
+            .expect("Failed to load block definitions");
     }
 
     pub fn set_seed(&mut self, seed: u32) {
@@ -203,6 +195,6 @@ impl CollisionWorld for WorldState {
 
 impl Default for WorldState {
     fn default() -> Self {
-        Self::new()
+        Self::new("assets/blocks/")
     }
 }

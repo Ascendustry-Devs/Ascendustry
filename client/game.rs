@@ -280,6 +280,8 @@ impl AppState for GameState {
         let meshin = self.world.init(&mut tex_loader, &self.player);
         let alloc = Arc::clone(&renderer.render_manager.world_buffer);
         self.world_mesh.init(alloc, meshin);
+        let tex_lookup = self.world.get_texture_lookup();
+        self.world_mesh.set_texture_lookup(tex_lookup);
 
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {

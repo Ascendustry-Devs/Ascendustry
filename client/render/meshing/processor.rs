@@ -16,12 +16,12 @@ pub struct GreedyMeshingProcessor;
 
 impl Parallelizable for GreedyMeshingProcessor {
     type Context = Arc<BufferPool<Vertex>>;
-    type Input = (MeshSnapshot, i32, i32, i32);
+    type Input = (MeshSnapshot, i32, i32, i32, Arc<Vec<u32>>);
     type Output = Option<Vec<Vertex>>;
 
     /// Makes greedy
     fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output {
-        let (snapshot, cx, cy, cz) = input;
+        let (snapshot, cx, cy, cz, texture_lookup) = input;
 
         let padded = PaddedChunk::from_snapshot(&snapshot.main, &snapshot);
 
@@ -37,9 +37,9 @@ impl Parallelizable for GreedyMeshingProcessor {
 
         let mut vertices = ctx.get_buffer();
 
-        ChunkMesh::make_greedy_x(&padded, &solidity, &mut vertices, cwx, cwy, cwz);
-        ChunkMesh::make_greedy_y(&padded, &solidity, &mut vertices, cwx, cwy, cwz);
-        ChunkMesh::make_greedy_z(&padded, &solidity, &mut vertices, cwx, cwy, cwz);
+        ChunkMesh::make_greedy_x(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
+        ChunkMesh::make_greedy_y(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
+        ChunkMesh::make_greedy_z(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
 
         return Some(vertices);
     }

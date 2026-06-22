@@ -1,50 +1,10 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
+use crate::assets::block_loader::{block_id_str_to_item, load_block_definitions};
 use crate::inventory::Item;
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum BlockType {
-    Air = 0,
-    Grass = 1,
-    Dirt = 2,
-    Stone = 3,
-}
-
-impl BlockType {
-    pub fn from_id(id: u32) -> BlockType {
-        match id {
-            0 => BlockType::Air,
-            1 => BlockType::Grass,
-            2 => BlockType::Dirt,
-            3 => BlockType::Stone,
-            _ => BlockType::Dirt,
-        }
-    }
-
-    pub fn texture_index(&self) -> u32 {
-        match self {
-            BlockType::Air => 0,
-            BlockType::Grass => 0,
-            BlockType::Dirt => 1,
-            BlockType::Stone => 2,
-        }
-    }
-
-    pub const fn to_u32(&self) -> u32 {
-        *self as u32
-    }
-
-    pub fn to_item(&self) -> Option<Item> {
-        match self {
-            BlockType::Air => None,
-            BlockType::Grass => Some(Item::Grass),
-            BlockType::Dirt => Some(Item::Dirt),
-            BlockType::Stone => Some(Item::Stone),
-        }
-    }
-}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -69,34 +29,26 @@ impl BlockInstance {
         self.id != BlockInstance::air().id
     }
 
-    pub fn block_type(&self) -> BlockType {
-        BlockType::from_id(self.id)
-    }
-
-    pub fn texture_index(&self) -> u32 {
-        self.block_type().texture_index()
-    }
-
-    pub fn to_bits(&self) -> u32 {
+    pub fn get_block_id(&self) -> u32 {
         self.id
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct BlockData {
     pub id: Option<u32>,
     pub id_str: String,
+    pub name: String,
+    pub solid: bool,
+    pub hardness: f32,
+    pub texture_path: Option<String>,
     pub texture_index: Option<u32>,
+    pub render_mode: String,
+    pub drop: Option<String>,
+    pub has_item: bool,
 }
 
 impl BlockData {
-    pub fn new(id: &str) -> Self {
-        Self {
-            id: None,
-            id_str: id.to_owned(),
-            texture_index: None,
-        }
-    }
-
     pub fn get_id(&self) -> u32 {
         self.id
             .expect(&format!("BlockData with id_str \"{}\" was not registered.", self.id_str))
@@ -110,13 +62,28 @@ impl BlockData {
 pub struct BlockManager {
     blocks: Vec<BlockData>,
     mapped_blocks: FxHashMap<String, u32>,
+    texture_lookup: Vec<u32>,
 }
 
 impl BlockManager {
     pub fn new() -> Self {
         let blocks = Vec::with_capacity(256);
         let mapped_blocks = HashMap::with_capacity_and_hasher(256, FxBuildHasher);
-        Self { blocks, mapped_blocks }
+        let texture_lookup = Vec::new();
+        Self {
+            blocks,
+            mapped_blocks,
+            texture_lookup,
+        }
+    }
+
+    pub fn load_from_directory<P: AsRef<Path>>(&mut self, dir: P) -> Result<(), String> {
+        let defs = load_block_definitions(dir)?;
+        for def in defs {
+            self.register(def);
+        }
+        self.build_texture_lookup();
+        Ok(())
     }
 
     pub fn block_count(&self) -> usize {
@@ -148,23 +115,29 @@ impl BlockManager {
         self.blocks.push(block);
     }
 
+    pub fn block_to_item(&self, block_id: u32) -> Option<Item> {
+        let block = self.get_block_by_id(block_id)?;
+        if let Some(ref drop_str) = block.drop {
+            return block_id_str_to_item(drop_str);
+        }
+        if block.has_item {
+            return block_id_str_to_item(&block.id_str);
+        }
+        None
+    }
+
+    pub fn build_texture_lookup(&mut self) {
+        self.texture_lookup = (0..self.block_count())
+            .map(|id| self.get_block_by_id(id as u32).and_then(|b| b.texture_index).unwrap_or(0))
+            .collect();
+    }
+
+    pub fn get_texture_lookup(&self) -> &[u32] {
+        &self.texture_lookup
+    }
+
     pub fn dispose(&mut self) {
         self.blocks.clear();
         self.mapped_blocks.clear();
-    }
-}
-
-impl Default for BlockManager {
-    fn default() -> Self {
-        let mut bm = BlockManager::new();
-        for block in [
-            BlockData::new("air"),
-            BlockData::new("stone"),
-            BlockData::new("dirt"),
-            BlockData::new("grass"),
-        ] {
-            bm.register(block);
-        }
-        bm
     }
 }

@@ -1,0 +1,6 @@
+{
+	"id": "dirt",
+	"name": "Dirt",
+	"hardness": 0.5,
+	"texture": "assets/images/dirt.png"
+}

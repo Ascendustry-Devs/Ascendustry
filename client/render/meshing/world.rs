@@ -26,6 +26,7 @@ pub struct WorldMesh {
     queued: FxUniqueQueue<MeshRequestAdd>,
 
     alloc: Option<Arc<RwLock<GpuAllocator>>>,
+    texture_lookup: Arc<Vec<u32>>,
 }
 
 impl WorldMesh {
@@ -40,12 +41,17 @@ impl WorldMesh {
             pending_keys: HashMap::with_hasher(FxBuildHasher),
             queued: FxUniqueQueue::new(),
             alloc: None,
+            texture_lookup: Arc::new(Vec::new()),
         }
     }
 
     pub fn init(&mut self, alloc: Arc<RwLock<GpuAllocator>>, mesh_request: &mut MeshRequestMessage) {
         self.alloc = Some(alloc);
         self.listen(mesh_request);
+    }
+
+    pub fn set_texture_lookup(&mut self, texture_lookup: Arc<Vec<u32>>) {
+        self.texture_lookup = texture_lookup;
     }
 
     pub fn update(
@@ -126,7 +132,7 @@ impl WorldMesh {
             // On récupère les infos nécessaires pour le mesher
             let snapshot = chunk.snapshot.clone();
             let (cx, cy, cz) = chunk.coords;
-            let input = (snapshot, cx, cy, cz);
+            let input = (snapshot, cx, cy, cz, self.texture_lookup.clone());
 
             let result = self.mesh_worker.submit(input);
 

@@ -92,8 +92,9 @@ impl PlayerState {
         });
         if let Some(hit) = hit {
             let (x, y, z) = hit.block_pos;
-            let block_type = world.get_block_from_xyz(x, y, z).block_type();
-            if let Some(item) = block_type.to_item() {
+            let block_id = world.get_block_from_xyz(x, y, z).get_block_id();
+            let item = world.block_to_item(block_id);
+            if let Some(item) = item {
                 log_client!("Ajout d'un item dans l'inventaire");
                 if let Some(slot) = self.inventory.add_item(ItemData::new(item, None), 1, &ItemRules::default()) {
                     commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));

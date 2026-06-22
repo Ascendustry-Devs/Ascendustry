@@ -4,22 +4,28 @@ mod tests {
     use game::player::PlayerGameMode;
     use game::types::{Position, Rotation};
 
+    const BLOCKS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/blocks/");
+
+    fn test_state() -> AppState {
+        AppState::with_blocks_path(BLOCKS_PATH)
+    }
+
     #[tokio::test]
     async fn test_app_state_new() {
-        let state = AppState::new();
+        let state = test_state();
         assert_eq!(state.get_seed().await, 0);
     }
 
     #[tokio::test]
     async fn test_app_state_seed() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(12345).await;
         assert_eq!(state.get_seed().await, 12345);
     }
 
     #[tokio::test]
     async fn test_app_state_add_player() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.add_player(1, "TestPlayer".to_string()).await;
         let players = state.get_all_players_vec().await;
@@ -31,7 +37,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_app_state_player_position() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.add_player(1, "TestPlayer".to_string()).await;
 
@@ -53,7 +59,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_app_state_remove_player() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.add_player(1, "TestPlayer".to_string()).await;
         state.remove_player(&1).await;
@@ -62,9 +68,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_app_state_gamemode_change() {
-        use game::player::PlayerGameMode;
-
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.add_player(1, "TestPlayer".to_string()).await;
 
@@ -75,7 +79,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_app_state_set_block() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.set_block(0, 64, 0, 1).await;
         // Should not panic even without generated chunks
@@ -83,7 +87,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_app_state_get_player_rotation() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.add_player(1, "TestPlayer".to_string()).await;
 
@@ -96,7 +100,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_player_creation_matches_add() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.add_player(1, "Alice".to_string()).await;
         state.add_player(2, "Bob".to_string()).await;
@@ -111,7 +115,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_gamemode_changes() {
-        let state = AppState::new();
+        let state = test_state();
         state.init_seed(42).await;
         state.add_player(1, "Player".to_string()).await;
 

@@ -23,8 +23,12 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
+        Self::with_blocks_path("assets/blocks/")
+    }
+
+    pub fn with_blocks_path(blocks_path: &str) -> Self {
         Self {
-            world: RwLock::new(WorldState::new()),
+            world: RwLock::new(WorldState::new(blocks_path)),
             players: RwLock::new(PlayerRegistry::new()),
             identity: RwLock::new(IdentityRegistry::new()),
             metrics: ServerMetrics::new(),

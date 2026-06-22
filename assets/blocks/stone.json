@@ -1,0 +1,6 @@
+{
+	"id": "stone",
+	"name": "Stone",
+	"hardness": 1.5,
+	"texture": "assets/images/stone.png"
+}

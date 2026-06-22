@@ -6,7 +6,6 @@ use std::hash::{Hash, Hasher};
 use crate::api::texture_loader::TextureLoader;
 use cgmath::Point3;
 use game::constants::{DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE};
-use game::world::data::block::BlockData;
 use game::world::data::block::{BlockInstance, BlockManager};
 use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
 use game::world::generation::chunk_generator::ChunkGenerator;
@@ -114,19 +113,22 @@ impl World {
         {
             let mut block_manager = self.block_manager.write().unwrap();
 
-            let blocks = [
-                (BlockData::new("air"), ""),
-                (BlockData::new("stone"), "assets/images/stone.png"),
-                (BlockData::new("dirt"), "assets/images/dirt.png"),
-                (BlockData::new("grass"), "assets/images/grass.png"),
-            ];
+            let mut defs =
+                game::assets::block_loader::load_block_definitions("assets/blocks/").expect("Failed to load block definitions");
 
-            for mut values in blocks {
-                if let Ok(tex_id) = texture_loader.register(values.1.to_string(), RenderMode::Opaque) {
-                    values.0.texture_index = Some(tex_id.id());
-                };
-                block_manager.register(values.0);
+            for def in &mut defs {
+                if let Some(tex_path) = &def.texture_path {
+                    let render_mode = match def.render_mode.to_lowercase().as_str() {
+                        "opaque" => RenderMode::Opaque,
+                        _ => RenderMode::Opaque,
+                    };
+                    if let Ok(tex_id) = texture_loader.register(tex_path.clone(), render_mode) {
+                        def.texture_index = Some(tex_id.id());
+                    }
+                }
+                block_manager.register(def.clone());
             }
+            block_manager.build_texture_lookup();
         }
 
         self.generate_missing_chunks(player);
@@ -400,6 +402,15 @@ impl World {
     /// Retourne vrai si aucun chunk n'est chargé
     pub fn is_empty(&self) -> bool {
         self.chunks.is_empty()
+    }
+
+    pub fn get_texture_lookup(&self) -> Arc<Vec<u32>> {
+        let bm = self.block_manager.read().unwrap();
+        Arc::new(bm.get_texture_lookup().to_vec())
+    }
+
+    pub fn block_to_item(&self, block_id: u32) -> Option<game::inventory::Item> {
+        self.block_manager.read().unwrap().block_to_item(block_id)
     }
 
     pub fn dispose(&mut self) {

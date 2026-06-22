@@ -1,0 +1,6 @@
+{
+	"id": "grass",
+	"name": "Grass",
+	"hardness": 0.6,
+	"texture": "assets/images/grass.png"
+}
