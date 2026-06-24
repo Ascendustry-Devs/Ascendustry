@@ -7,6 +7,7 @@ use crate::player::remote_players::RemotePlayersManager;
 use crate::render::meshing::world::WorldMesh;
 use crate::render::renderer::GameRenderer;
 use crate::systems::inputs::InputState;
+use crate::ui::ClientUI;
 use crate::world::world::{MeshRequestMessage, World};
 use engine::audio::GameAudioManager;
 use engine::core::application::AppState;
@@ -47,6 +48,7 @@ pub struct GameState {
     pub remote_players: RemotePlayersManager,
     pub delay_s: f32,
     pub network: Option<NetworkManager>,
+    pub ui: ClientUI,
     inputs: InputState,
     last_save_request: Instant,
 }
@@ -74,6 +76,7 @@ impl GameState {
             inputs: InputState::new(),
             delay_s: 0.0,
             network: Some(network),
+            ui: Default::default(),
             last_save_request: Instant::now(),
         }
     }
@@ -284,6 +287,8 @@ impl AppState for GameState {
         let tex_lookup = self.world.get_texture_lookup();
         self.world_mesh.set_texture_lookup(tex_lookup);
 
+        self.ui = ClientUI::new(&mut renderer.texture_manager);
+
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {
                 log_err_client!("Échec de la lecture du thème principal.\nErreur : {}", e);
@@ -291,42 +296,7 @@ impl AppState for GameState {
             audio.stop_main_theme();
         }
 
-        // UI
-        // In 5 steps.
-
-        // 1. Widget tree
-        // Build everything you want with it.
-        // let test_panel: Panel = {
-        //     let transform = WidgetTransform::new(8, 8, 160, 130);
-        //     let color = 0xFFCCAAAA;
-        //     let child = None;
-        //     Panel::new(transform, color, child)
-        // };
-        let test_panel: TexturedPanel = {
-            let transform = WidgetTransform::new(8, 8, 160, 130);
-            let texture = 0;
-            let child = None;
-            TexturedPanel::new(transform, texture, child)
-        };
-
-        let mut draw_commands = Vec::new();
-
-        // 2. Draw call
-        // At the top of the tree, call root.draw and give it an empty
-        // Vec of DrawCommand (it will call .draw() recursively).
-        test_panel.draw(&mut draw_commands);
-
-        // 3. Translation
-        // When commands are ready, we need to translate them
-        // into vertices to be compatible with the shader.
-        let vertices = UiTranslator::translate(draw_commands, &renderer.texture_manager);
-
-        // 4. Compilation
-        // Transform our UiVertices into raw bytes.
-        let bytes = UiCompiler::compile(vertices);
-
-        // 5. Submit the bytes to the GPU, and voila.
-        renderer.ui_renderer.update_vertices(&bytes);
+        // ui_test(renderer);
     }
 
     fn update(&mut self, frame: &EngineFrameData, data: &mut GameFrameData, renderer: &mut Renderer) {
@@ -339,15 +309,17 @@ impl AppState for GameState {
 
         self.delay_s -= DT_CAP;
 
-        let mesh_manager = &mut renderer.render_manager.world_buffer;
-
-        self.update_debug_commands(mesh_manager);
+        self.update_debug_commands(&mut renderer.render_manager.world_buffer);
 
         self.update_physics(frame);
 
-        let (network_commands, mut mesh_request) = self.update_logic(frame, mesh_manager);
+        let (network_commands, mut mesh_request) = self.update_logic(frame, &mut renderer.render_manager.world_buffer);
 
         self.update_network(network_commands);
+
+        self.ui
+            .update(&self.player.state.inventory, self.player.state.selected_slot, renderer);
+        let mesh_manager = &mut renderer.render_manager.world_buffer;
 
         let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request);
         self.world.listen(&mut responses);
@@ -376,4 +348,44 @@ impl AppState for GameState {
         self.world.dispose();
         self.world_mesh.dispose(alloc);
     }
+}
+
+#[allow(unused)]
+fn ui_test(renderer: &mut Renderer) {
+    // UI
+    // In 5 steps.
+
+    // 1. Widget tree
+    // Build everything you want with it.
+    // let test_panel: Panel = {
+    //     let transform = WidgetTransform::new(8, 8, 160, 130);
+    //     let color = 0xFFCCAAAA;
+    //     let child = None;
+    //     Panel::new(transform, color, child)
+    // };
+    let test_panel: TexturedPanel = {
+        let transform = WidgetTransform::new(8, 8, 160, 130);
+        let texture = 0;
+        let child = None;
+        TexturedPanel::new(transform, texture, child)
+    };
+
+    let mut draw_commands = Vec::new();
+
+    // 2. Draw call
+    // At the top of the tree, call root.draw and give it an empty
+    // Vec of DrawCommand (it will call .draw() recursively).
+    test_panel.draw(&mut draw_commands);
+
+    // 3. Translation
+    // When commands are ready, we need to translate them
+    // into vertices to be compatible with the shader.
+    let vertices = UiTranslator::translate(draw_commands, &renderer.texture_manager);
+
+    // 4. Compilation
+    // Transform our UiVertices into raw bytes.
+    let bytes = UiCompiler::compile(vertices);
+
+    // 5. Submit the bytes to the GPU, and voila.
+    renderer.ui_renderer.update_vertices(&bytes);
 }

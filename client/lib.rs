@@ -4,6 +4,7 @@ pub mod network;
 pub mod player;
 pub mod render;
 pub mod systems;
+pub mod ui;
 pub mod world;
 
 use winit::event_loop::EventLoop;

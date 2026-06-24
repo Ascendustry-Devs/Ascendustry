@@ -58,8 +58,8 @@ impl TextureManager {
         let ui = {
             // let width = max_texture_size;
             // let height = max_texture_size;
-            let width = 2170;
-            let height = 1132;
+            let width = 4096; // 2170
+            let height = 4096; // 1132
 
             Texture2DAtlas::new(String::from("UI Texture2DAtlas"), device, width, height)
         };

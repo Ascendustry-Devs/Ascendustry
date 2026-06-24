@@ -78,6 +78,9 @@ impl ItemData {
     pub fn modify_custom_name(&mut self, custom_name: Option<String>) {
         self.custom_name = custom_name;
     }
+    pub fn get_item(&self) -> Item {
+        self.item
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -115,6 +118,12 @@ impl ItemStack {
     /// Retire une quantité de l'item existant dans ce slot.
     pub const fn remove(&mut self, quantity: u32) {
         self.quantity = self.quantity.saturating_sub(quantity);
+    }
+    pub fn item(&self) -> &ItemData {
+        &self.item
+    }
+    pub const fn quantity(&self) -> u32 {
+        self.quantity
     }
 }
 

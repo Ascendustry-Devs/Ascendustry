@@ -11,7 +11,7 @@ use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X,
     SPAWN_POSITION_Y, SPAWN_POSITION_Z, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use game::inventory::{Inventory, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
+use game::inventory::{Inventory, Item, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
 use game::world::data::block::BlockInstance;
@@ -41,6 +41,7 @@ pub struct PlayerState {
     pub camera_controller: Box<dyn CameraController>,
     pub player_controller: Box<dyn PlayerController>,
     pub camera: Camera,
+    pub selected_slot: u32,
 }
 
 impl PlayerState {
@@ -64,6 +65,7 @@ impl PlayerState {
             camera_controller,
             player_controller,
             camera: Camera::new(spawn_pos, 1.0),
+            selected_slot: 0,
         }
     }
 
@@ -75,12 +77,37 @@ impl PlayerState {
 
         let mut commands = Vec::new();
 
+        if inputs.take_key_pressed(KeyCode::F1) {
+            self.selected_slot = 0;
+        } else if inputs.take_key_pressed(KeyCode::F2) {
+            self.selected_slot = 1;
+        } else if inputs.take_key_pressed(KeyCode::F3) {
+            self.selected_slot = 2;
+        } else if inputs.take_key_pressed(KeyCode::F4) {
+            self.selected_slot = 3;
+        } else if inputs.take_key_pressed(KeyCode::F5) {
+            self.selected_slot = 4;
+        } else if inputs.take_key_pressed(KeyCode::F6) {
+            self.selected_slot = 5;
+        } else if inputs.take_key_pressed(KeyCode::F7) {
+            self.selected_slot = 6;
+        } else if inputs.take_key_pressed(KeyCode::F8) {
+            self.selected_slot = 7;
+        }
+
         if inputs.take_key_pressed(KeyCode::KeyE) {
             log_client!("{}", self.inventory);
         }
 
         if inputs.take_mouse_button_pressed(MouseButton::Left) {
             self.break_block(world, &mut commands);
+        }
+
+        if inputs.take_mouse_button_pressed(MouseButton::Right) {
+            if let Some(slot_item_stack) = self.inventory.get_slot(self.selected_slot as usize) {
+                let block = BlockInstance::new(item_to_block_id_str(slot_item_stack.item().get_item()).unwrap());
+                self.place_block(block, world, &mut commands);
+            }
         }
 
         commands
@@ -104,6 +131,31 @@ impl PlayerState {
             let success = world.set_block(x, y, z, air);
             if success {
                 commands.push(GameProtocol::create_block_modification(x, y, z, air));
+            }
+        }
+    }
+
+    fn place_block(&mut self, block: BlockInstance, world: &mut World, commands: &mut Vec<Paquet>) {
+        let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |x, y, z| {
+            world.get_block_from_xyz(x, y, z).is_solid()
+        });
+        if let Some(hit) = hit {
+            let (x, y, z) = hit.block_pos;
+            let (d, u, v) = hit.normal;
+            let (dx, uy, vz) = (x - d, y - u, z - v);
+
+            let item = world.block_to_item(block.get_block_id());
+            if let Some(item) = item {
+                log_client!("Retrait d'un item dans l'inventaire");
+                self.inventory
+                    .remove_item(ItemData::new(item, None), 1, self.selected_slot as usize);
+                // commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
+            }
+
+            let success = world.set_block(dx, uy, vz, block);
+
+            if success {
+                commands.push(GameProtocol::create_block_modification(dx, uy, vz, block));
             }
         }
     }
@@ -313,5 +365,14 @@ impl Player {
 
     pub fn get_rendered_chunk_range(&self) -> [i32; 6] {
         self.state.get_rendered_chunk_range()
+    }
+}
+
+pub fn item_to_block_id_str(item: Item) -> Option<u32> {
+    match item {
+        Item::Dirt => Some(1),
+        Item::Grass => Some(2),
+        Item::Stone => Some(3),
+        Item::Sword => None,
     }
 }

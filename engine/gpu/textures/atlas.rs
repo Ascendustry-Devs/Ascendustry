@@ -92,8 +92,8 @@ impl Texture2DAtlas {
                 rows_per_image: Some(height),
             },
             Extent3d {
-                width: self.width,
-                height: self.height,
+                width,
+                height,
                 depth_or_array_layers: 1,
             },
         );
