@@ -19,7 +19,7 @@ fn main() {
     let args = Args::parse();
     let event_loop = EventLoop::with_user_event().build().expect("Failed starting event loop");
     // event_loop.set_control_flow(ControlFlow::Poll);
-    let player_id = args.name.as_bytes().iter().fold(0u64, |acc, &byte| acc ^ (byte as u64));
+    let player_id = args.name.as_bytes().iter().fold(0u64, |acc, &byte| acc ^ u64::from(byte));
     let game_state = GameState::new(args.address, &args.name, player_id);
     let mut app = App::new(game_state);
 

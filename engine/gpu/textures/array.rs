@@ -57,7 +57,7 @@ impl Texture2DArray {
         }
     }
 
-    pub fn next_id(&mut self) -> u32 {
+    pub const fn next_id(&mut self) -> u32 {
         let depth = self.next_depth;
         self.next_depth += 1;
         depth
@@ -70,11 +70,7 @@ impl Texture2DArray {
             TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
-                origin: Origin3d {
-                    x: 0,
-                    y: 0,
-                    z: depth as u32,
-                },
+                origin: Origin3d { x: 0, y: 0, z: depth },
                 aspect: TextureAspect::All,
             },
             data,
@@ -91,23 +87,23 @@ impl Texture2DArray {
         );
     }
 
-    pub fn view(&self) -> &TextureView {
+    pub const fn view(&self) -> &TextureView {
         &self.view
     }
 
-    pub fn sampler(&self) -> &Sampler {
+    pub const fn sampler(&self) -> &Sampler {
         &self.sampler
     }
 
-    pub fn width(&self) -> u32 {
+    pub const fn width(&self) -> u32 {
         self.width
     }
 
-    pub fn height(&self) -> u32 {
+    pub const fn height(&self) -> u32 {
         self.height
     }
 
-    pub fn depth(&self) -> u32 {
+    pub const fn depth(&self) -> u32 {
         self.depth
     }
 

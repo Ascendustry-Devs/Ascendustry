@@ -16,7 +16,7 @@ pub struct GpuResources {
 }
 
 impl GpuResources {
-    pub fn new(
+    pub const fn new(
         pipelines: Pipelines,
 
         camera_bind_group: BindGroup,

@@ -112,13 +112,11 @@ impl<P: Parallelizable> WorkerPool<P> {
     }
 
     pub fn is_queue_full(&self) -> bool {
-        if let Some(max) = self.max_pending {
-            return self.pending_count.load(Ordering::Relaxed) >= max;
-        }
-        return false;
+        self.max_pending
+            .is_some_and(|max| self.pending_count.load(Ordering::Relaxed) >= max)
     }
 
-    pub fn context(&self) -> &P::Context {
+    pub const fn context(&self) -> &P::Context {
         &self.context
     }
 }

@@ -17,7 +17,7 @@ pub enum Direction {
 
 impl Direction {
     #[inline(always)]
-    pub fn from_bits_unchecked(v: u8) -> Self {
+    pub const fn from_bits_unchecked(v: u8) -> Self {
         debug_assert!(v < 6);
         unsafe { std::mem::transmute(v) }
     }

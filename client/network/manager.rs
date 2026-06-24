@@ -51,6 +51,12 @@ pub struct NetworkManager {
     server_seed: Option<u64>,
 }
 
+impl Default for NetworkManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NetworkManager {
     /// Crée un nouveau gestionnaire réseau.
     ///
@@ -65,17 +71,17 @@ impl NetworkManager {
     }
 
     /// Retourne true si connecté au serveur.
-    pub fn is_connected(&self) -> bool {
+    pub const fn is_connected(&self) -> bool {
         self.connection.is_connected()
     }
 
     /// Retourne l'ID du joueur.
-    pub fn player_id(&self) -> u64 {
+    pub const fn player_id(&self) -> u64 {
         self.connection.player_id()
     }
 
     /// Retourne l'instant du dernier échange.
-    pub fn get_last_communication(&self) -> Instant {
+    pub const fn get_last_communication(&self) -> Instant {
         self.connection.get_last_communication()
     }
 

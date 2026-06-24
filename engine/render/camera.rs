@@ -21,6 +21,12 @@ pub struct RenderCamera {
     view_proj: Updatable<[[f32; 4]; 4]>,
 }
 
+impl Default for RenderCamera {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RenderCamera {
     #[inline(always)]
     pub fn new() -> Self {
@@ -60,17 +66,17 @@ impl RenderCamera {
     }
 
     #[inline(always)]
-    pub fn get_pos(&self) -> (f32, f32, f32) {
+    pub const fn get_pos(&self) -> (f32, f32, f32) {
         (self.x, self.y, self.z)
     }
 
     #[inline(always)]
-    pub fn cw(&self) -> &Updatable<[f32; 3]> {
+    pub const fn cw(&self) -> &Updatable<[f32; 3]> {
         &self.cw
     }
 
     #[inline(always)]
-    pub fn view_proj(&self) -> &Updatable<[[f32; 4]; 4]> {
+    pub const fn view_proj(&self) -> &Updatable<[[f32; 4]; 4]> {
         &self.view_proj
     }
 }

@@ -37,8 +37,10 @@ async fn run_headless(args: &Args) -> Result<()> {
 
 #[cfg(feature = "tui")]
 async fn run_with_tui(args: &Args) -> Result<()> {
+    use core::time::Duration;
     use server::tui::TuiCommand;
     use std::sync::atomic::{AtomicBool, Ordering};
+    use tokio::time::sleep;
 
     log_server!("Serveur: lancement.");
 
@@ -126,7 +128,7 @@ async fn run_with_tui(args: &Args) -> Result<()> {
     }
 
     stop.store(true, Ordering::Relaxed);
-    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    sleep(Duration::from_millis(250)).await;
     Ok(())
 }
 

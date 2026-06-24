@@ -33,8 +33,8 @@ pub struct ItemRules {
     pub item_type: FxHashMap<Item, ItemType>,
 }
 
-impl ItemRules {
-    pub fn default() -> Self {
+impl Default for ItemRules {
+    fn default() -> Self {
         let mut stack_quantity = FxHashMap::default();
         stack_quantity.insert(ItemType::Placeable, 96);
         stack_quantity.insert(ItemType::Weapon, 1);
@@ -50,20 +50,22 @@ impl ItemRules {
             item_type,
         }
     }
+}
 
+impl ItemRules {
     pub fn add_rule(&mut self, item: Item, item_type: ItemType, max_quantity_per_stack: u32) {
         self.item_type.insert(item, item_type);
         self.max_quantity_per_stack.insert(item_type, max_quantity_per_stack);
     }
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct ItemData {
     item: Item,
     custom_name: Option<String>,
 }
 impl ItemData {
-    pub fn new(item: Item, custom_name: Option<String>) -> Self {
+    pub const fn new(item: Item, custom_name: Option<String>) -> Self {
         Self { item, custom_name }
     }
     pub fn get_item_type(&self, item_rules: &ItemRules) -> ItemType {
@@ -85,10 +87,10 @@ pub struct ItemStack {
 }
 impl ItemStack {
     /// Retourne true si l'item peut être empilé avec l'autre item, false sinon.
-    pub fn new(item: ItemData, quantity: u32) -> Self {
+    pub const fn new(item: ItemData, quantity: u32) -> Self {
         Self { item, quantity }
     }
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             item: ItemData::new(Item::Dirt, None),
             quantity: 0,
@@ -96,22 +98,22 @@ impl ItemStack {
     }
 
     /// Retourne true si l'item peut être empilé avec l'autre item, false sinon.
-    pub fn can_stack_with(&self, other: &ItemStack) -> bool {
+    pub fn can_stack_with(&self, other: &Self) -> bool {
         self.item == other.item
     }
 
-    pub fn stack_with(&mut self, other: &mut ItemStack) {
+    pub const fn stack_with(&mut self, other: &mut Self) {
         self.quantity += other.quantity;
         other.quantity = 0;
     }
 
     /// Ajoute une quantité à l'item existant dans ce slot.
-    pub fn add(&mut self, quantity: u32) {
+    pub const fn add(&mut self, quantity: u32) {
         self.quantity += quantity;
     }
 
     /// Retire une quantité de l'item existant dans ce slot.
-    pub fn remove(&mut self, quantity: u32) {
+    pub const fn remove(&mut self, quantity: u32) {
         self.quantity = self.quantity.saturating_sub(quantity);
     }
 }
@@ -201,12 +203,12 @@ impl Inventory {
     }
 
     /// Retourne le nombre de slots libres dans l'inventaire.
-    pub fn free_slots_count(&self) -> usize {
+    pub const fn free_slots_count(&self) -> usize {
         self.max_slot_number.saturating_sub(self.slot_data.len())
     }
 
     /// Retourne le nombre de slots utilisés dans l'inventaire.
-    pub fn slot_count(&self) -> usize {
+    pub const fn slot_count(&self) -> usize {
         self.slot_data.len()
     }
 
@@ -216,12 +218,12 @@ impl Inventory {
     }
 
     /// Retourne true si l'inventaire est vide, false sinon.
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.slot_data.is_empty()
     }
 
     /// Retourne true si l'inventaire est plein, false sinon.
-    pub fn is_full(&self) -> bool {
+    pub const fn is_full(&self) -> bool {
         self.slot_data.len() == self.max_slot_number
     }
 
@@ -231,12 +233,12 @@ impl Inventory {
     }
 
     /// Retourne true si le slot est correct, false sinon.
-    pub fn is_slot_correct(&self, slot: usize) -> bool {
+    pub const fn is_slot_correct(&self, slot: usize) -> bool {
         slot < self.slot_data.len() && slot < self.max_slot_number
     }
 
     /// Retourne true s'il reste un slot libre, false sinon.
-    pub fn is_remaining_free_slot(&self) -> bool {
+    pub const fn is_remaining_free_slot(&self) -> bool {
         self.slot_data.len() < self.max_slot_number
     }
 

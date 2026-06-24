@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Iter, mem};
+use std::{collections::hash_map::Iter, mem::take};
 
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
@@ -14,6 +14,12 @@ pub struct DataManager<T> {
     data: FxHashMap<Id, T>,
     free: Vec<Id>,
     next_id: Id,
+}
+
+impl<T> Default for DataManager<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> DataManager<T> {
@@ -103,7 +109,7 @@ impl<T> DataManager<T> {
     ///
     /// The provided id is set to `None` for safety reasons, notably to avoid accessing future stored data using a deprecated id.
     pub fn free(&mut self, id: &mut Option<Id>) -> Option<T> {
-        if let Some(raw_id) = mem::replace(id, None) {
+        if let Some(raw_id) = take(id) {
             return self.data.remove(&raw_id);
         };
         None

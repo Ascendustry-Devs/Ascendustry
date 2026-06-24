@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{Display, Formatter, Result};
 
 #[repr(C)]
 #[allow(unused)]
@@ -12,19 +12,19 @@ pub enum RenderMode {
 }
 
 impl RenderMode {
-    pub fn to_usize(self) -> usize {
+    pub const fn to_usize(self) -> usize {
         self as usize
     }
 }
 
 impl Display for RenderMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.write_str(match *self {
-            RenderMode::Opaque => "RenderMode::Opaque",
-            RenderMode::AlphaCutout => "RenderMode::AlphaCutout",
-            RenderMode::Translucent => "RenderMode::Translucent",
-            RenderMode::Billboard => "RenderMode::Billboard",
-            RenderMode::UI => "RenderMode::UI",
+            Self::Opaque => "RenderMode::Opaque",
+            Self::AlphaCutout => "RenderMode::AlphaCutout",
+            Self::Translucent => "RenderMode::Translucent",
+            Self::Billboard => "RenderMode::Billboard",
+            Self::UI => "RenderMode::UI",
         })
     }
 }

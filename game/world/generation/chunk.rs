@@ -17,13 +17,13 @@ pub struct ChunkWithChecksum {
 
 impl Chunk {
     #[inline]
-    pub fn generate(block_manager: Arc<RwLock<BlockManager>>, cx: i32, cy: i32, cz: i32, seed: u32) -> Chunk {
+    pub fn generate(block_manager: Arc<RwLock<BlockManager>>, cx: i32, cy: i32, cz: i32, seed: u32) -> Self {
         let ctx = ChunkGenContext::new(seed, block_manager);
         Self::generate_with_context(cx, cy, cz, &ctx)
     }
 
     #[inline]
-    pub fn generate_with_context(cx: i32, cy: i32, cz: i32, ctx: &ChunkGenContext) -> Chunk {
+    pub fn generate_with_context(cx: i32, cy: i32, cz: i32, ctx: &ChunkGenContext) -> Self {
         let cwx = cx * CHUNK_SIZE;
         let cwy = cy * CHUNK_SIZE;
         let cwz = cz * CHUNK_SIZE;
@@ -43,9 +43,11 @@ impl Chunk {
             .expect("Did not find block 'stone' in block manager")
             .get_id();
 
+        drop(blocks);
+
         let blocks = vec![BlockInstance::air(); CHUNK_BLOCK_NUMBER];
 
-        let mut chunk = Chunk {
+        let mut chunk = Self {
             blocks,
             x: cx,
             y: cy,
@@ -61,7 +63,7 @@ impl Chunk {
                 let nz = wz * TERRAIN_SCALE;
 
                 let valeur = ctx.surface.get([nx, nz]);
-                let terrain_y = (TERRAIN_BASE_HEIGHT + valeur * TERRAIN_AMPLITUDE) as i32;
+                let terrain_y = valeur.mul_add(TERRAIN_AMPLITUDE, TERRAIN_BASE_HEIGHT) as i32;
 
                 for y in 0..CHUNK_SIZE {
                     let wy = y + cwy;

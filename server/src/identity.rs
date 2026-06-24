@@ -10,6 +10,12 @@ pub struct IdentityRegistry {
     saves: FxHashMap<u64, PlayerSave>,
 }
 
+impl Default for IdentityRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IdentityRegistry {
     pub fn new() -> Self {
         Self {
@@ -22,10 +28,7 @@ impl IdentityRegistry {
         self.identity.insert(player_id, name);
     }
     pub fn check(&self, player_id: u64, name: &str) -> bool {
-        match self.identity.get(&player_id) {
-            None => true,
-            Some(registered) => registered == name,
-        }
+        self.identity.get(&player_id).is_none_or(|registered| registered == name)
     }
     pub fn entries(&self) -> Vec<(&u64, &String)> {
         self.identity.iter().collect()

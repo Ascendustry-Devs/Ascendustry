@@ -40,7 +40,7 @@ impl<T: Hash + Eq + Clone, S: BuildHasher + Default> UniqueQueue<T, S> {
         }
     }
 
-    pub fn with_hasher(hasher: S) -> Self {
+    pub const fn with_hasher(hasher: S) -> Self {
         Self {
             queue: VecDeque::new(),
             set: HashSet::with_hasher(hasher),

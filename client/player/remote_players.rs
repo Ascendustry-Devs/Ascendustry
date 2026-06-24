@@ -15,8 +15,14 @@ pub struct RemotePlayersManager {
     players: FxHashMap<u64, RemotePlayer>,
 }
 
+impl Default for RemotePlayersManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RemotePlayersManager {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             players: FxHashMap::with_hasher(FxBuildHasher),
         }

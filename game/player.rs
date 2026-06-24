@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::types::{Position, Rotation};
 
-#[derive(Clone, Copy, Serialize, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Serialize, Debug, Deserialize, PartialEq, Eq)]
 pub enum PlayerGameMode {
     Spectator,
     Survival,
@@ -11,8 +11,8 @@ pub enum PlayerGameMode {
 impl std::fmt::Display for PlayerGameMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match *self {
-            PlayerGameMode::Survival => "PlayerGameMode::Survival",
-            PlayerGameMode::Spectator => "PlayerGameMode::Spectator",
+            Self::Survival => "PlayerGameMode::Survival",
+            Self::Spectator => "PlayerGameMode::Spectator",
         })
     }
 }

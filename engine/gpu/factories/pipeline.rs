@@ -14,14 +14,14 @@ pub struct PipelineLayoutFactory {
 }
 
 impl PipelineLayoutFactory {
-    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+    pub const fn new(gpu_tools: Arc<GpuTools>) -> Self {
         Self { gpu_tools }
     }
 
     pub fn make(&self, label: Option<&str>, bind_group_layouts: &[Option<&BindGroupLayout>]) -> PipelineLayout {
         let descriptor = PipelineLayoutDescriptor {
-            label: label,
-            bind_group_layouts: bind_group_layouts,
+            label,
+            bind_group_layouts,
             immediate_size: 0,
         };
         self.gpu_tools.device().create_pipeline_layout(&descriptor)
@@ -33,7 +33,7 @@ pub struct PipelineFactory {
 }
 
 impl PipelineFactory {
-    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+    pub const fn new(gpu_tools: Arc<GpuTools>) -> Self {
         Self { gpu_tools }
     }
 
@@ -49,10 +49,10 @@ impl PipelineFactory {
         let descriptor = RenderPipelineDescriptor {
             label: Some(label),
             layout: Some(layout),
-            vertex: vertex,
+            vertex,
             fragment: Some(fragment),
-            primitive: primitive,
-            depth_stencil: depth_stencil,
+            primitive,
+            depth_stencil,
             multisample: MultisampleState {
                 count: 1,
                 mask: !0,

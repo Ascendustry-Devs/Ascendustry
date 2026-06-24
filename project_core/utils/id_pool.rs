@@ -3,8 +3,14 @@ pub struct IdPool {
     free: Vec<u32>,
 }
 
+impl Default for IdPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IdPool {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             next: 0,
             free: Vec::new(),
@@ -23,11 +29,11 @@ impl IdPool {
         self.free.push(id);
     }
 
-    pub fn len(&self) -> usize {
+    pub const fn free_ids_len(&self) -> usize {
         self.free.len()
     }
 
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.free.capacity()
     }
 }

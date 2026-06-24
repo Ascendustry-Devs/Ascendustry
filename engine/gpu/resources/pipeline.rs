@@ -11,7 +11,7 @@ pub struct Pipelines {
 
 #[allow(unused)]
 impl Pipelines {
-    pub fn new(
+    pub const fn new(
         opaque: RenderPipeline,
         alpha_cutout: RenderPipeline,
         translucent: RenderPipeline,
@@ -27,23 +27,23 @@ impl Pipelines {
         }
     }
 
-    pub fn opaque(&self) -> &RenderPipeline {
+    pub const fn opaque(&self) -> &RenderPipeline {
         &self.opaque
     }
 
-    pub fn alpha_cutout(&self) -> &RenderPipeline {
+    pub const fn alpha_cutout(&self) -> &RenderPipeline {
         &self.alpha_cutout
     }
 
-    pub fn translucent(&self) -> &RenderPipeline {
+    pub const fn translucent(&self) -> &RenderPipeline {
         &self.translucent
     }
 
-    pub fn billboard(&self) -> &RenderPipeline {
+    pub const fn billboard(&self) -> &RenderPipeline {
         &self.billboard
     }
 
-    pub fn ui(&self) -> &RenderPipeline {
+    pub const fn ui(&self) -> &RenderPipeline {
         &self.ui
     }
 }

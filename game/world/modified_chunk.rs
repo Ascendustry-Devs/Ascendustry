@@ -14,7 +14,7 @@ pub enum ModifiedWorldError {
 impl fmt::Display for ModifiedWorldError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ModifiedWorldError::ValeurInvalide(cx, cy, cz) => {
+            Self::ValeurInvalide(cx, cy, cz) => {
                 write!(f, "Le chunk ({}, {}, {}) n'existe pas ou n'a pas été modifié", *cx, *cy, *cz)
             }
         }
@@ -26,8 +26,14 @@ pub struct ModifiedChunk {
     index: FxHashMap<IntraChunkCoords, usize>,
 }
 
+impl Default for ModifiedChunk {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModifiedChunk {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             blocks: vec![],
             index: HashMap::with_hasher(FxBuildHasher),
@@ -83,18 +89,23 @@ pub struct ModifiedWorld {
     pub chunks: FxHashMap<(i32, i32, i32), ModifiedChunk>,
 }
 
+impl Default for ModifiedWorld {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModifiedWorld {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             chunks: HashMap::with_hasher(FxBuildHasher),
         }
     }
 
     pub fn get_chunk_at(&self, cx: i32, cy: i32, cz: i32) -> Result<&ModifiedChunk, ModifiedWorldError> {
-        match self.chunks.get(&(cx, cy, cz)) {
-            Some(chunk) => Ok(chunk),
-            None => Err(ModifiedWorldError::ValeurInvalide(cx, cy, cz)),
-        }
+        self.chunks
+            .get(&(cx, cy, cz))
+            .ok_or(ModifiedWorldError::ValeurInvalide(cx, cy, cz))
     }
 
     pub fn get_chunk_at_mut(&mut self, cx: i32, cy: i32, cz: i32) -> Result<&mut ModifiedChunk, String> {
@@ -112,7 +123,7 @@ impl ModifiedWorld {
     pub fn set_block_at(&mut self, gx: i32, gy: i32, gz: i32, block: BlockInstance) {
         let (chunk_pos, intra_coords) = global_position_to_chunk_pos(gx, gy, gz);
 
-        let chunk = self.chunks.entry(chunk_pos).or_insert_with(ModifiedChunk::new);
+        let chunk = self.chunks.entry(chunk_pos).or_default();
         chunk.set_block_at(intra_coords, block);
     }
 
@@ -122,7 +133,7 @@ impl ModifiedWorld {
         chunk.remove_block_at(&intra_coords)
     }
 
-    pub fn chunks(&self) -> &FxHashMap<(i32, i32, i32), ModifiedChunk> {
+    pub const fn chunks(&self) -> &FxHashMap<(i32, i32, i32), ModifiedChunk> {
         &self.chunks
     }
 

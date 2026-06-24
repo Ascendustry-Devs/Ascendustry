@@ -8,23 +8,23 @@ pub struct GpuTools {
 }
 
 impl GpuTools {
-    pub fn new(device: Device, queue: Queue) -> Self {
+    pub const fn new(device: Device, queue: Queue) -> Self {
         Self { device, queue }
     }
 
-    pub fn device(&self) -> &Device {
+    pub const fn device(&self) -> &Device {
         &self.device
     }
 
-    pub fn queue(&self) -> &Queue {
+    pub const fn queue(&self) -> &Queue {
         &self.queue
     }
 
-    pub fn device_queue(&self) -> (&Device, &Queue) {
+    pub const fn device_queue(&self) -> (&Device, &Queue) {
         (&self.device, &self.queue)
     }
 
-    pub fn from_arc(gpu_tools: &Arc<Self>) -> Arc<GpuTools> {
+    pub fn from_arc(gpu_tools: &Arc<Self>) -> Arc<Self> {
         Arc::clone(gpu_tools)
     }
 }

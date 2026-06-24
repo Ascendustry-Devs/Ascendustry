@@ -110,7 +110,7 @@ pub struct Paquet {
 }
 
 impl Paquet {
-    pub fn new(type_paquet: TypePaquet, contenu: ContenuPaquet) -> Self {
+    pub const fn new(type_paquet: TypePaquet, contenu: ContenuPaquet) -> Self {
         Self { type_paquet, contenu }
     }
 
@@ -123,7 +123,7 @@ impl Paquet {
     }
 }
 
-pub fn create_handshake(username: String, player_unique_id: u64) -> Paquet {
+pub const fn create_handshake(username: String, player_unique_id: u64) -> Paquet {
     Paquet::new(
         TypePaquet::Handshake,
         ContenuPaquet::DonneesConnexion {
@@ -134,7 +134,7 @@ pub fn create_handshake(username: String, player_unique_id: u64) -> Paquet {
     )
 }
 
-pub fn create_handshake_ack(player_id: u64, server_time: u64, is_player_id_correct: bool) -> Paquet {
+pub const fn create_handshake_ack(player_id: u64, server_time: u64, is_player_id_correct: bool) -> Paquet {
     Paquet::new(
         TypePaquet::HandshakeAck,
         ContenuPaquet::Confirmation {
@@ -145,12 +145,12 @@ pub fn create_handshake_ack(player_id: u64, server_time: u64, is_player_id_corre
     )
 }
 
-pub fn create_player_update(player_id: u64, x: f32, y: f32, z: f32, rx: f32, ry: f32) -> Paquet {
+pub const fn create_player_update(player_id: u64, x: f32, y: f32, z: f32, rx: f32, ry: f32) -> Paquet {
     Paquet::new(
         TypePaquet::PlayerTransformation,
         ContenuPaquet::PlayerTransformation {
             data: PlayerTransformation {
-                player_id: player_id,
+                player_id,
                 position: Position { x, y, z },
                 rotation: Rotation { x: rx, y: ry },
             },
@@ -158,44 +158,44 @@ pub fn create_player_update(player_id: u64, x: f32, y: f32, z: f32, rx: f32, ry:
     )
 }
 
-pub fn new_server_seed_paquet(seed: u32) -> Paquet {
+pub const fn new_server_seed_paquet(seed: u32) -> Paquet {
     Paquet::new(TypePaquet::ServerSeed, ContenuPaquet::ServerSeed { seed })
 }
 
-pub fn new_ping_paquet(timestamp: u64) -> Paquet {
+pub const fn new_ping_paquet(timestamp: u64) -> Paquet {
     Paquet::new(TypePaquet::Ping, ContenuPaquet::Ping { timestamp })
 }
 
-pub fn new_pong_paquet(timestamp: u64) -> Paquet {
+pub const fn new_pong_paquet(timestamp: u64) -> Paquet {
     Paquet::new(TypePaquet::Pong, ContenuPaquet::Pong { timestamp })
 }
 
-pub fn new_set_block_paquet(x: i32, y: i32, z: i32, block_id: u32) -> Paquet {
+pub const fn new_set_block_paquet(x: i32, y: i32, z: i32, block_id: u32) -> Paquet {
     Paquet::new(TypePaquet::SetBlock, ContenuPaquet::SetBlock { x, y, z, block_id })
 }
 
-pub fn new_gamemode_change_paquet(player_id: u64, gamemode: PlayerGameMode) -> Paquet {
+pub const fn new_gamemode_change_paquet(player_id: u64, gamemode: PlayerGameMode) -> Paquet {
     Paquet::new(
         TypePaquet::GamemodeChange,
         ContenuPaquet::GamemodeChange { player_id, gamemode },
     )
 }
 
-pub fn new_save_request_paquet() -> Paquet {
+pub const fn new_save_request_paquet() -> Paquet {
     Paquet::new(TypePaquet::SaveRequest, ContenuPaquet::SaveRequest)
 }
 
-pub fn new_kick_paquet(reason: String) -> Paquet {
+pub const fn new_kick_paquet(reason: String) -> Paquet {
     Paquet::new(TypePaquet::Kick, ContenuPaquet::Kick { reason })
 }
 
-pub fn new_client_identity_paquet(player_id: u64, username: String) -> Paquet {
+pub const fn new_client_identity_paquet(player_id: u64, username: String) -> Paquet {
     Paquet::new(
         TypePaquet::ClientIdentity,
         ContenuPaquet::ClientIdentity { player_id, username },
     )
 }
-pub fn new_inventory_update_paquet(player_id: u64, slots: Vec<SlotData>) -> Paquet {
+pub const fn new_inventory_update_paquet(player_id: u64, slots: Vec<SlotData>) -> Paquet {
     Paquet::new(
         TypePaquet::InventoryUpdate,
         ContenuPaquet::InventoryUpdate {

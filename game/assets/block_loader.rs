@@ -24,16 +24,16 @@ struct BlockDefinitionRaw {
     has_item: bool,
 }
 
-fn default_solid() -> bool {
+const fn default_solid() -> bool {
     true
 }
-fn default_hardness() -> f32 {
+const fn default_hardness() -> f32 {
     0.5
 }
 fn default_render_mode_str() -> String {
     "opaque".to_string()
 }
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 

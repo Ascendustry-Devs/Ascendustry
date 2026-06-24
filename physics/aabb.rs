@@ -29,7 +29,7 @@ impl AABB {
     }
 
     #[inline(never)]
-    pub fn overlaps(&self, other: &AABB) -> bool {
+    pub const fn overlaps(&self, other: &Self) -> bool {
         self.min.x <= other.max.x
             && self.max.x >= other.min.x
             && self.min.y <= other.max.y
@@ -38,7 +38,7 @@ impl AABB {
             && self.max.z >= other.min.z
     }
 
-    pub fn corners(&self) -> [Vector3<f32>; 8] {
+    pub const fn corners(&self) -> [Vector3<f32>; 8] {
         let [min, max] = [&self.min, &self.max];
         [
             Vector3::new(min.x, min.y, min.z),

@@ -19,12 +19,10 @@ pub fn set_log_tui(tui: Box<LogTui>) {
 /// Retourne `true` si un tui était enregistré (mode TUI).
 /// Si vrai, l'appelant doit sauter l'impression stdout/stderr.
 pub fn log_to_tui(msg: &str) -> bool {
-    if let Some(tui) = LOG_TUI.get() {
+    LOG_TUI.get().is_some_and(|tui| {
         tui(msg);
         true
-    } else {
-        false
-    }
+    })
 }
 
 #[macro_export]

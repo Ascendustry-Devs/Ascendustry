@@ -13,7 +13,7 @@ pub struct SpectatorPlayerController {
 }
 
 impl SpectatorPlayerController {
-    pub fn new(speed: f32) -> Self {
+    pub const fn new(speed: f32) -> Self {
         Self { speed }
     }
 }
@@ -66,7 +66,7 @@ pub struct FreeCameraController {
 }
 
 impl FreeCameraController {
-    pub fn new(sensitivity: f32) -> Self {
+    pub const fn new(sensitivity: f32) -> Self {
         Self { sensitivity }
     }
 }

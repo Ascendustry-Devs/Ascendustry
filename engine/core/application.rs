@@ -1,4 +1,5 @@
 use core::*;
+use std::fmt::{Display, Formatter, Result};
 use std::mem;
 use std::process::exit;
 use std::sync::{Arc, RwLock};
@@ -20,12 +21,11 @@ pub enum AppEvent {
     None,
 }
 
-impl AppEvent {
-    #[inline(always)]
-    pub fn to_string(&self) -> String {
-        match self {
-            AppEvent::None => "None".to_string(),
-        }
+impl Display for AppEvent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        f.write_str(match *self {
+            Self::None => "None",
+        })
     }
 }
 
@@ -44,7 +44,7 @@ pub struct App<S: AppState> {
 }
 
 impl<S: AppState> App<S> {
-    pub fn new(app_state: S) -> Self {
+    pub const fn new(app_state: S) -> Self {
         Self {
             engine_state: None,
             app_state,
@@ -138,7 +138,6 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
             } => {
                 if code == KeyCode::Escape && key_state.is_pressed() {
                     event_loop.exit();
-                    return;
                 } else if code == KeyCode::Digit1 && key_state.is_pressed() {
                     state.renderer.debug.wireframe = !state.renderer.debug.wireframe;
                     state.window.request_redraw();

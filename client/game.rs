@@ -80,7 +80,7 @@ impl GameState {
 
     #[inline(never)]
     fn update_debug_commands(&mut self, alloc: &Arc<RwLock<GpuAllocator>>) {
-        // MESH MEMORY TRACKER (CPU & GPU)
+        // MESH MEMORY OVERVIEW (CPU & GPU)
         if self.inputs.take_key_pressed(KeyCode::KeyV) {
             println!("==== Mesh Memory Tracker ====");
             println!("CPU:");
@@ -94,7 +94,7 @@ impl GameState {
         if self.inputs.is_key_pressed(KeyCode::ControlLeft) && self.inputs.is_key_pressed(KeyCode::KeyD) {
             self.inputs.take_key_pressed(KeyCode::ControlLeft);
             self.inputs.take_key_pressed(KeyCode::KeyD);
-            let alloc = &alloc.read().unwrap();
+            let alloc = alloc.read().unwrap();
             let meshes = &self.world_mesh.meshes;
             println!("==== Mesh CPU Memory Dump ====");
             for (pos, mesh) in meshes.iter() {
@@ -124,16 +124,19 @@ impl GameState {
                 }
             }
             if let Some((id, dirty)) = self.world_mesh.mesh_infos_at(&key) {
-                let id = match id {
-                    Some(id) => &id.to_string(),
-                    None => "None",
-                };
+                let id = id.map_or_else(|| "None".to_string(), |id| id.to_string());
                 println!("- Mesh (GPU):\n  └─ Id: {}", id);
                 if dirty {
                     println!("  └─ Dirty")
                 }
             };
             println!("========================")
+        }
+        // PRINT WORLD SEED
+        if self.inputs.is_key_pressed(KeyCode::ControlLeft) && self.inputs.is_key_pressed(KeyCode::KeyS) {
+            self.inputs.take_key_pressed(KeyCode::ControlLeft);
+            self.inputs.take_key_pressed(KeyCode::KeyS);
+            log_client!("CLIENT WORLD SEED: {}", self.world.seed());
         }
 
         // SWITCH GAMEMODE
@@ -155,7 +158,7 @@ impl GameState {
     #[inline(never)]
     fn update_physics(&mut self, frame: &EngineFrameData) {
         self.player
-            .physics_update(frame.dt, &mut self.inputs, &self.world, self.player.state.game_mode.clone());
+            .physics_update(frame.dt, &mut self.inputs, &self.world, self.player.state.game_mode);
     }
 
     #[inline(never)]
@@ -234,10 +237,8 @@ impl GameState {
                 ContenuPaquet::InventoryUpdate {
                     player_id,
                     modified_slots: inventory,
-                } => {
-                    if player_id == net.player_id() {
-                        self.player.state.inventory.update_slots(inventory);
-                    }
+                } if player_id == net.player_id() => {
+                    self.player.state.inventory.update_slots(inventory);
                 }
                 _ => {}
             }

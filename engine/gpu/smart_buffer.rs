@@ -29,11 +29,11 @@ impl SmartBuffer {
             queue.write_buffer(&buffer, 0, &data[..BUFFER_MAX_CAPACITY as usize])
         }
 
-        SmartBuffer {
+        Self {
             buffer,
             length,
             capacity,
-            format: format,
+            format,
         }
     }
 
@@ -49,37 +49,37 @@ impl SmartBuffer {
             mapped_at_creation: false,
         });
 
-        SmartBuffer {
+        Self {
             buffer,
             length,
             capacity,
-            format: format,
+            format,
         }
     }
 
     #[inline(always)]
-    pub fn buffer(&self) -> &Buffer {
-        return &self.buffer;
+    pub const fn buffer(&self) -> &Buffer {
+        &self.buffer
     }
 
     #[inline(always)]
-    pub fn length(&self) -> u32 {
-        return self.length;
+    pub const fn length(&self) -> u32 {
+        self.length
     }
 
     #[inline(always)]
-    pub fn capacity(&self) -> u32 {
-        return self.capacity;
+    pub const fn capacity(&self) -> u32 {
+        self.capacity
     }
 
     #[inline(always)]
-    pub fn format(&self) -> Option<IndexFormat> {
-        return self.format;
+    pub const fn format(&self) -> Option<IndexFormat> {
+        self.format
     }
 
     #[inline(always)]
     pub fn usages(&self) -> BufferUsages {
-        return self.buffer.usage();
+        self.buffer.usage()
     }
 
     pub fn update(&mut self, device: &Device, queue: &Queue, data: &[u8]) {
@@ -90,7 +90,7 @@ impl SmartBuffer {
             queue.write_buffer(&self.buffer, 0, data);
         } else {
             self.buffer.destroy();
-            *self = SmartBuffer::from_data(data, device, queue, self.format, self.usages());
+            *self = Self::from_data(data, device, queue, self.format, self.usages());
         }
     }
 

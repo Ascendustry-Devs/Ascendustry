@@ -5,7 +5,7 @@ pub struct RenderOptions {
 }
 
 impl RenderOptions {
-    pub fn new(aspect: f32, znear: f32, zfar: f32) -> Self {
+    pub const fn new(aspect: f32, znear: f32, zfar: f32) -> Self {
         Self { aspect, znear, zfar }
     }
 }

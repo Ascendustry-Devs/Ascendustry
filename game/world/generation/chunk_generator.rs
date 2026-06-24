@@ -105,7 +105,7 @@ impl ChunkGenerator {
         self.inner.is_queue_full()
     }
 
-    pub fn dispose(&mut self) {}
+    pub const fn dispose(&mut self) {}
 }
 
 pub fn generate_chunks_sequential(

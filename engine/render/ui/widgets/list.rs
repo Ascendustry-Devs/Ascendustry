@@ -2,7 +2,7 @@ use crate::render::ui::widgets::{DrawCommand, Widget, WidgetTransform, WidgetTyp
 
 pub struct List {
     transform: WidgetTransform,
-    children: Vec<Box<WidgetType>>,
+    children: Vec<WidgetType>,
 }
 
 impl Widget for List {
@@ -18,11 +18,11 @@ impl Widget for List {
 }
 
 impl List {
-    pub fn new(transform: WidgetTransform, children: Vec<Box<WidgetType>>) -> Self {
+    pub const fn new(transform: WidgetTransform, children: Vec<WidgetType>) -> Self {
         Self { transform, children }
     }
 
-    pub fn children(&self) -> &Vec<Box<WidgetType>> {
+    pub const fn children(&self) -> &Vec<WidgetType> {
         &self.children
     }
 }

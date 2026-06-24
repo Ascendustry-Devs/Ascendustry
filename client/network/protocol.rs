@@ -32,7 +32,7 @@ impl GameProtocol {
     /// # Arguments
     ///
     /// * `player_id` - ID du joueur attribué par le serveur
-    pub fn new(player_id: u64) -> Self {
+    pub const fn new(player_id: u64) -> Self {
         Self { player_id }
     }
 
@@ -49,7 +49,7 @@ impl GameProtocol {
     /// # Returns
     ///
     /// Un `Paquet` prêt à être envoyé
-    pub fn create_position_update(&self, x: f32, y: f32, z: f32, rx: f32, ry: f32) -> Paquet {
+    pub const fn create_position_update(&self, x: f32, y: f32, z: f32, rx: f32, ry: f32) -> Paquet {
         Paquet::new(
             TypePaquet::PlayerTransformation,
             ContenuPaquet::PlayerTransformation {
@@ -62,15 +62,15 @@ impl GameProtocol {
         )
     }
 
-    pub fn create_ping(&self, timestamp: u64) -> Paquet {
+    pub const fn create_ping(&self, timestamp: u64) -> Paquet {
         messages::new_ping_paquet(timestamp)
     }
 
-    pub fn create_pong(&self, timestamp: u64) -> Paquet {
+    pub const fn create_pong(&self, timestamp: u64) -> Paquet {
         network::messages::new_pong_paquet(timestamp)
     }
 
-    pub fn create_gamemode_change(&self, gamemode: PlayerGameMode) -> Paquet {
+    pub const fn create_gamemode_change(&self, gamemode: PlayerGameMode) -> Paquet {
         Paquet::new(
             TypePaquet::GamemodeChange,
             ContenuPaquet::GamemodeChange {
@@ -80,7 +80,7 @@ impl GameProtocol {
         )
     }
 
-    pub fn create_block_modification(x: i32, y: i32, z: i32, block: BlockInstance) -> Paquet {
+    pub const fn create_block_modification(x: i32, y: i32, z: i32, block: BlockInstance) -> Paquet {
         Paquet::new(
             TypePaquet::SetBlock,
             ContenuPaquet::SetBlock {

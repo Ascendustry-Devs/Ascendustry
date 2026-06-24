@@ -47,7 +47,7 @@ pub struct SaveData {
 }
 
 impl SaveData {
-    pub fn new(seed: u32, world: SaveWorld, players: Vec<Player>, identity: IdentityRegistry) -> Self {
+    pub const fn new(seed: u32, world: SaveWorld, players: Vec<Player>, identity: IdentityRegistry) -> Self {
         Self {
             version: SAVE_VERSION,
             seed,
@@ -79,13 +79,13 @@ impl From<SaveWorld> for ModifiedWorld {
             .into_iter()
             .map(|(key, chunk)| (key, ModifiedChunk::from(chunk)))
             .collect();
-        ModifiedWorld { chunks }
+        Self { chunks }
     }
 }
 
 impl From<SaveChunk> for ModifiedChunk {
     fn from(chunk: SaveChunk) -> Self {
-        ModifiedChunk::from_blocks(chunk.blocks)
+        Self::from_blocks(chunk.blocks)
     }
 }
 

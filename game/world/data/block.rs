@@ -7,29 +7,29 @@ use crate::assets::block_loader::{block_id_str_to_item, load_block_definitions};
 use crate::inventory::Item;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BlockInstance {
     pub id: u32,
 }
 
 impl BlockInstance {
-    pub fn new(id: u32) -> BlockInstance {
-        BlockInstance { id }
+    pub const fn new(id: u32) -> Self {
+        Self { id }
     }
 
-    pub const fn air() -> BlockInstance {
-        BlockInstance { id: 0 }
+    pub const fn air() -> Self {
+        Self { id: 0 }
     }
 
     pub const fn is_air(&self) -> bool {
-        self.id == BlockInstance::air().id
+        self.id == Self::air().id
     }
 
     pub const fn is_solid(&self) -> bool {
-        self.id != BlockInstance::air().id
+        self.id != Self::air().id
     }
 
-    pub fn get_block_id(&self) -> u32 {
+    pub const fn get_block_id(&self) -> u32 {
         self.id
     }
 }
@@ -51,7 +51,7 @@ pub struct BlockData {
 impl BlockData {
     pub fn get_id(&self) -> u32 {
         self.id
-            .expect(&format!("BlockData with id_str \"{}\" was not registered.", self.id_str))
+            .unwrap_or_else(|| panic!("BlockData with id_str \"{}\" was not registered.", self.id_str))
     }
 
     pub fn get_id_str(&self) -> &str {
@@ -63,6 +63,12 @@ pub struct BlockManager {
     blocks: Vec<BlockData>,
     mapped_blocks: FxHashMap<String, u32>,
     texture_lookup: Vec<u32>,
+}
+
+impl Default for BlockManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BlockManager {
@@ -86,7 +92,7 @@ impl BlockManager {
         Ok(())
     }
 
-    pub fn block_count(&self) -> usize {
+    pub const fn block_count(&self) -> usize {
         self.blocks.len()
     }
 

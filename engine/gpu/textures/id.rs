@@ -7,15 +7,15 @@ pub struct TextureID {
 }
 
 impl TextureID {
-    pub fn new(render_mode: RenderMode, id: u32) -> Self {
+    pub const fn new(render_mode: RenderMode, id: u32) -> Self {
         Self { render_mode, id }
     }
 
-    pub fn render_mode(&self) -> &RenderMode {
+    pub const fn render_mode(&self) -> &RenderMode {
         &self.render_mode
     }
 
-    pub fn id(&self) -> u32 {
+    pub const fn id(&self) -> u32 {
         self.id
     }
 }

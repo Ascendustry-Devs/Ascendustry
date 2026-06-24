@@ -43,11 +43,11 @@ impl WorldState {
             .expect("Failed to load block definitions");
     }
 
-    pub fn set_seed(&mut self, seed: u32) {
+    pub const fn set_seed(&mut self, seed: u32) {
         self.seed = seed;
     }
 
-    pub fn get_seed(&self) -> u32 {
+    pub const fn get_seed(&self) -> u32 {
         self.seed
     }
 

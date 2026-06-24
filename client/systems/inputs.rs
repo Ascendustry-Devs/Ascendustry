@@ -1,4 +1,5 @@
-use std::{collections::HashMap, mem};
+use std::collections::HashMap;
+use std::mem::replace;
 
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use winit::event::MouseButton;
@@ -10,10 +11,16 @@ pub struct InputState {
     pressed_mouse_buttons: FxHashMap<MouseButton, bool>,
 }
 
+impl Default for InputState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[allow(unused)]
 impl InputState {
     #[inline(always)]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             mouse_delta: (0.0, 0.0),
             pressed_keys: HashMap::with_hasher(FxBuildHasher),
@@ -28,7 +35,7 @@ impl InputState {
 
     #[inline(always)]
     pub fn is_key_pressed(&self, key: KeyCode) -> bool {
-        return *self.pressed_keys.get(&key).unwrap_or(&false);
+        *self.pressed_keys.get(&key).unwrap_or(&false)
     }
 
     #[inline(always)]
@@ -43,7 +50,7 @@ impl InputState {
 
     #[inline(always)]
     pub fn is_mouse_button_pressed(&self, button: MouseButton) -> bool {
-        return *self.pressed_mouse_buttons.get(&button).unwrap_or(&false);
+        *self.pressed_mouse_buttons.get(&button).unwrap_or(&false)
     }
 
     #[inline(always)]
@@ -58,17 +65,17 @@ impl InputState {
     }
 
     #[inline(always)]
-    pub fn get_mouse_delta(&self) -> (f64, f64) {
-        return self.mouse_delta;
+    pub const fn get_mouse_delta(&self) -> (f64, f64) {
+        self.mouse_delta
     }
 
     #[inline(always)]
-    pub fn take_mouse_delta(&mut self) -> (f64, f64) {
-        mem::replace(&mut self.mouse_delta, (0.0, 0.0))
+    pub const fn take_mouse_delta(&mut self) -> (f64, f64) {
+        replace(&mut self.mouse_delta, (0.0, 0.0))
     }
 
     #[inline(always)]
-    pub fn take_mouse_delta_f32(&mut self) -> (f32, f32) {
+    pub const fn take_mouse_delta_f32(&mut self) -> (f32, f32) {
         let (dx, dy) = self.take_mouse_delta();
         (dx as f32, dy as f32)
     }

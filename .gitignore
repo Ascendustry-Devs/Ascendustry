@@ -1,6 +1,7 @@
 /logs
 /target
 /world
+/Flamegraph
 Cargo.lock
 commit.md
 plan.md

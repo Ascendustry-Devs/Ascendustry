@@ -8,7 +8,7 @@ pub(super) struct WriteOperation {
 }
 
 impl WriteOperation {
-    pub fn new(id: EntryId, len: usize, buffer_offset: usize, arena_offset: usize) -> Self {
+    pub const fn new(id: EntryId, len: usize, buffer_offset: usize, arena_offset: usize) -> Self {
         Self {
             id,
             len,

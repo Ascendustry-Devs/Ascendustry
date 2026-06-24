@@ -21,6 +21,12 @@ pub struct AppState {
     pub metrics: ServerMetrics,
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     pub fn new() -> Self {
         Self::with_blocks_path("assets/blocks/")
@@ -56,10 +62,11 @@ impl AppState {
         self.players.write().await.add(id, username);
         let world = self.world.write().await;
         let (sx, sy, sz) = find_safe_spawn_point(&*world, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
+        drop(world);
         let safe_position = Position { x: sx, y: sy, z: sz };
         let safe_rotation = Rotation { x: 0.0, y: 0.0 };
         let mut player = self.players.write().await;
-        player.update_position(id, safe_position.clone(), safe_rotation.clone());
+        player.update_position(id, safe_position, safe_rotation);
         player.set_last_valid_transformation(id, safe_position, safe_rotation);
     }
 
@@ -79,12 +86,12 @@ impl AppState {
 
     pub async fn get_player_position(&self, id: u64) -> Option<Position> {
         let a = self.players.read().await.get(&id).cloned();
-        a.map(|p| p.position.clone())
+        a.map(|p| p.position)
     }
 
     pub async fn get_player_rotation(&self, id: u64) -> Option<Rotation> {
         let a = self.players.read().await.get(&id).cloned();
-        a.map(|p| p.rotation.clone())
+        a.map(|p| p.rotation)
     }
 
     pub async fn set_block(&self, x: i32, y: i32, z: i32, block_id: u32) {
@@ -125,7 +132,7 @@ impl AppState {
 
     pub async fn set_player_gamemode(&self, id: u64, gamemode: PlayerGameMode) {
         let mut players = self.players.write().await;
-        players.update_gamemode(id, gamemode.clone());
+        players.update_gamemode(id, gamemode);
         if gamemode != PlayerGameMode::Spectator {
             let (x, y, z) = players
                 .get(&id)
@@ -133,9 +140,10 @@ impl AppState {
                 .unwrap_or((SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z));
             let world = self.world.write().await;
             let (sx, sy, sz) = find_safe_spawn_point(&*world, x, y, z);
+            drop(world);
             let surface = Position { x: sx, y: sy, z: sz };
             if let Some(player) = players.get_mut(&id) {
-                player.position = surface.clone();
+                player.position = surface;
                 player.last_valid_position = surface;
             }
         }
@@ -195,9 +203,9 @@ impl AppState {
 
                 evals.push((
                     player.id,
-                    player.position.clone(),
-                    player.last_valid_position.clone(),
-                    player.last_valid_rotation.clone(),
+                    player.position,
+                    player.last_valid_position,
+                    player.last_valid_rotation,
                     valid && plausible,
                 ));
             }
@@ -216,7 +224,7 @@ impl AppState {
                 }
             } else {
                 if let Some(player) = players.get_mut(&id) {
-                    player.position = last_pos.clone();
+                    player.position = last_pos;
                     player.rotation = last_rot;
                 }
 
@@ -227,6 +235,7 @@ impl AppState {
                 });
             }
         }
+        drop(players);
 
         if !corrections.is_empty() {
             let packet = Paquet::new(
@@ -302,7 +311,7 @@ impl AppState {
         inventory: Inventory,
     ) {
         let mut players = self.players.write().await;
-        players.update_position(id, position.clone(), rotation.clone());
+        players.update_position(id, position, rotation);
         players.set_last_valid_transformation(id, position, rotation);
         players.update_gamemode(id, gamemode);
         players.set_inventory(id, inventory);

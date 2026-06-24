@@ -47,7 +47,7 @@ pub const JUMP_SPEED: f32 = 8.0;
 
 pub const WALK_SPEED: f32 = 6.3;
 
-pub const DECEL_COEF: f32 = 3.69319145e-7;
+pub const DECEL_COEF: f32 = 3.693_191_4e-7;
 
 pub const SPAWN_POSITION_X: f32 = 0.5;
 pub const SPAWN_POSITION_Y: f32 = 0.0;

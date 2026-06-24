@@ -19,7 +19,7 @@ pub struct BindGroupLayoutFactory {
 }
 
 impl BindGroupLayoutFactory {
-    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+    pub const fn new(gpu_tools: Arc<GpuTools>) -> Self {
         Self { gpu_tools }
     }
 
@@ -51,10 +51,10 @@ impl BindGroupLayoutFactory {
         self.make(label, &entries)
     }
 
-    pub fn make_texture_array_entry(&self, binding: u32) -> [BindGroupLayoutEntry; 2] {
+    pub const fn make_texture_array_entry(&self, binding: u32) -> [BindGroupLayoutEntry; 2] {
         [
             BindGroupLayoutEntry {
-                binding: binding,
+                binding,
                 visibility: ShaderStages::FRAGMENT,
                 ty: BindingType::Texture {
                     view_dimension: TextureViewDimension::D2Array,
@@ -72,10 +72,10 @@ impl BindGroupLayoutFactory {
         ]
     }
 
-    pub fn make_texture_atlas_entry(&self, binding: u32) -> [BindGroupLayoutEntry; 2] {
+    pub const fn make_texture_atlas_entry(&self, binding: u32) -> [BindGroupLayoutEntry; 2] {
         [
             BindGroupLayoutEntry {
-                binding: binding,
+                binding,
                 visibility: ShaderStages::FRAGMENT,
                 ty: BindingType::Texture {
                     view_dimension: TextureViewDimension::D2,
@@ -150,7 +150,7 @@ pub struct BindGroupFactory {
 }
 
 impl BindGroupFactory {
-    pub fn new(gpu_tools: Arc<GpuTools>) -> Self {
+    pub const fn new(gpu_tools: Arc<GpuTools>) -> Self {
         Self { gpu_tools }
     }
 
@@ -160,10 +160,10 @@ impl BindGroupFactory {
             .create_bind_group(&BindGroupDescriptor { label, layout, entries })
     }
 
-    pub fn make_texture_array_entry<'a>(&'a self, binding: u32, array: &'a Texture2DArray) -> [BindGroupEntry<'a>; 2] {
+    pub const fn make_texture_array_entry<'a>(&'a self, binding: u32, array: &'a Texture2DArray) -> [BindGroupEntry<'a>; 2] {
         [
             BindGroupEntry {
-                binding: binding,
+                binding,
                 resource: BindingResource::TextureView(array.view()),
             },
             BindGroupEntry {
@@ -173,10 +173,10 @@ impl BindGroupFactory {
         ]
     }
 
-    pub fn make_texture_atlas_entry<'a>(&'a self, binding: u32, atlas: &'a Texture2DAtlas) -> [BindGroupEntry<'a>; 2] {
+    pub const fn make_texture_atlas_entry<'a>(&'a self, binding: u32, atlas: &'a Texture2DAtlas) -> [BindGroupEntry<'a>; 2] {
         [
             BindGroupEntry {
-                binding: binding,
+                binding,
                 resource: BindingResource::TextureView(atlas.view()),
             },
             BindGroupEntry {

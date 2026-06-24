@@ -54,7 +54,7 @@ opt-level = 3
 [profile.release]
 debug = false
 opt-level = 3
-codegen-units = 1
+codegen-units = 16
 incremental = false
 lto = true
 strip = true

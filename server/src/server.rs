@@ -55,7 +55,7 @@ impl Server {
             broadcaster,
             next_id: AtomicU64::new(0),
             #[cfg(feature = "tui")]
-            bridge: bridge,
+            bridge,
             active_sessions: Arc::new(Mutex::new(HashMap::new())),
             config,
         })
@@ -149,8 +149,13 @@ impl Server {
         }
     }
     pub async fn kick_player(&self, id: &u64, reason: &str) -> bool {
-        let mut sessions = self.active_sessions.lock().unwrap();
-        if let Some(tx) = sessions.remove(id) {
+        let result = {
+            let mut sessions = self.active_sessions.lock().unwrap();
+            let result = sessions.remove(id);
+            drop(sessions);
+            result
+        };
+        if let Some(tx) = result {
             let _ = tx.send(());
             self.state.kick_player(id, reason).await;
             true

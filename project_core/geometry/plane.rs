@@ -14,9 +14,9 @@ impl Plane {
         }
     }
 
-    pub fn normalize(self) -> Plane {
+    pub fn normalize(self) -> Self {
         let len = self.normal.magnitude();
-        Plane {
+        Self {
             normal: self.normal / len,
             d: self.d / len,
         }

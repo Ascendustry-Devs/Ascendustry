@@ -49,8 +49,8 @@ impl PlayerState {
         camera_controller: Box<dyn CameraController>,
         player_controller: Box<dyn PlayerController>,
         spawn_pos: Point3<f32>,
-    ) -> PlayerState {
-        PlayerState {
+    ) -> Self {
+        Self {
             player_id,
             game_mode: PlayerGameMode::Survival,
             inventory: Inventory::default(DEFAULT_INVENTORY_SIZE),
@@ -122,15 +122,12 @@ impl PlayerState {
     }
 
     pub fn teleport(&mut self, x: f32, y: f32, z: f32) {
-        log_client!(
-            "Téléportation du joueur de {:?} à {:?}",
-            self.get_pos(),
-            Point3 { x: x, y: y, z: z }
-        );
-        self.set_pos(Point3 { x: x, y: y, z: z });
+        let pos = Point3 { x, y, z };
+        log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), pos);
+        self.set_pos(pos);
     }
 
-    pub fn set_render_distance(&mut self, horizontal: u16, vertical: u16) {
+    pub const fn set_render_distance(&mut self, horizontal: u16, vertical: u16) {
         self.horizontal_render_distance = horizontal;
         self.vertical_render_distance = vertical;
     }
@@ -139,12 +136,12 @@ impl PlayerState {
         self.player_controller = player_controller;
     }
 
-    pub fn get_pos(&self) -> Point3<f32> {
-        self.pos.current().clone()
+    pub const fn get_pos(&self) -> Point3<f32> {
+        *self.pos.current()
     }
 
-    pub fn get_cpos(&self) -> Point3<i32> {
-        self.cpos.current().clone()
+    pub const fn get_cpos(&self) -> Point3<i32> {
+        *self.cpos.current()
     }
 
     pub fn has_moved(&self) -> bool {
@@ -153,7 +150,7 @@ impl PlayerState {
 
     /// Réinitialise le flag `has_moved` (appelé après envoi réseau).
     pub fn reset_moved(&mut self) {
-        self.pos.update(self.pos.current().clone());
+        self.pos.update(*self.pos.current());
     }
 
     pub fn set_pos(&mut self, pos: Point3<f32>) {
@@ -232,9 +229,9 @@ impl Player {
         player_id: u64,
         camera_controller: Box<dyn CameraController>,
         player_controller: Box<dyn PlayerController>,
-    ) -> Player {
+    ) -> Self {
         let spawn_pos = Point3::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
-        Player {
+        Self {
             state: PlayerState::new(player_id, camera_controller, player_controller, spawn_pos),
             physics_body: PhysicsBody::new(spawn_pos, 0.49),
         }
@@ -274,15 +271,15 @@ impl Player {
     }
 
     /// Délègue à `self.state`.
-    pub fn set_render_distance(&mut self, horizontal: u16, vertical: u16) {
+    pub const fn set_render_distance(&mut self, horizontal: u16, vertical: u16) {
         self.state.set_render_distance(horizontal, vertical);
     }
 
-    pub fn get_pos(&self) -> Point3<f32> {
+    pub const fn get_pos(&self) -> Point3<f32> {
         self.state.get_pos()
     }
 
-    pub fn get_cpos(&self) -> Point3<i32> {
+    pub const fn get_cpos(&self) -> Point3<i32> {
         self.state.get_cpos()
     }
 
@@ -306,7 +303,7 @@ impl Player {
         self.state.get_rendered_chunk_keys()
     }
 
-    pub fn get_rendered_chunk_keys_set(&self) -> &FxHashSet<(i32, i32, i32)> {
+    pub const fn get_rendered_chunk_keys_set(&self) -> &FxHashSet<(i32, i32, i32)> {
         &self.state.chunk_keys
     }
 

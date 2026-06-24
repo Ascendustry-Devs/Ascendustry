@@ -22,14 +22,14 @@ pub struct PaddedChunk {
 }
 
 impl PaddedChunk {
-    pub const fn empty() -> PaddedChunk {
-        return PaddedChunk {
+    pub const fn empty() -> Self {
+        Self {
             blocks: [BlockInstance::air(); PADDED_CHUNK_BLOCK_CBE_USIZE],
-        };
+        }
     }
 
-    pub fn from_snapshot(chunk: &Arc<Chunk>, snapshot: &MeshSnapshot) -> PaddedChunk {
-        let mut padded_chunk = PaddedChunk::empty();
+    pub fn from_snapshot(chunk: &Arc<Chunk>, snapshot: &MeshSnapshot) -> Self {
+        let mut padded_chunk = Self::empty();
 
         let mut src_i: usize = 0;
         let mut dst_i = (1 + PADDED_CHUNK_SIZE + PADDED_CHUNK_SIZE_SQR) as usize;
@@ -68,13 +68,13 @@ impl PaddedChunk {
     ///
     /// Use with caution, as bounds are NOT checked. May panic and abort the program if used incorrectly.
     #[inline(always)]
-    pub fn get_block_from_xyz_unsafe(&self, x: i32, y: i32, z: i32) -> BlockInstance {
-        return self.get_block_from_i((x + y * PADDED_CHUNK_SIZE + z * PADDED_CHUNK_SIZE_SQR) as usize);
+    pub const fn get_block_from_xyz_unsafe(&self, x: i32, y: i32, z: i32) -> BlockInstance {
+        self.get_block_from_i((x + y * PADDED_CHUNK_SIZE + z * PADDED_CHUNK_SIZE_SQR) as usize)
     }
 
     #[inline(always)]
-    pub fn get_block_from_i(&self, i: usize) -> BlockInstance {
-        return self.blocks[i];
+    pub const fn get_block_from_i(&self, i: usize) -> BlockInstance {
+        self.blocks[i]
     }
 
     /// Abstraction of `set_block_from_i` but with components.
@@ -85,12 +85,12 @@ impl PaddedChunk {
     ///
     /// Use with caution, as bounds are NOT checked. May panic and abort the program if used incorrectly.
     #[inline(always)]
-    fn set_block_from_xyz_unsafe(&mut self, x: i32, y: i32, z: i32, block: BlockInstance) {
+    const fn set_block_from_xyz_unsafe(&mut self, x: i32, y: i32, z: i32, block: BlockInstance) {
         self.set_block_from_i((x + y * PADDED_CHUNK_SIZE + z * PADDED_CHUNK_SIZE_SQR) as usize, block);
     }
 
     #[inline(always)]
-    fn set_block_from_i(&mut self, i: usize, block: BlockInstance) {
+    const fn set_block_from_i(&mut self, i: usize, block: BlockInstance) {
         self.blocks[i] = block;
     }
 

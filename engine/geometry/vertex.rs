@@ -18,7 +18,7 @@ impl Vertex {
 
         let ao = (ao * ONE_MINUS_AMBIENT_DIV_3 + AMBIENT).clamp(0.0, 1.0);
 
-        Vertex {
+        Self {
             position: [x, y, z],
             color: 0xFFFFFFFF,
             tex_layer,
@@ -29,7 +29,7 @@ impl Vertex {
     }
 
     pub const fn new_with_color(x: f32, y: f32, z: f32, color: u32, tex_layer: u32, ao: f32, u: f32, v: f32) -> Self {
-        Vertex {
+        Self {
             position: [x, y, z],
             color,
             tex_layer,
@@ -56,8 +56,8 @@ impl Vertex {
         Self::new_with_color(x, y, z, color, tex_layer, ao, u, v)
     }
 
-    pub fn copy_with_pos(&self, x: f32, y: f32, z: f32) -> Self {
-        let mut copy = self.clone();
+    pub const fn copy_with_pos(&self, x: f32, y: f32, z: f32) -> Self {
+        let mut copy = *self;
         copy.position = [x, y, z];
         copy
     }

@@ -24,7 +24,7 @@ impl PhysicsBody {
         }
     }
 
-    pub fn velocity_mut(&mut self) -> &mut Updatable<Vector3<f32>> {
+    pub const fn velocity_mut(&mut self) -> &mut Updatable<Vector3<f32>> {
         &mut self.velocity
     }
 }

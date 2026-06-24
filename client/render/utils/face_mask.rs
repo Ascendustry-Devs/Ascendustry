@@ -14,15 +14,15 @@ pub struct FaceMask {
 
 impl FaceMask {
     #[inline(always)]
-    pub const fn empty() -> FaceMask {
-        return FaceMask {
+    pub const fn empty() -> Self {
+        Self {
             data: 0x8000_0000_0000_0000u64,
-        };
+        }
     }
 
     #[inline(always)]
-    pub fn from(visited: bool, id: u32, face: Direction, ao: u8) -> FaceMask {
-        let mut mask = FaceMask::empty();
+    pub const fn from(visited: bool, id: u32, face: Direction, ao: u8) -> Self {
+        let mut mask = Self::empty();
         mask.set_visited(visited);
         mask.set_block_id(id);
         mask.set_face(face);
@@ -31,42 +31,42 @@ impl FaceMask {
     }
 
     #[inline(always)]
-    pub fn get_visited(self) -> bool {
+    pub const fn get_visited(self) -> bool {
         (self.data >> VISITED_SHIFT) != 0
     }
 
     #[inline(always)]
-    pub fn set_visited(&mut self, v: bool) {
+    pub const fn set_visited(&mut self, v: bool) {
         self.data ^= (-(v as i64) as u64 ^ self.data) & (1 << VISITED_SHIFT);
     }
 
     #[inline(always)]
-    pub fn get_block_id(self) -> u32 {
+    pub const fn get_block_id(self) -> u32 {
         ((self.data >> BLOCK_ID_SHIFT) & BLOCK_ID_MASK) as u32
     }
 
     #[inline(always)]
-    pub fn set_block_id(&mut self, id: u32) {
+    pub const fn set_block_id(&mut self, id: u32) {
         self.data = (self.data & !(BLOCK_ID_MASK << BLOCK_ID_SHIFT)) | ((id as u64) << BLOCK_ID_SHIFT);
     }
 
     #[inline(always)]
-    pub fn get_face(self) -> Direction {
+    pub const fn get_face(self) -> Direction {
         Direction::from_bits_unchecked((self.data & FACE_MASK) as u8)
     }
 
     #[inline(always)]
-    pub fn set_face(&mut self, face: Direction) {
+    pub const fn set_face(&mut self, face: Direction) {
         self.data = (self.data & !FACE_MASK) | (face as u64);
     }
 
     #[inline(always)]
-    pub fn set_ao(&mut self, ao: u8) {
+    pub const fn set_ao(&mut self, ao: u8) {
         self.data = (self.data & !(AO_MASK << AO_SHIFT)) | (((ao as u64) & AO_MASK) << AO_SHIFT);
     }
 
     #[inline(always)]
-    pub fn get_ao(self) -> u8 {
+    pub const fn get_ao(self) -> u8 {
         ((self.data >> AO_SHIFT) & AO_MASK) as u8
     }
 }

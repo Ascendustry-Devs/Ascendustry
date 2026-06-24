@@ -50,7 +50,7 @@ impl TextureManager {
                 "Translucent Texture2DArray",
                 "Billboard Texture2DArray",
             ]
-            .map(|label| String::from(label));
+            .map(String::from);
 
             labels.map(|label| Texture2DArray::new(label, device, width, height, depth))
         };
@@ -88,7 +88,7 @@ impl TextureManager {
         }
     }
 
-    pub fn get_ui_atlas(&self) -> &Texture2DAtlas {
+    pub const fn get_ui_atlas(&self) -> &Texture2DAtlas {
         &self.ui
     }
 
@@ -97,16 +97,13 @@ impl TextureManager {
         let atlas_width = self.ui.width() as f32;
         let atlas_height = self.ui.height() as f32;
         match self.texture_ids.get(id) {
-            Some(data) => match data {
-                TextureData::OfAtlas { x, y, width, height } => Some((
-                    *x as f32 / atlas_width,
-                    (*x + *width) as f32 / atlas_width,
-                    *y as f32 / atlas_height,
-                    (*y + *height) as f32 / atlas_height,
-                )),
-                _ => None,
-            },
-            None => None,
+            Some(&TextureData::OfAtlas { x, y, width, height }) => Some((
+                x as f32 / atlas_width,
+                (x + width) as f32 / atlas_width,
+                y as f32 / atlas_height,
+                (y + height) as f32 / atlas_height,
+            )),
+            _ => None,
         }
     }
 
@@ -133,7 +130,7 @@ impl TextureManager {
     }
 
     pub fn register_atlas(&mut self, data: &[u8], width: u32, height: u32) -> Result<TextureID, Error> {
-        let (x, y) = self.ui.allocate(width, height).ok_or(Error::msg("Atlas plein"))?;
+        let (x, y) = self.ui.allocate(width, height).ok_or_else(|| Error::msg("Atlas plein"))?;
         let queue = self.gpu_resources.queue();
         self.ui.write_at(queue, x, y, width, height, data);
         let id = TextureID::new(RenderMode::UI, self.next_ui_id);
@@ -151,7 +148,7 @@ impl TextureManager {
         for (index, texture) in infos.iter().enumerate() {
             let width = texture.w();
             let height = texture.h();
-            let new = match self.ui.allocate(width, height).ok_or(Error::msg("Atlas plein")) {
+            let new = match self.ui.allocate(width, height).ok_or_else(|| Error::msg("Atlas plein")) {
                 Ok((x, y)) => {
                     self.ui.write_at(queue, x, y, width, height, textures[index]);
                     let id = TextureID::new(RenderMode::UI, self.next_ui_id);
@@ -197,12 +194,12 @@ impl TextureManager {
     }
 
     fn find_place_array(&mut self, render_mode: &RenderMode) -> Result<TextureID, Error> {
-        let depth = self.get_array_mut(&render_mode).next_id();
+        let depth = self.get_array_mut(render_mode).next_id();
 
         if depth > self.max_array_depth {
-            return Err(Error::msg(format!("No place found for {}.", render_mode)));
+            Err(Error::msg(format!("No place found for {}.", render_mode)))
         } else {
-            return Ok(TextureID::new((*render_mode).clone(), depth));
+            Ok(TextureID::new((*render_mode).clone(), depth))
         }
     }
 
@@ -216,7 +213,7 @@ impl TextureManager {
         }
     }
 
-    fn get_ui_atlas_mut(&mut self) -> &mut Texture2DAtlas {
+    const fn get_ui_atlas_mut(&mut self) -> &mut Texture2DAtlas {
         &mut self.ui
     }
 }

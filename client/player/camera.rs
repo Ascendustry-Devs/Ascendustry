@@ -18,7 +18,7 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(eye: Point3<f32>, aspect: f32) -> Camera {
+    pub fn new(eye: Point3<f32>, aspect: f32) -> Self {
         Self {
             eye: Updatable::new(eye),
             yaw: Updatable::new(0.0),
@@ -37,15 +37,15 @@ impl Camera {
         }
     }
 
-    pub fn eye(&self) -> &Point3<f32> {
+    pub const fn eye(&self) -> &Point3<f32> {
         self.eye.current()
     }
 
-    pub fn yaw(&self) -> f32 {
+    pub const fn yaw(&self) -> f32 {
         *self.yaw.current()
     }
 
-    pub fn pitch(&self) -> f32 {
+    pub const fn pitch(&self) -> f32 {
         *self.pitch.current()
     }
 
@@ -74,7 +74,7 @@ impl Camera {
         self.view_proj.update(OPENGL_TO_WGPU_MATRIX * proj * view);
     }
 
-    pub fn view_proj(&self) -> &Updatable<Matrix4<f32>> {
+    pub const fn view_proj(&self) -> &Updatable<Matrix4<f32>> {
         &self.view_proj
     }
 
@@ -87,7 +87,7 @@ impl Camera {
         self.pitch.update(rotation.1);
     }
 
-    pub fn get_rotation(&self) -> (f32, f32) {
+    pub const fn get_rotation(&self) -> (f32, f32) {
         (*self.yaw.current(), *self.pitch.current())
     }
 
@@ -125,7 +125,7 @@ impl Camera {
     }
 
     #[inline(never)]
-    pub fn get_frustum_planes(&self) -> &[Plane; 6] {
+    pub const fn get_frustum_planes(&self) -> &[Plane; 6] {
         self.frustum_planes.current()
     }
 

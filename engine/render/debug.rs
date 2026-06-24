@@ -12,7 +12,7 @@ pub struct DebugRenderResources {
 }
 
 impl DebugRenderResources {
-    pub fn new(
+    pub const fn new(
         pipelines: Pipelines,
         gizmo_render_pipeline: RenderPipeline,
         gizmo_buffer: Buffer,

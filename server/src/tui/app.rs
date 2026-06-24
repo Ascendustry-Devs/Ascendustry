@@ -8,7 +8,7 @@ use ratatui::{
     Frame,
 };
 
-fn health_color(score: u8) -> Color {
+const fn health_color(score: u8) -> Color {
     if score >= 15 {
         Color::Green
     } else if score >= 10 {
@@ -29,8 +29,14 @@ pub struct TuiApp {
     pub selected_player_idx: usize,
 }
 
+impl Default for TuiApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TuiApp {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             scroll: 0,
             selected_player_idx: 0,

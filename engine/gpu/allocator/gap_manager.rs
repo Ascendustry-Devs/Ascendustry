@@ -7,29 +7,29 @@ pub struct Gap {
 }
 
 impl Gap {
-    pub fn new(position: usize, length: usize) -> Self {
+    pub const fn new(position: usize, length: usize) -> Self {
         Self { position, length }
     }
 
-    pub fn start(&self) -> usize {
+    pub const fn start(&self) -> usize {
         self.position
     }
 
-    pub fn end(&self) -> usize {
+    pub const fn end(&self) -> usize {
         self.position + self.length
     }
 
-    pub fn shrink_left(&mut self, offset: usize) {
+    pub const fn shrink_left(&mut self, offset: usize) {
         self.position += offset;
         self.length -= offset;
     }
 
-    pub fn extend_left(&mut self, offset: usize) {
+    pub const fn extend_left(&mut self, offset: usize) {
         self.position -= offset;
         self.length += offset
     }
 
-    pub fn extend_right(&mut self, offset: usize) {
+    pub const fn extend_right(&mut self, offset: usize) {
         self.length += offset
     }
 }

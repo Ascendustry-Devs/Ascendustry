@@ -82,7 +82,7 @@ impl Texture2DAtlas {
             TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
-                origin: Origin3d { x: x, y: y, z: 0 },
+                origin: Origin3d { x, y, z: 0 },
                 aspect: TextureAspect::All,
             },
             data,
@@ -99,19 +99,19 @@ impl Texture2DAtlas {
         );
     }
 
-    pub fn view(&self) -> &TextureView {
+    pub const fn view(&self) -> &TextureView {
         &self.view
     }
 
-    pub fn sampler(&self) -> &Sampler {
+    pub const fn sampler(&self) -> &Sampler {
         &self.sampler
     }
 
-    pub fn width(&self) -> u32 {
+    pub const fn width(&self) -> u32 {
         self.width
     }
 
-    pub fn height(&self) -> u32 {
+    pub const fn height(&self) -> u32 {
         self.height
     }
 

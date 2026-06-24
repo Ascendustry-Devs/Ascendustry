@@ -24,28 +24,55 @@ Ascendustry/
 - **serde** + **bincode** — sérialisation binaire
 - **aes-gcm** + **sha2** — chiffrement AES-256-GCM
 - **noise** 0.9 — génération procédurale de terrain
-- **cgmath** + **bytemuck** — mathématiques 3D
+- **cgmath** — mathématiques 3D
 - **rayon** — maillage parallèle des chunks
 - **eframe** 0.27 — lanceur graphique
 - **clap** — arguments en ligne de commande
 
+## Fonctionnalités actuelles
+
+- Génération procédurale du monde
+    - Terrain
+    - Grottes
+- Contrôleur joueur séparé en deux modes
+    - Normal
+    - God-mode
+- Interface basique (FPS display)
+- Multijoueur
+- Sauvegarde
+
+## Technicité
+
+- Génération du monde avec Simplex noise
+- Greedy mesher pour simplifier les meshs de chunks
+- Utilisation de worker pools pour les opérations parallélisables (génération, meshing)
+
 ## Utilisation
 
 ```bash
-# Lancer le serveur
-make server
+# ¹[client/server/launcher] 
+# ²[profile/release]
+# ³[build]
 
-# Lancer le client
-make client
+# Mode d'emploi
+# Pour chaque commande, vous devez la préfixer par ¹ pour désigner la cible de la commande
+# Vous pouvez rajouter ² en séparant ¹ et ² par un -, pour ajouter une option dans la commande
+# Enfin, vous pouvez soit exécuter comme tel (ça va lancer), soit vous pouvez ajouter ³ en séparant ² et ³ par un -, pour seulement construire la cible
 
-# Lancer le lanceur graphique
+# Exemples
+make launcher-release # Lance le launcher en mode release
+make client-profile-build # Construit le client en mode profiler
+
+# Commandes récurrentes
+
+# Debug
 make launcher
 
-# Tout lancer d'un coup (serveur arrière-plan + client)
-make run
+# Release
+make launcher-release
 
-# Construire
-make build
+# Client profile mode
+make client-profile
 
 # Documentation
 make doc
@@ -56,15 +83,56 @@ Les binaires acceptent `--address` / `-a` pour l'adresse de connexion (défaut :
 ## Profiling
 
 ```bash
-make client-profile     # Client avec flamegraph
-make launcher-profile   # Lanceur avec flamegraph
+# Besoins nécessaires
+# - perf
+# - cloner https://github.com/brendangregg/FlameGraph dans un dossier "Flamegraph" et le déplacer dans le projet courant.
+
+# Vous devez d'abord lancer une cible client, de préférence avec l'option "profile" (c.f. ²).
+# Ensuite, exécuter...
+
+make profile-main # Profile uniquement le thread principal
+
+# ou
+
+make profile-all # Profile tous les threads (peut causer du bruit indésirable)
+
+# cela va créer un fichier flamegraph.svg que vous pourrez ouvrir dans une visionneuse d'image (statique) ou votre navigateur (dynamique).
+
 ```
 
 ## Contrôles
 
-- `&` — mode fil de fer
-- `é` — bordures de chunks
+### Commun aux 2 modes de jeu
+
+- `ZQSD` — se déplacer
+- `Left Click` — casser un bloc
+- `G` — changer de mode de jeu
+
+### Normal
+
+- `Space` — sauter
+
+### God-mode
+
+- `Left Shift` — descendre verticalement
+- `Space` — monter verticalement
+
+### Autres
+
+- `"` — sauvegarde (le chargement est effectué dès le lancement du jeu)
+
+### Debug
+
+- `&` — mode fil de fer (wireframe)
+- `é` — bordures du chunk actuel
+- `C` — informations sur le chunk actuel
+- `Left CTRL + D` — CPU chunks meshs memory dump
+- `V` — CPU & GPU chunks meshs memory overview
+
+## Note
+
+Attention, ce README peut être obsolète car nous le mettons à jour rarement.
 
 ## Licence
 
-Copyright StrachyDev & Theora59-dev 2025-2026. Tous droits réservés.
+c.f. LICENCE.txt

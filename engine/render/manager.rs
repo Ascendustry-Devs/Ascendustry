@@ -77,7 +77,7 @@ impl RenderManager {
 
         self.indirect_commands.clear();
 
-        let alloc = &self.world_buffer.read().unwrap();
+        let alloc = self.world_buffer.read().unwrap();
 
         for entry in alloc.iter_entries_by_intersection(&self.ids_to_render) {
             self.indirect_commands.push(DrawIndirectArgs {

@@ -28,19 +28,19 @@ impl GpuFactory {
         }
     }
 
-    pub fn bind_group_layout(&self) -> &BindGroupLayoutFactory {
+    pub const fn bind_group_layout(&self) -> &BindGroupLayoutFactory {
         &self.bind_group_layout
     }
 
-    pub fn bind_group(&self) -> &BindGroupFactory {
+    pub const fn bind_group(&self) -> &BindGroupFactory {
         &self.bind_group
     }
 
-    pub fn pipeline_layout(&self) -> &PipelineLayoutFactory {
+    pub const fn pipeline_layout(&self) -> &PipelineLayoutFactory {
         &self.pipeline_layout
     }
 
-    pub fn pipeline(&self) -> &PipelineFactory {
+    pub const fn pipeline(&self) -> &PipelineFactory {
         &self.pipeline
     }
 }

@@ -9,7 +9,7 @@ pub struct TextureLoader<'a> {
 }
 
 impl<'a> TextureLoader<'a> {
-    pub(crate) fn new(texture_manager: &'a mut TextureManager) -> Self {
+    pub(crate) const fn new(texture_manager: &'a mut TextureManager) -> Self {
         Self { texture_manager }
     }
 

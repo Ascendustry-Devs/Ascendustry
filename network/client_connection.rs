@@ -41,19 +41,19 @@ impl ClientConnection {
         })
     }
 
-    pub fn is_connected(&self) -> bool {
+    pub const fn is_connected(&self) -> bool {
         self.connected
     }
 
-    pub fn player_id(&self) -> u64 {
+    pub const fn player_id(&self) -> u64 {
         self.server_player_id
     }
 
-    pub fn player_unique_id(&self) -> u64 {
+    pub const fn player_unique_id(&self) -> u64 {
         self.player_unique_id
     }
 
-    pub fn get_last_communication(&self) -> Instant {
+    pub const fn get_last_communication(&self) -> Instant {
         self.last_communication
     }
 
@@ -162,16 +162,9 @@ impl ClientConnection {
         if let Some(runtime) = self.runtime.as_ref() {
             runtime.spawn(async move {
                 let mut read_half = read_half.expect("Read half already taken");
-                loop {
-                    match codec.receive_packet(&mut read_half).await {
-                        Ok(packet) => {
-                            if tx.send(packet).is_err() {
-                                break;
-                            }
-                        }
-                        Err(_) => {
-                            break;
-                        }
+                while let Ok(packet) = codec.receive_packet(&mut read_half).await {
+                    if tx.send(packet).is_err() {
+                        break;
                     }
                 }
             });

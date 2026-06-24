@@ -40,13 +40,13 @@ pub enum NetworkError {
 impl fmt::Display for NetworkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NetworkError::Io(e) => write!(f, "IO error: {}", e),
-            NetworkError::Codec(e) => write!(f, "Codec error: {}", e),
-            NetworkError::PacketTooLarge(size) => write!(f, "Packet too large: {} bytes", size),
-            NetworkError::InvalidPacket(e) => write!(f, "Invalid packet: {}", e),
-            NetworkError::Disconnected => write!(f, "Connection closed"),
-            NetworkError::NotConnected => write!(f, "Not connected"),
-            NetworkError::InvalidData(e) => write!(f, "Invalid data: {}", e),
+            Self::Io(e) => write!(f, "IO error: {}", e),
+            Self::Codec(e) => write!(f, "Codec error: {}", e),
+            Self::PacketTooLarge(size) => write!(f, "Packet too large: {} bytes", size),
+            Self::InvalidPacket(e) => write!(f, "Invalid packet: {}", e),
+            Self::Disconnected => write!(f, "Connection closed"),
+            Self::NotConnected => write!(f, "Not connected"),
+            Self::InvalidData(e) => write!(f, "Invalid data: {}", e),
         }
     }
 }
@@ -56,20 +56,20 @@ impl std::error::Error for NetworkError {}
 /// Convertit une erreur IO standard en NetworkError.
 impl From<std::io::Error> for NetworkError {
     fn from(err: std::io::Error) -> Self {
-        NetworkError::Io(err.to_string())
+        Self::Io(err.to_string())
     }
 }
 
 /// Convertit une String en NetworkError (erreur de codec).
 impl From<String> for NetworkError {
     fn from(err: String) -> Self {
-        NetworkError::Codec(err)
+        Self::Codec(err)
     }
 }
 
 /// Convertit un &str en NetworkError (erreur de codec).
 impl From<&str> for NetworkError {
     fn from(err: &str) -> Self {
-        NetworkError::Codec(err.to_string())
+        Self::Codec(err.to_string())
     }
 }

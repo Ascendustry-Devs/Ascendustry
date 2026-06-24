@@ -16,13 +16,13 @@ const BUFFER_EXPAND_COEF: f32 = 1.25; // allocates 1.25x more than needed to pre
 #[macro_export]
 macro_rules! log_allocator {
     () => {
-        if crate::gpu::allocator::LOG_ALLOCATOR {
+        if $crate::gpu::allocator::LOG_ALLOCATOR {
             println!();
         }
     };
 
     ($($arg:tt)*) => {
-        if crate::gpu::allocator::LOG_ALLOCATOR {
+        if $crate::gpu::allocator::LOG_ALLOCATOR {
             println!($($arg)*);
         }
     };

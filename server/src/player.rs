@@ -25,7 +25,7 @@ pub struct PlayerRegistry {
 }
 
 impl PlayerRegistry {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             players: HashMap::with_hasher(FxBuildHasher),
             player_chunks: HashMap::with_hasher(FxBuildHasher),
@@ -53,8 +53,8 @@ impl PlayerRegistry {
         let player = Player {
             id,
             username,
-            position: position.clone(),
-            rotation: rotation.clone(),
+            position,
+            rotation,
             last_valid_position: position,
             last_valid_rotation: rotation,
             gamemode: PlayerGameMode::Survival,
@@ -89,7 +89,7 @@ impl PlayerRegistry {
 
     pub fn update_position(&mut self, id: u64, position: Position, rotation: Rotation) -> (i32, i32, i32) {
         if let Some(player) = self.players.get_mut(&id) {
-            player.position = position.clone();
+            player.position = position;
             player.rotation = rotation;
         }
         let cx = (position.x / CHUNK_SIZE_F).floor() as i32;
@@ -118,20 +118,20 @@ impl PlayerRegistry {
     /// Rollback the player's position and rotation
     pub fn reset_to_last_valid_transformation(&mut self, id: u64) {
         if let Some(player) = self.players.get_mut(&id) {
-            player.position = player.last_valid_position.clone();
-            player.rotation = player.last_valid_rotation.clone();
+            player.position = player.last_valid_position;
+            player.rotation = player.last_valid_rotation;
         }
     }
     pub fn set_last_valid_transformation(&mut self, id: u64, position: Position, rotation: Rotation) {
         if let Some(player) = self.players.get_mut(&id) {
-            player.last_valid_position = position.clone();
+            player.last_valid_position = position;
             player.last_valid_rotation = rotation;
         }
     }
     pub fn get_older_tranformations(&self, id: u64) -> Option<(Position, Rotation)> {
         self.players
             .get(&id)
-            .map(|player| (player.last_valid_position.clone(), player.last_valid_rotation.clone()))
+            .map(|player| (player.last_valid_position, player.last_valid_rotation))
     }
     pub fn iter(&self) -> impl Iterator<Item = (&u64, &Player)> {
         self.players.iter()

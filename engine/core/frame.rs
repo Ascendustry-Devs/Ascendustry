@@ -17,12 +17,24 @@ pub struct GameFrameData {
     pub visible_meshes: FxHashSet<EntryId>,
 }
 
+impl Default for GameFrameData {
+    fn default() -> Self {
+        Self::blank()
+    }
+}
+
 impl GameFrameData {
     pub fn blank() -> Self {
         Self {
             camera: RenderCamera::new(),
             visible_meshes: HashSet::with_hasher(FxBuildHasher),
         }
+    }
+}
+
+impl Default for EngineFrameData {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

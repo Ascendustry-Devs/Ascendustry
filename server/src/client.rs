@@ -110,7 +110,7 @@ impl ClientSession {
                 version: _,
             } => {
                 // Vérification d'identité (sera complétée avec IdentityRegistry)
-                if self.state.check_identity(player_unique_id, &username).await {
+                if self.state.check_identity(player_unique_id, username).await {
                     self.state.register_identity(player_unique_id, username.clone()).await;
                 } else {
                     let kick = messages::new_kick_paquet(
@@ -198,8 +198,8 @@ impl ClientSession {
                 .iter()
                 .map(|p| PlayerTransformation {
                     player_id: p.id,
-                    position: p.position.clone(),
-                    rotation: p.rotation.clone(),
+                    position: p.position,
+                    rotation: p.rotation,
                 })
                 .collect();
 

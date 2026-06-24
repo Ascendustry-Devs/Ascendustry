@@ -32,11 +32,11 @@ impl UiRenderer {
         }
     }
 
-    pub fn vertex_buffer(&self) -> &Buffer {
+    pub const fn vertex_buffer(&self) -> &Buffer {
         self.vertex_buffer.buffer()
     }
 
-    pub fn proj_buffer(&self) -> &Buffer {
+    pub const fn proj_buffer(&self) -> &Buffer {
         &self.projection_buffer
     }
 

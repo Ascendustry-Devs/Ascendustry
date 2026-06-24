@@ -95,13 +95,13 @@ pub enum WidgetType {
 impl WidgetType {
     fn draw(&self, commands: &mut Vec<DrawCommand>) {
         match self {
-            WidgetType::List(p) => {
+            Self::List(p) => {
                 for child in p.children() {
                     child.draw(commands);
                 }
             }
-            WidgetType::Panel(p) => p.draw(commands),
-            WidgetType::TexturedPanel(p) => p.draw(commands),
+            Self::Panel(p) => p.draw(commands),
+            Self::TexturedPanel(p) => p.draw(commands),
         }
     }
 }

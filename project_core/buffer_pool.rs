@@ -6,7 +6,7 @@ pub struct BufferPool<T> {
 }
 
 impl<T> BufferPool<T> {
-    pub fn new(default_capacity: usize) -> Self {
+    pub const fn new(default_capacity: usize) -> Self {
         Self {
             buffers: Mutex::new(Vec::new()),
             default_capacity,

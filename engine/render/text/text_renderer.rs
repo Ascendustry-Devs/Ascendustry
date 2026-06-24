@@ -54,7 +54,7 @@ impl TextRenderer {
         self.brush.draw(render_pass);
     }
 
-    pub fn dispose(&mut self) {
+    pub const fn dispose(&mut self) {
         // TODO: dispose lorsqu'il y aura des choses à disposer
     }
 }

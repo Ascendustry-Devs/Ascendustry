@@ -7,7 +7,9 @@ use physics::body::PhysicsBody;
 use winit::keyboard::KeyCode;
 
 /// Contrôleur de déplacement au sol avec physique (gravité, collision, saut).
+///
 /// Lire WASD pour la direction horizontale, Space pour sauter.
+///
 /// La vélocité est appliquée au `PhysicsBody`, c'est `resolve_collision` qui
 /// traduit la vélocité en déplacement et gère les collisions.
 pub struct WalkPlayerController;

@@ -78,7 +78,7 @@ pub struct TuiBridge {
 }
 
 impl TuiBridge {
-    pub fn new(state: Arc<Mutex<TuiState>>, command_tx: mpsc::UnboundedSender<TuiCommand>) -> Self {
+    pub const fn new(state: Arc<Mutex<TuiState>>, command_tx: mpsc::UnboundedSender<TuiCommand>) -> Self {
         Self { state, command_tx }
     }
 

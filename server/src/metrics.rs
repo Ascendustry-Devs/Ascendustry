@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Collecte des métriques de performance pour le suivi de santé du serveur.
+///
 /// Tous les compteurs sont atomiques pour pouvoir être mis à jour depuis
 /// n'importe quel thread sans verrou, minimisant la surcharge.
 pub struct ServerMetrics {
@@ -16,8 +17,14 @@ pub struct ServerMetrics {
     pub total_connections: AtomicU64,
 }
 
+impl Default for ServerMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServerMetrics {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             guard_cycle_cumul_ns: AtomicU64::new(0),
             guard_cycle_count: AtomicU64::new(0),

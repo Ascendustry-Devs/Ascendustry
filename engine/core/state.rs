@@ -163,7 +163,7 @@ impl State {
             opaque_render_pipeline.clone(),
             opaque_render_pipeline.clone(),
             opaque_render_pipeline.clone(),
-            opaque_render_pipeline.clone(),
+            opaque_render_pipeline,
             ui_render_pipeline,
         );
         let debug_pipelines = Pipelines::new(
@@ -171,7 +171,7 @@ impl State {
             opaque_wireframe_render_pipeline.clone(),
             opaque_wireframe_render_pipeline.clone(),
             opaque_wireframe_render_pipeline.clone(),
-            opaque_wireframe_render_pipeline.clone(),
+            opaque_wireframe_render_pipeline,
         );
 
         let device = gpu_context.tools.device();
@@ -237,7 +237,7 @@ impl State {
             self.renderer
                 .gpu_context
                 .surface
-                .configure(&self.renderer.gpu_context.tools.device(), &self.renderer.gpu_context.config);
+                .configure(self.renderer.gpu_context.tools.device(), &self.renderer.gpu_context.config);
             self.renderer.is_surface_configured = true;
             self.text_renderer.resize(width, height);
             self.renderer.ui_renderer.update_proj(width, height);
@@ -248,8 +248,8 @@ impl State {
                     .device()
                     .create_texture(&wgpu::TextureDescriptor {
                         size: wgpu::Extent3d {
-                            width: width,
-                            height: height,
+                            width,
+                            height,
                             depth_or_array_layers: 1,
                         },
                         ..wgpu::TextureDescriptor {
@@ -284,7 +284,7 @@ impl State {
         if self.engine_frame_data.fps_timer >= 1.0 {
             self.engine_frame_data.fps = self.engine_frame_data.frame_count;
             self.engine_frame_data.frame_count = 0;
-            self.engine_frame_data.fps_timer = self.engine_frame_data.fps_timer - 1.0;
+            self.engine_frame_data.fps_timer -= 1.0;
         }
     }
 
@@ -322,20 +322,14 @@ impl State {
                 let (width, height) = self.window.inner_size().into();
                 self.resize(width, height);
                 // reconfigure
-                return;
             }
             CurrentSurfaceTexture::Outdated => {
                 let (width, height) = self.window.inner_size().into();
                 self.resize(width, height);
                 // reconfigure
-                return;
             }
-            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded | CurrentSurfaceTexture::Validation => {
-                return;
-            }
-            CurrentSurfaceTexture::Lost => {
-                return; /* chiant sa mère */
-            }
+            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded | CurrentSurfaceTexture::Validation => {}
+            CurrentSurfaceTexture::Lost => { /* chiant sa mère */ }
         }
     }
 

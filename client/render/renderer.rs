@@ -23,7 +23,7 @@ impl GameRenderer {
     }
 
     #[inline(never)]
-    fn update_chunks(state: &mut GameState, data: &mut GameFrameData, renderer: &mut Renderer, view_proj: &Matrix4<f32>) {
+    fn update_chunks(state: &mut GameState, data: &mut GameFrameData, renderer: &Renderer, view_proj: &Matrix4<f32>) {
         state.player.state.camera.aspect.update(renderer.render_options.aspect);
 
         let (cam_x, cam_y, cam_z) = {
@@ -70,7 +70,7 @@ impl GameRenderer {
         }
 
         // Frustum check: we eliminate chunks whose AABB is outside the frustum of the camera (not visible).
-        if !Self::is_chunk_in_camera_frustum(&min, &max, &cam_frustum) {
+        if !Self::is_chunk_in_camera_frustum(&min, &max, cam_frustum) {
             return ControlFlow::Break(());
         }
 
@@ -116,8 +116,8 @@ impl GameRenderer {
 
     // Update renderer with remote player positions
     #[inline(never)]
-    fn update_players(state: &mut GameState, data: &mut GameFrameData, renderer: &mut Renderer) {
-        let alloc = &mut renderer.render_manager.world_buffer.write().unwrap();
+    fn update_players(state: &mut GameState, data: &mut GameFrameData, renderer: &Renderer) {
+        let mut alloc = renderer.render_manager.world_buffer.write().unwrap();
         for p in state.remote_players.get_all_mut().iter_mut() {
             if let Some(new_pos) = p.position.change() {
                 let player_data = generate_cube(new_pos.0, new_pos.1, new_pos.2);

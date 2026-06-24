@@ -46,7 +46,7 @@ impl GameAudioManager {
     }
 
     pub fn set_music_volume(&mut self, volume_db: f32) {
-        let _ = self.music_track.set_volume(Decibels::from(volume_db), Tween::default());
+        self.music_track.set_volume(Decibels::from(volume_db), Tween::default());
     }
 
     pub fn update(&mut self) {

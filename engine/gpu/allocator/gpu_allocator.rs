@@ -76,10 +76,7 @@ impl GpuAllocator {
     }
 
     pub fn get_entry_index(&self, id: EntryId) -> Result<usize, AllocError> {
-        match self.data.iter().position(|x| x.id == id) {
-            Some(index) => Ok(index),
-            None => Err(AllocError::InvalidId),
-        }
+        self.data.iter().position(|x| x.id == id).ok_or(AllocError::InvalidId)
     }
 
     pub fn get_entry(&self, id: EntryId) -> Result<&AllocEntry, AllocError> {
@@ -105,13 +102,13 @@ impl GpuAllocator {
         let conversion = |b: u32| {
             let kb = b / 1024;
             let mb = kb / 1024;
-            return (mb, kb, b);
+            (mb, kb, b)
         };
 
         let mesh_count = self.data.len();
 
         let used_cpu = (self.arena.len()
-            + self.id_pool.len() * size_of::<u32>()
+            + self.id_pool.free_ids_len() * size_of::<u32>()
             + self.gaps.len() * size_of::<Gap>()
             + self.pending_destruction.len() * size_of::<SmartBuffer>()
             + self.write_operations.len() * size_of::<WriteOperation>()
@@ -160,7 +157,7 @@ impl GpuAllocator {
         println!("└─ Used                {:3}Mb | {:6}Kb | {:9}b", data_mb, data_kb, data_b);
     }
 
-    pub fn get_buffer(&self) -> &Buffer {
+    pub const fn get_buffer(&self) -> &Buffer {
         self.buffer.buffer()
     }
 

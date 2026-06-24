@@ -14,17 +14,24 @@ pub struct ChunkMesh {
     dirty: AtomicBool,
 }
 
+impl Default for ChunkMesh {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[allow(clippy::needless_range_loop)]
 impl ChunkMesh {
-    pub fn new() -> ChunkMesh {
-        return ChunkMesh {
+    pub const fn new() -> Self {
+        Self {
             id: None,
             dirty: AtomicBool::new(true),
-        };
+        }
     }
 
     #[inline(always)]
     pub fn is_dirty(&self) -> bool {
-        return self.dirty.load(Ordering::Relaxed);
+        self.dirty.load(Ordering::Relaxed)
     }
 
     #[inline(always)]
@@ -38,12 +45,16 @@ impl ChunkMesh {
     }
 
     #[inline(always)]
-    pub fn get_solidity_xyz(solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE], x: i32, y: i32, z: i32) -> bool {
-        return solidity[(x + y * PADDED_CHUNK_SIZE + z * PADDED_CHUNK_SIZE_SQR) as usize];
+    pub const fn get_solidity_xyz(solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE], x: i32, y: i32, z: i32) -> bool {
+        solidity[(x + y * PADDED_CHUNK_SIZE + z * PADDED_CHUNK_SIZE_SQR) as usize]
     }
 
     #[inline(always)]
-    fn get_face_ao(solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE], pos: [i32; 3], neighbors: [(i32, i32, i32); 3]) -> u8 {
+    const fn get_face_ao(
+        solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE],
+        pos: [i32; 3],
+        neighbors: [(i32, i32, i32); 3],
+    ) -> u8 {
         // AO for each configuration (range 0-3 both included)
         // Scheme:
         // [side1][side2][corner]
@@ -59,19 +70,19 @@ impl ChunkMesh {
         const AO_TABLE: [u8; 8] = [3, 2, 2, 0, 2, 1, 1, 0];
 
         // Check if neighbors exists and if they exists, if they are solid (AKA doesn't let light pass through them).
-        let corner_solid = ChunkMesh::get_solidity_xyz(
+        let corner_solid = Self::get_solidity_xyz(
             solidity,
             pos[0] + neighbors[0].0,
             pos[1] + neighbors[0].1,
             pos[2] + neighbors[0].2,
         ) as u8;
-        let side1_solid = ChunkMesh::get_solidity_xyz(
+        let side1_solid = Self::get_solidity_xyz(
             solidity,
             pos[0] + neighbors[1].0,
             pos[1] + neighbors[1].1,
             pos[2] + neighbors[1].2,
         ) as u8;
-        let side2_solid = ChunkMesh::get_solidity_xyz(
+        let side2_solid = Self::get_solidity_xyz(
             solidity,
             pos[0] + neighbors[2].0,
             pos[1] + neighbors[2].1,
@@ -80,7 +91,7 @@ impl ChunkMesh {
 
         // Calc the index and return the corresponding AO
         let idx = ((corner_solid << 2) | (side1_solid << 1) | side2_solid) as usize;
-        return AO_TABLE[idx];
+        AO_TABLE[idx]
     }
 
     const fn get_ao_neighbors(face: Direction, corner: SquareCorner) -> [(i32, i32, i32); 3] {
@@ -195,12 +206,12 @@ impl ChunkMesh {
                         let current_pos = [unpadded_d, u, v]; // unpadded_d = d + 1
                         let current = padded_chunk.get_block_from_i(current_i);
 
-                        let v0_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][0]); // Bottom left
-                        let v1_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][1]); // Bottom right
-                        let v2_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][2]); // Top left
-                        let v3_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][3]); // Top right
+                        let v0_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][0]); // Bottom left
+                        let v1_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][1]); // Bottom right
+                        let v2_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][2]); // Top left
+                        let v3_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][3]); // Top right
 
-                        let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | (v3_ao << 0);
+                        let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         // We mark the mask as unvisited so the mesher will know we need to make a face out of this
                         // -1 because v is the index for PADDED_CHUNK, but mask contains indices for a basic CHUNK
@@ -209,12 +220,12 @@ impl ChunkMesh {
                     } else {
                         let previous = padded_chunk.get_block_from_i(previous_i);
 
-                        let v0_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][0]); // Bottom left
-                        let v1_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][1]); // Bottom right
-                        let v2_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][2]); // Top left
-                        let v3_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][3]); // Top right
+                        let v0_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][0]); // Bottom left
+                        let v1_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][1]); // Bottom right
+                        let v2_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][2]); // Top left
+                        let v3_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][3]); // Top right
 
-                        let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | (v3_ao << 0);
+                        let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         // We mark the mask as unvisited so the mesher will know we need to make a face out of this
                         // -1 because v is the index for PADDED_CHUNK, but mask contains indices for a basic CHUNK
@@ -421,10 +432,10 @@ impl ChunkMesh {
                         let current_pos = [v, unpadded_d, u];
                         let current = padded_chunk.get_block_from_i(current_i);
 
-                        let v0_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][0]);
-                        let v1_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][1]);
-                        let v2_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][2]);
-                        let v3_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][3]);
+                        let v0_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][0]);
+                        let v1_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][1]);
+                        let v2_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][2]);
+                        let v3_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][3]);
                         let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         // mask[Z][X] — on retire le padding : u-1 et v-1
@@ -435,10 +446,10 @@ impl ChunkMesh {
                         let previous_pos = [v, d, u];
                         let previous = padded_chunk.get_block_from_i(previous_i);
 
-                        let v0_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][0]);
-                        let v1_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][1]);
-                        let v2_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][2]);
-                        let v3_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][3]);
+                        let v0_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][0]);
+                        let v1_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][1]);
+                        let v2_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][2]);
+                        let v3_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][3]);
                         let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         mask_row[(v - 1) as usize] =
@@ -604,10 +615,10 @@ impl ChunkMesh {
                         let current_pos = [u, v, unpadded_d];
                         let current = padded_chunk.get_block_from_i(current_i);
 
-                        let v0_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][0]);
-                        let v1_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][1]);
-                        let v2_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][2]);
-                        let v3_ao = ChunkMesh::get_face_ao(solidity, current_pos, NEIGHBORS[1][3]);
+                        let v0_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][0]);
+                        let v1_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][1]);
+                        let v2_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][2]);
+                        let v3_ao = Self::get_face_ao(solidity, current_pos, NEIGHBORS[1][3]);
                         let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         // mask[Y][Z] — on retire le padding : u-1 et v-1
@@ -618,10 +629,10 @@ impl ChunkMesh {
                         let previous_pos = [u, v, d];
                         let previous = padded_chunk.get_block_from_i(previous_i);
 
-                        let v0_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][0]);
-                        let v1_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][1]);
-                        let v2_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][2]);
-                        let v3_ao = ChunkMesh::get_face_ao(solidity, previous_pos, NEIGHBORS[0][3]);
+                        let v0_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][0]);
+                        let v1_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][1]);
+                        let v2_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][2]);
+                        let v3_ao = Self::get_face_ao(solidity, previous_pos, NEIGHBORS[0][3]);
                         let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         mask_row[(v - 1) as usize] =
@@ -729,7 +740,7 @@ impl ChunkMesh {
     }
 
     /// Updates a ChunkMesh with the data processed by [GreedyMeshingProcessor]'s threads.
-    pub fn update(&mut self, vertices: &Vec<Vertex>, mesh_manager: &mut GpuAllocator) -> Result<(), AllocError> {
+    pub fn update(&mut self, vertices: &[Vertex], mesh_manager: &mut GpuAllocator) -> Result<(), AllocError> {
         // It's no longer dirty since we're updating it.
         self.dirty.store(false, Ordering::Relaxed);
 
@@ -746,7 +757,7 @@ impl ChunkMesh {
 
         let data = cast_slice(vertices);
 
-        return match self.id {
+        match self.id {
             // Mesh already exists.
             Some(mesh_id) => mesh_manager.update(mesh_id, data),
             // Creates mesh with new data and associates it with the chunk mesh.
@@ -755,6 +766,6 @@ impl ChunkMesh {
                 self.id = Some(mesh_id);
                 Ok(())
             }
-        };
+        }
     }
 }

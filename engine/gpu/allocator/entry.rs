@@ -8,7 +8,7 @@ pub struct AllocEntry {
 }
 
 impl AllocEntry {
-    pub fn new(id: EntryId, position: usize, length: usize) -> Self {
+    pub const fn new(id: EntryId, position: usize, length: usize) -> Self {
         Self { id, position, length }
     }
 }

@@ -1,4 +1,8 @@
-use std::{iter, mem, sync::Arc};
+use std::{
+    iter,
+    mem::{self, size_of},
+    sync::Arc,
+};
 
 use game::world::data::chunk::CHUNK_SIZE_F;
 use winit::window::Window;
@@ -32,7 +36,7 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(
+    pub const fn new(
         is_surface_configured: bool,
 
         render_options: RenderOptions,
@@ -65,18 +69,19 @@ impl Renderer {
     fn world_pass(&self, render_pass: &mut RenderPass) {
         // World & Player meshes (other than local player)
         let mesh_count = self.render_manager.ids_to_render.len() as u32;
-        let alloc = &self.render_manager.world_buffer.read().unwrap();
+        let alloc = self.render_manager.world_buffer.read().unwrap();
         if mesh_count > 0 {
             render_pass.set_vertex_buffer(0, alloc.get_buffer().slice(..));
 
             let can_multidraw = self.gpu_context.features.contains(Features::MULTI_DRAW_INDIRECT_COUNT);
+            let buffer = self.render_manager.indirect_buffer.buffer();
 
             if can_multidraw {
-                render_pass.multi_draw_indirect(&self.render_manager.indirect_buffer.buffer(), 0, mesh_count);
+                render_pass.multi_draw_indirect(buffer, 0, mesh_count);
             } else {
-                const CMD_SIZE: u64 = mem::size_of::<DrawIndirectArgs>() as u64;
+                const CMD_SIZE: u64 = size_of::<DrawIndirectArgs>() as u64;
                 for i in 0..mesh_count {
-                    render_pass.draw_indirect(&self.render_manager.indirect_buffer.buffer(), i as u64 * CMD_SIZE);
+                    render_pass.draw_indirect(buffer, i as u64 * CMD_SIZE);
                 }
             }
         }

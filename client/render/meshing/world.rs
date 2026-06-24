@@ -10,12 +10,9 @@ use project_core::{
     utils::unique_queue::FxUniqueQueue,
 };
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::{cmp::max, sync::RwLock};
-use std::{
-    collections::{HashMap, HashSet},
-    mem,
-};
+use std::{cmp::max, mem::take, sync::RwLock};
 
 pub struct WorldMesh {
     pub meshes: FxHashMap<(i32, i32, i32), ChunkMesh>,
@@ -29,11 +26,17 @@ pub struct WorldMesh {
     texture_lookup: Arc<Vec<u32>>,
 }
 
+impl Default for WorldMesh {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WorldMesh {
-    pub fn new() -> WorldMesh {
+    pub fn new() -> Self {
         let worker_count = max(num_cpus::get() / 2, 1);
         let buffer_pool = Arc::new(BufferPool::new(1024 * 256));
-        WorldMesh {
+        Self {
             meshes: HashMap::with_hasher(FxBuildHasher),
             chunk_meshes: HashSet::with_hasher(FxBuildHasher),
             mesh_worker: WorkerPool::with_max_pending(worker_count, buffer_pool, Some(MAX_MESHING_CHUNKS_IN_QUEUE as usize)),
@@ -61,7 +64,7 @@ impl WorldMesh {
     ) -> Vec<MeshResponse> {
         self.listen(mesh_request);
         self.submit_meshes();
-        self.compute_generated_meshes(&mut mesh_request.delete, mesh_manager)
+        self.compute_generated_meshes(&mesh_request.delete, mesh_manager)
     }
 
     fn listen(&mut self, mesh_request: &mut MeshRequestMessage) {
@@ -81,10 +84,10 @@ impl WorldMesh {
     }
 
     fn delete_mesh_with_alloc(&mut self, alloc: &mut GpuAllocator, coords: &(i32, i32, i32)) {
-        self.chunk_meshes.remove(&coords);
-        self.pending.retain(|_, v| v.coords.ne(&coords));
-        self.pending_keys.remove(&coords);
-        if let Some(mesh) = self.meshes.remove(&coords) {
+        self.chunk_meshes.remove(coords);
+        self.pending.retain(|_, v| v.coords.ne(coords));
+        self.pending_keys.remove(coords);
+        if let Some(mesh) = self.meshes.remove(coords) {
             if let Some(mesh_id) = mesh.id {
                 match alloc.free(mesh_id) {
                     Ok(_) => {}
@@ -100,7 +103,7 @@ impl WorldMesh {
     }
 
     fn delete_mesh(&mut self, coords: &(i32, i32, i32)) {
-        let raw_alloc = mem::replace(&mut self.alloc, None).unwrap();
+        let raw_alloc = take(&mut self.alloc).unwrap();
         {
             let alloc = &mut raw_alloc.write().unwrap();
             self.delete_mesh_with_alloc(alloc, coords);
@@ -154,8 +157,8 @@ impl WorldMesh {
 
     fn compute_generated_meshes(
         &mut self,
-        mesh_out: &mut FxHashSet<MeshRequestDelete>,
-        mesh_manager: &mut Arc<RwLock<GpuAllocator>>,
+        mesh_out: &FxHashSet<MeshRequestDelete>,
+        mesh_manager: &Arc<RwLock<GpuAllocator>>,
     ) -> Vec<MeshResponse> {
         let mut responses = Vec::new();
 
@@ -251,17 +254,17 @@ impl WorldMesh {
     }
 
     pub fn mesh_infos_at(&self, cpos: &(i32, i32, i32)) -> Option<(Option<u32>, bool)> {
-        self.meshes.get(&cpos).map(|mesh| mesh.get_debug_infos())
+        self.meshes.get(cpos).map(|mesh| mesh.get_debug_infos())
     }
 
     pub fn mesh_at_mut(&mut self, cpos: &(i32, i32, i32)) -> Option<&mut ChunkMesh> {
-        self.meshes.get_mut(&cpos)
+        self.meshes.get_mut(cpos)
     }
 
     pub fn print_memory(&self) {
         let conversion = |b: u32| {
             let kb = b / 1024;
-            return (kb, b);
+            (kb, b)
         };
 
         // Does not include mesh_worker buffers
@@ -294,7 +297,7 @@ impl WorldMesh {
     }
 
     pub fn dispose(&mut self, mesh_manager: &mut Arc<RwLock<GpuAllocator>>) {
-        let alloc = &mut mesh_manager.write().unwrap();
+        let mut alloc = mesh_manager.write().unwrap();
         for mesh in self.meshes.drain() {
             if let Some(mesh_id) = mesh.1.id {
                 let _ = alloc.free(mesh_id);

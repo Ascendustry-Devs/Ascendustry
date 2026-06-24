@@ -51,8 +51,8 @@ impl Cipher {
     pub fn new(key: [u8; 32]) -> Self {
         let key: &Key<Aes256Gcm> = &key.into();
         let key = Key::<Aes256Gcm>::from_slice(key);
-        let cipher = Aes256Gcm::new(&key);
-        Self { cipher: cipher }
+        let cipher = Aes256Gcm::new(key);
+        Self { cipher }
     }
 
     /// Crée un Cipher à partir d'un secret partagé de 32 octets.
@@ -99,7 +99,7 @@ pub struct EncryptedCodec {
 
 impl EncryptedCodec {
     /// Crée un nouveau EncryptedCodec avec le cipher fourni.
-    pub fn new(cipher: Arc<Cipher>) -> Self {
+    pub const fn new(cipher: Arc<Cipher>) -> Self {
         Self { cipher }
     }
 
@@ -118,9 +118,7 @@ impl EncryptedCodec {
         let serialized = packet.serialize();
 
         // Étape 2: Chiffrement XOR ou  AES
-        let encrypted = self.cipher.encrypt(&serialized);
-
-        encrypted
+        self.cipher.encrypt(&serialized)
     }
 
     /// Décode les données reçues en paquet.

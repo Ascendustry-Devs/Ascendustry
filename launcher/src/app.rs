@@ -39,14 +39,14 @@ impl eframe::App for LauncherApp {
 
                 ui.add_space(30.0);
 
-                if self.show_multi {
-                    ui.label("Nom du joueur :");
-                    ui.add_sized(
-                        [250.0, 30.0],
-                        egui::TextEdit::singleline(&mut self.username).hint_text("Lambda Player"),
-                    );
+                ui.label("Nom du joueur :");
+                ui.add_sized(
+                    [250.0, 30.0],
+                    egui::TextEdit::singleline(&mut self.username).hint_text("Lambda Player"),
+                );
+                ui.add_space(10.0);
 
-                    ui.add_space(10.0);
+                if self.show_multi {
                     ui.label("Adresse du serveur (ip:port) :");
                     let resp = ui.add_sized(
                         [250.0, 30.0],
@@ -86,13 +86,6 @@ impl eframe::App for LauncherApp {
                         },
                     );
                 } else {
-                    ui.label("Nom du joueur :");
-                    ui.add_sized(
-                        [250.0, 30.0],
-                        egui::TextEdit::singleline(&mut self.username).hint_text("Lambda Player"),
-                    );
-
-                    ui.add_space(10.0);
                     ui.label("Chemin de la sauvegarde :");
                     ui.add_sized(
                         [250.0, 30.0],

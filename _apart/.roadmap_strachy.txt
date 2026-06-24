@@ -1,13 +1,10 @@
-Abstraction de logique
-- Allocation mémoire/buffer GPU intelligente
-- Manager abstrait (créer, modifier, consulter, détruire, avec ids uniques)
-
-UI
+Nettoyage
+Standardisation
+Commentaires
 
 Ressources
-- Pipelines (Opaque, AlphaCutout, Translucent, Billboards, UI)
-- Textures Arrays (Opaque, AlphaCutout, Translucent, Billboards)
-- Texture Atlas (UI)
+- Pipelines (AlphaCutout, Translucent, Billboards, UI)
+- Textures Arrays (AlphaCutout, Translucent, Billboards)
 
 Optis:
 - Génération : super simplex noise interpolé (surface: 1/2 blocs, cave 1/4 blocs),

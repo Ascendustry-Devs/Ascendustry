@@ -21,7 +21,7 @@ impl BufferLayouts {
             4 => Float32,   // u
             5 => Float32,   // v
         ];
-        BufferLayouts::build_vertex_layout::<Vertex>(ATTRIBUTES)
+        Self::build_vertex_layout::<Vertex>(ATTRIBUTES)
     }
 
     pub const fn ui_vertex() -> VertexBufferLayout<'static> {
@@ -32,6 +32,6 @@ impl BufferLayouts {
             3 => Float32, // v
             4 => Uint32,  // color
         ];
-        BufferLayouts::build_vertex_layout::<UiVertex>(ATTRIBUTES)
+        Self::build_vertex_layout::<UiVertex>(ATTRIBUTES)
     }
 }

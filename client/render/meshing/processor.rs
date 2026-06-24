@@ -41,6 +41,6 @@ impl Parallelizable for GreedyMeshingProcessor {
         ChunkMesh::make_greedy_y(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
         ChunkMesh::make_greedy_z(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
 
-        return Some(vertices);
+        Some(vertices)
     }
 }

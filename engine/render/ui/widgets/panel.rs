@@ -23,7 +23,7 @@ impl Widget for Panel {
 }
 
 impl Panel {
-    pub fn new(transform: WidgetTransform, color: u32, child: Option<Box<WidgetType>>) -> Self {
+    pub const fn new(transform: WidgetTransform, color: u32, child: Option<Box<WidgetType>>) -> Self {
         Self { transform, color, child }
     }
 }

@@ -30,7 +30,7 @@ impl PacketHandler for ProductionHandler {
 
             ContenuPaquet::PlayerTransformation { data } => {
                 ctx.state
-                    .update_player_position(data.player_id, data.position.clone(), data.rotation.clone())
+                    .update_player_position(data.player_id, data.position, data.rotation)
                     .await;
 
                 let broadcast_packet = Paquet::new(
@@ -38,8 +38,8 @@ impl PacketHandler for ProductionHandler {
                     ContenuPaquet::MultiplePlayerTransformation {
                         data: vec![PlayerTransformation {
                             player_id: data.player_id,
-                            position: data.position.clone(),
-                            rotation: data.rotation.clone(),
+                            position: data.position,
+                            rotation: data.rotation,
                         }],
                     },
                 );
@@ -85,7 +85,7 @@ impl PacketHandler for ProductionHandler {
             }
 
             ContenuPaquet::GamemodeChange { player_id, gamemode } => {
-                ctx.state.set_player_gamemode(*player_id, gamemode.clone()).await;
+                ctx.state.set_player_gamemode(*player_id, *gamemode).await;
                 Some(packet)
             }
 

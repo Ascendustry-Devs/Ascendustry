@@ -7,6 +7,7 @@ use crate::world::data::block::BlockInstance;
 
 pub const CHUNK_VALIDATION_BATCH_SIZE: usize = 20;
 
+#[allow(unused)]
 fn fletcher16(data: &[u8]) -> [u8; 2] {
     let mut sum1: u16 = 0;
     let mut sum2: u16 = 0;
@@ -33,7 +34,7 @@ pub const LAST_CHUNK_AXIS_INDEX: i32 = CHUNK_SIZE - 1;
 pub const LAST_CHUNK_AXIS_INDEX_USIZE: usize = LAST_CHUNK_AXIS_INDEX as usize;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum ChunkState {
     Pending = 0,
     Ready = 1,
@@ -54,7 +55,7 @@ pub struct ChunkData {
     pub is_dirty: bool,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Chunk {
     pub blocks: Vec<BlockInstance>,
     pub x: i32,
@@ -84,7 +85,7 @@ impl ChunkData {
         }
     }
 
-    pub fn get_debug_infos(&self) -> (ChunkState, bool) {
+    pub const fn get_debug_infos(&self) -> (ChunkState, bool) {
         (self.state, self.is_dirty)
     }
 }
@@ -108,18 +109,18 @@ impl Chunk {
         self.blocks[i] = block;
     }
 
-    pub fn chunk_coords_from_world(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
+    pub const fn chunk_coords_from_world(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
         (x.div_euclid(CHUNK_SIZE), y.div_euclid(CHUNK_SIZE), z.div_euclid(CHUNK_SIZE))
     }
 
-    pub fn local_coords_from_world(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
+    pub const fn local_coords_from_world(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
         (x.rem_euclid(CHUNK_SIZE), y.rem_euclid(CHUNK_SIZE), z.rem_euclid(CHUNK_SIZE))
     }
 
     pub fn neighbors_from_block_pos(x: i32, y: i32, z: i32) -> Vec<(i32, i32, i32)> {
         let mut neighbors = Vec::new();
-        let (cx, cy, cz) = Chunk::chunk_coords_from_world(x, y, z);
-        let (lx, ly, lz) = Chunk::local_coords_from_world(x, y, z);
+        let (cx, cy, cz) = Self::chunk_coords_from_world(x, y, z);
+        let (lx, ly, lz) = Self::local_coords_from_world(x, y, z);
 
         if lx == 0 {
             neighbors.push((cx - 1, cy, cz));
@@ -224,7 +225,7 @@ impl Chunk {
     }
 }
 
-pub fn global_position_to_chunk_pos(gx: i32, gy: i32, gz: i32) -> ((i32, i32, i32), IntraChunkCoords) {
+pub const fn global_position_to_chunk_pos(gx: i32, gy: i32, gz: i32) -> ((i32, i32, i32), IntraChunkCoords) {
     let cx = gx.div_euclid(CHUNK_SIZE);
     let cy = gy.div_euclid(CHUNK_SIZE);
     let cz = gz.div_euclid(CHUNK_SIZE);

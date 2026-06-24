@@ -1,3 +1,5 @@
+use std::mem::replace;
+
 /// A simple yet effective struct to get track of the last 2 values used.
 #[derive(Clone)]
 pub struct Updatable<T: Clone + PartialEq> {
@@ -16,7 +18,7 @@ impl<T: Clone + PartialEq> Updatable<T> {
 
     #[inline(always)]
     pub fn update(&mut self, value: T) {
-        self.last = std::mem::replace(&mut self.current, value);
+        self.last = replace(&mut self.current, value);
     }
 
     #[inline(always)]
@@ -28,7 +30,7 @@ impl<T: Clone + PartialEq> Updatable<T> {
     }
 
     #[inline(always)]
-    pub fn last(&self) -> &T {
+    pub const fn last(&self) -> &T {
         &self.last
     }
 
@@ -38,17 +40,17 @@ impl<T: Clone + PartialEq> Updatable<T> {
     // }
 
     #[inline(always)]
-    pub fn current(&self) -> &T {
+    pub const fn current(&self) -> &T {
         &self.current
     }
 
     #[inline(always)]
-    pub fn current_mut(&mut self) -> &mut T {
+    pub const fn current_mut(&mut self) -> &mut T {
         &mut self.current
     }
 
     #[inline(always)]
-    pub fn values_mut(&mut self) -> (&mut T, &mut T) {
+    pub const fn values_mut(&mut self) -> (&mut T, &mut T) {
         (&mut self.current, &mut self.last)
     }
 
@@ -69,7 +71,7 @@ impl<T: Clone + PartialEq> Updatable<T> {
 
 impl<T: Copy + PartialEq> Updatable<T> {
     #[inline(always)]
-    pub fn update_by_copy(&mut self, value: T) {
+    pub const fn update_by_copy(&mut self, value: T) {
         let old = self.current;
         self.current = value;
         self.last = old;

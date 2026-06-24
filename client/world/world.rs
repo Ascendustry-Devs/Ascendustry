@@ -1,5 +1,6 @@
 use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use engine::render::modes::RenderMode;
+use num_cpus::get;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::hash::{Hash, Hasher};
 
@@ -25,7 +26,7 @@ use std::{
 
 use crate::{player::player::Player, render::meshing::world::WorldMesh};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct MeshSnapshot {
     pub main: Arc<Chunk>,
     pub neg_x: Option<Arc<Chunk>>,
@@ -56,7 +57,7 @@ pub struct MeshRequestAdd {
 }
 
 impl MeshRequestAdd {
-    pub fn new(coords: (i32, i32, i32), snapshot: MeshSnapshot) -> Self {
+    pub const fn new(coords: (i32, i32, i32), snapshot: MeshSnapshot) -> Self {
         Self { coords, snapshot }
     }
 }
@@ -79,7 +80,7 @@ pub struct MeshRequestMessage {
 }
 
 impl MeshRequestMessage {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             add: HashSet::with_hasher(FxBuildHasher),
             delete: HashSet::with_hasher(FxBuildHasher),
@@ -88,10 +89,10 @@ impl MeshRequestMessage {
 }
 
 impl World {
-    pub fn new(seed: u32) -> World {
+    pub fn new(seed: u32) -> Self {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
 
-        let worker_count = max((num_cpus::get() as f32 / 2.0).floor() as usize, 1);
+        let worker_count = max((get() as f32 / 2.0).floor() as usize, 1);
         let chunk_generator = ChunkGenerator::with_max_pending(
             worker_count,
             Arc::clone(&block_manager),
@@ -99,14 +100,14 @@ impl World {
             MAX_GENERATION_CHUNKS_IN_QUEUE as usize,
         );
 
-        return World {
-            seed: seed,
+        Self {
+            seed,
             chunks: HashMap::with_hasher(FxBuildHasher),
-            chunk_generator: chunk_generator,
-            block_manager: block_manager,
+            chunk_generator,
+            block_manager,
             waiting_to_mesh: UniqueQueue::with_capacity(256),
             mesh_request: MeshRequestMessage::empty(),
-        };
+        }
     }
 
     pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut MeshRequestMessage {
@@ -159,7 +160,7 @@ impl World {
         }
     }
 
-    fn clean_chunks(&mut self, mesh_manager: &mut Arc<RwLock<GpuAllocator>>, world_mesh: &mut WorldMesh, player: &Player) {
+    fn clean_chunks(&mut self, mesh_manager: &Arc<RwLock<GpuAllocator>>, world_mesh: &mut WorldMesh, player: &Player) {
         let alloc = &mut mesh_manager.write().unwrap();
 
         // Coordonnées du chunk en blocks où se trouve le joueur
@@ -200,7 +201,7 @@ impl World {
         });
     }
 
-    fn generate_missing_chunks(&mut self, player: &Player) {
+    fn generate_missing_chunks(&self, player: &Player) {
         // Si la file d'attente est pleine, ça ne sert à rien d'essayer de soumettre des demandes
         if self.chunk_generator.is_queue_full() {
             return;
@@ -324,12 +325,12 @@ impl World {
 
     #[inline(always)]
     pub fn get_chunk_data(&self, cx: i32, cy: i32, cz: i32) -> Option<&ChunkData> {
-        return self.chunks.get(&(cx, cy, cz));
+        self.chunks.get(&(cx, cy, cz))
     }
 
     #[inline(always)]
     pub fn get_chunk_data_mut(&mut self, cx: i32, cy: i32, cz: i32) -> Option<&mut ChunkData> {
-        return self.chunks.get_mut(&(cx, cy, cz));
+        self.chunks.get_mut(&(cx, cy, cz))
     }
 
     pub fn set_block(&mut self, x: i32, y: i32, z: i32, block: BlockInstance) -> bool {
@@ -340,7 +341,7 @@ impl World {
         };
         let current_block = chunk.chunk.get_block_from_xyz(lx, ly, lz);
         if current_block == block {
-            return false;
+            false
         } else {
             Arc::make_mut(&mut chunk.chunk).set_block_from_xyz(lx, ly, lz, block);
 
@@ -352,7 +353,7 @@ impl World {
                     self.mesh_request.add.insert(data);
                 }
             }
-            return true;
+            true
         }
     }
 
@@ -360,11 +361,8 @@ impl World {
         let (cx, cy, cz) = Chunk::chunk_coords_from_world(x, y, z);
         let (lx, ly, lz) = Chunk::local_coords_from_world(x, y, z);
 
-        if let Some(data) = self.get_chunk_data(cx, cy, cz) {
-            return data.chunk.get_block_from_xyz(lx, ly, lz);
-        } else {
-            return BlockInstance::air();
-        }
+        self.get_chunk_data(cx, cy, cz)
+            .map_or_else(BlockInstance::air, |data| data.chunk.get_block_from_xyz(lx, ly, lz))
     }
 
     pub fn are_all_neighbors_ready(&self, cx: i32, cy: i32, cz: i32) -> bool {
@@ -396,7 +394,7 @@ impl World {
     }
 
     pub fn chunk_infos_at(&self, cpos: &(i32, i32, i32)) -> Option<(ChunkState, bool)> {
-        self.chunks.get(&cpos).map(|chunk| chunk.get_debug_infos())
+        self.chunks.get(cpos).map(|chunk| chunk.get_debug_infos())
     }
 
     /// Retourne vrai si aucun chunk n'est chargé
@@ -411,6 +409,10 @@ impl World {
 
     pub fn block_to_item(&self, block_id: u32) -> Option<game::inventory::Item> {
         self.block_manager.read().unwrap().block_to_item(block_id)
+    }
+
+    pub const fn seed(&self) -> u32 {
+        self.seed
     }
 
     pub fn dispose(&mut self) {

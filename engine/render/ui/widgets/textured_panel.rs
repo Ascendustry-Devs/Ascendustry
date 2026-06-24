@@ -25,7 +25,7 @@ impl Widget for TexturedPanel {
 }
 
 impl TexturedPanel {
-    pub fn new(transform: WidgetTransform, texture: u32, child: Option<Box<WidgetType>>) -> Self {
+    pub const fn new(transform: WidgetTransform, texture: u32, child: Option<Box<WidgetType>>) -> Self {
         Self {
             transform,
             texture,
