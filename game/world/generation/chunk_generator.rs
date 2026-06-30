@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 use crate::world::data::block::BlockManager;
 use crate::world::data::chunk::{Chunk, ChunkData};
 use crate::world::generation::chunk::ChunkWithChecksum;
+use crate::world::generation::ore_gen::{OreGenConfig, OreVeinConfig};
 
 // + caves proches
 // - caves éloignées
@@ -24,17 +25,59 @@ pub struct ChunkGenContext {
     pub cave_1: Arc<SuperSimplex>,
     pub cave_2: Arc<SuperSimplex>,
     pub block_manager: Arc<RwLock<BlockManager>>,
+    pub ore_configs: Vec<OreVeinConfig>,
+    pub ore_noises: Vec<Arc<SuperSimplex>>,
 }
 
 impl ChunkGenContext {
     pub fn new(seed: u32, block_manager: Arc<RwLock<BlockManager>>) -> Self {
+        let (ore_configs, ore_noises) = Self::load_ores(seed);
+
         Self {
             seed,
             surface: Arc::new(SuperSimplex::default().set_seed(seed)),
             cave_1: Arc::new(SuperSimplex::default().set_seed(seed.wrapping_add(1000))),
             cave_2: Arc::new(SuperSimplex::default().set_seed(seed.wrapping_add(2000))),
             block_manager,
+            ore_configs,
+            ore_noises,
         }
+    }
+
+    fn load_ores(seed: u32) -> (Vec<OreVeinConfig>, Vec<Arc<SuperSimplex>>) {
+        let config = OreGenConfig::load("assets/ores.json").unwrap_or(OreGenConfig { ores: Vec::new() });
+        let configs = config.ores;
+        let noises: Vec<Arc<SuperSimplex>> = configs
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let noise_seed = seed.wrapping_add((i as u32).wrapping_mul(3000));
+                Arc::new(SuperSimplex::default().set_seed(noise_seed))
+            })
+            .collect();
+        (configs, noises)
+    }
+
+    pub fn get_ore_count(&self) -> usize {
+        self.ore_configs.len()
+    }
+
+    pub fn get_ore_config(&self, index: usize) -> Option<&OreVeinConfig> {
+        self.ore_configs.get(index)
+    }
+
+    pub fn should_place_ore(&self, index: usize, wx: f64, wy: f64, wz: f64) -> bool {
+        let Some(config) = self.ore_configs.get(index) else {
+            return false;
+        };
+        let Some(noise) = self.ore_noises.get(index) else {
+            return false;
+        };
+        let nx = wx * config.noise_scale;
+        let ny = wy * config.noise_scale;
+        let nz = wz * config.noise_scale;
+        let value = noise.get([nx, ny, nz]).abs();
+        value > config.threshold
     }
 
     #[inline(always)]

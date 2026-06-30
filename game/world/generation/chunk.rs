@@ -43,6 +43,15 @@ impl Chunk {
             .expect("Did not find block 'stone' in block manager")
             .get_id();
 
+        let mut ore_ids: Vec<Option<u32>> = Vec::with_capacity(ctx.get_ore_count());
+        for i in 0..ctx.get_ore_count() {
+            if let Some(config) = ctx.get_ore_config(i) {
+                ore_ids.push(blocks.get_block_by_string(config.block_id.clone()).map(|b| b.get_id()));
+            } else {
+                ore_ids.push(None);
+            }
+        }
+
         drop(blocks);
 
         let blocks = vec![BlockInstance::air(); CHUNK_BLOCK_NUMBER];
@@ -79,7 +88,22 @@ impl Chunk {
                         let block_id = match wy {
                             y if y == terrain_y - 1 => grass_id,
                             y if y >= terrain_y - 4 => dirt_id,
-                            _ => stone_id,
+                            _ => {
+                                let mut placed_id = stone_id;
+                                for i in 0..ctx.get_ore_count() {
+                                    if let Some(config) = ctx.get_ore_config(i) {
+                                        if wy >= config.depth_min && wy <= config.depth_max {
+                                            if ctx.should_place_ore(i, wx, wy as f64, wz) {
+                                                if let Some(ore_id) = ore_ids[i] {
+                                                    placed_id = ore_id;
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                placed_id
+                            }
                         };
                         chunk.set_block_from_xyz(x, y, z, BlockInstance::new(block_id));
                     }

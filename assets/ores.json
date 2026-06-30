@@ -1,0 +1,32 @@
+{
+	"ores": [
+		{
+			"block_id": "coal_ore",
+			"depth_min": -1000,
+			"depth_max": 40,
+			"noise_scale": 0.025,
+			"threshold": 0.8
+		},
+		{
+			"block_id": "copper_ore",
+			"depth_min": -1000,
+			"depth_max": 40,
+			"noise_scale": 0.03,
+			"threshold": 0.8
+		},
+		{
+			"block_id": "iron_ore",
+			"depth_min": -1000,
+			"depth_max": 40,
+			"noise_scale": 0.03,
+			"threshold": 0.8
+		},
+		{
+			"block_id": "gold_ore",
+			"depth_min": -1000,
+			"depth_max": 40,
+			"noise_scale": 0.03,
+			"threshold": 0.8
+		}
+	]
+}
