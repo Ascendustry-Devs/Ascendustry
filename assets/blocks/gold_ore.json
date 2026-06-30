@@ -1,0 +1,7 @@
+{
+	"id": "gold_ore",
+	"name": "Gold Ore",
+	"hardness": 1.0,
+	"texture": "assets/images/gold_ore.png",
+	"drop": "gold_ore"
+}

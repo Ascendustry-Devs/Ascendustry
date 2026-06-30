@@ -1,0 +1,7 @@
+{
+	"id": "copper_ore",
+	"name": "Copper Ore",
+	"hardness": 1.0,
+	"texture": "assets/images/copper_ore.png",
+	"drop": "copper_ore"
+}

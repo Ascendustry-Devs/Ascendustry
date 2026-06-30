@@ -1,0 +1,7 @@
+{
+	"id": "iron_ore",
+	"name": "Iron Ore",
+	"hardness": 2.0,
+	"texture": "assets/images/iron_ore.png",
+	"drop": "iron_ore"
+}

@@ -1,0 +1,7 @@
+{
+	"id": "coal_ore",
+	"name": "Coal Ore",
+	"max_stack": 96,
+	"item_type": "Placeable",
+	"texture": "assets/images/coal_ore.png"
+}

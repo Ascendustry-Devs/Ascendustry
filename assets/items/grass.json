@@ -1,0 +1,7 @@
+{
+	"id": "grass",
+	"name": "Grass",
+	"max_stack": 96,
+	"item_type": "Placeable",
+	"texture": "assets/images/grass.png"
+}

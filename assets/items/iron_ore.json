@@ -1,0 +1,7 @@
+{
+	"id": "iron_ore",
+	"name": "Iron Ore",
+	"max_stack": 96,
+	"item_type": "Placeable",
+	"texture": "assets/images/iron_ore.png"
+}

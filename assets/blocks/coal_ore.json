@@ -1,0 +1,7 @@
+{
+	"id": "coal_ore",
+	"name": "Coal Ore",
+	"hardness": 1.0,
+	"texture": "assets/images/coal_ore.png",
+	"drop": "coal_ore"
+}
