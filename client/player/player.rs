@@ -11,7 +11,7 @@ use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X,
     SPAWN_POSITION_Y, SPAWN_POSITION_Z, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use game::inventory::{Inventory, Item, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
+use game::inventory::{Inventory, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
 use game::world::data::block::BlockInstance;
@@ -105,8 +105,11 @@ impl PlayerState {
 
         if inputs.take_mouse_button_pressed(MouseButton::Right) {
             if let Some(slot_item_stack) = self.inventory.get_slot(self.selected_slot as usize) {
-                let block = BlockInstance::new(item_to_block_id_str(slot_item_stack.item().get_item()).unwrap());
-                self.place_block(block, world, &mut commands);
+                let item_id = slot_item_stack.item().get_item().get_id();
+                if let Some(block_id) = world.item_to_block(item_id) {
+                    let block = BlockInstance::new(block_id);
+                    self.place_block(block, world, &mut commands);
+                }
             }
         }
 
@@ -365,14 +368,5 @@ impl Player {
 
     pub fn get_rendered_chunk_range(&self) -> [i32; 6] {
         self.state.get_rendered_chunk_range()
-    }
-}
-
-pub fn item_to_block_id_str(item: Item) -> Option<u32> {
-    match item {
-        Item::Dirt => Some(1),
-        Item::Grass => Some(2),
-        Item::Stone => Some(3),
-        Item::Sword => None,
     }
 }

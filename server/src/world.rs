@@ -1,4 +1,5 @@
 use cgmath::Point3;
+use game::inventory::item_manager::ItemManager;
 use game::world::data::block::{BlockInstance, BlockManager};
 use game::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE, CHUNK_SIZE_SQR_USIZE, CHUNK_SIZE_USIZE};
 use game::world::generation::chunk::ChunkWithChecksum;
@@ -15,32 +16,48 @@ use physics::collision_world::CollisionWorld;
 pub struct WorldState {
     pub seed: u32,
     pub block_manager: Arc<RwLock<BlockManager>>,
+    pub item_manager: Arc<RwLock<ItemManager>>,
     pub world_generated_chunks: FxHashMap<(i32, i32, i32), ChunkWithChecksum>,
     pub modifications: ModifiedWorld,
 }
 
 impl WorldState {
-    pub fn new(blocks_path: &str) -> Self {
+    pub fn new(blocks_path: &str, items_path: &str) -> Self {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
+        let item_manager = Arc::new(RwLock::new(ItemManager::new()));
 
         let mut instance = Self {
             seed: 0,
             block_manager,
+            item_manager,
             world_generated_chunks: HashMap::with_hasher(FxBuildHasher),
             modifications: ModifiedWorld::new(),
         };
 
-        instance.init(blocks_path);
+        instance.init(blocks_path, items_path);
 
         instance
     }
 
-    pub fn init(&mut self, blocks_path: &str) {
-        let mut block_manager = self.block_manager.write().unwrap();
+    pub fn init(&mut self, blocks_path: &str, items_path: &str) {
+        {
+            let mut item_manager = self.item_manager.write().unwrap();
+            let items = game::assets::item_loader::load_item_definitions(items_path).expect("Failed to load item definitions");
+            for item in items {
+                item_manager.register(item);
+            }
+        }
 
-        block_manager
-            .load_from_directory(blocks_path)
-            .expect("Failed to load block definitions");
+        {
+            let mut block_manager = self.block_manager.write().unwrap();
+            let item_manager = self.item_manager.read().unwrap();
+
+            block_manager
+                .load_from_directory(blocks_path)
+                .expect("Failed to load block definitions");
+
+            block_manager.resolve_item_mappings(&item_manager);
+        }
     }
 
     pub const fn set_seed(&mut self, seed: u32) {
@@ -195,6 +212,6 @@ impl CollisionWorld for WorldState {
 
 impl Default for WorldState {
     fn default() -> Self {
-        Self::new("assets/blocks/")
+        Self::new("assets/blocks/", "assets/items/")
     }
 }

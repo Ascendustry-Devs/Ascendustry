@@ -29,12 +29,12 @@ impl Default for AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        Self::with_blocks_path("assets/blocks/")
+        Self::with_blocks_path("assets/blocks/", "assets/items/")
     }
 
-    pub fn with_blocks_path(blocks_path: &str) -> Self {
+    pub fn with_blocks_path(blocks_path: &str, items_path: &str) -> Self {
         Self {
-            world: RwLock::new(WorldState::new(blocks_path)),
+            world: RwLock::new(WorldState::new(blocks_path, items_path)),
             players: RwLock::new(PlayerRegistry::new()),
             identity: RwLock::new(IdentityRegistry::new()),
             metrics: ServerMetrics::new(),

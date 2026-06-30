@@ -287,7 +287,7 @@ impl AppState for GameState {
         let tex_lookup = self.world.get_texture_lookup();
         self.world_mesh.set_texture_lookup(tex_lookup);
 
-        self.ui = ClientUI::new(&mut renderer.texture_manager);
+        self.ui = ClientUI::new();
 
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {
@@ -317,8 +317,13 @@ impl AppState for GameState {
 
         self.update_network(network_commands);
 
-        self.ui
-            .update(&self.player.state.inventory, self.player.state.selected_slot, renderer);
+        let item_manager = self.world.get_item_manager();
+        self.ui.update(
+            &self.player.state.inventory,
+            self.player.state.selected_slot,
+            renderer,
+            &item_manager.read().unwrap(),
+        );
         let mesh_manager = &mut renderer.render_manager.world_buffer;
 
         let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request);

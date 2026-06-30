@@ -7,6 +7,8 @@ use std::hash::{Hash, Hasher};
 use crate::api::texture_loader::TextureLoader;
 use cgmath::Point3;
 use game::constants::{DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE};
+use game::inventory::item_manager::ItemManager;
+use game::inventory::ItemInstance;
 use game::world::data::block::{BlockInstance, BlockManager};
 use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
 use game::world::generation::chunk_generator::ChunkGenerator;
@@ -42,6 +44,7 @@ pub struct World {
     chunks: FxHashMap<(i32, i32, i32), ChunkData>,
     chunk_generator: ChunkGenerator,
     block_manager: Arc<RwLock<BlockManager>>,
+    item_manager: Arc<RwLock<ItemManager>>,
     waiting_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
     mesh_request: MeshRequestMessage,
 }
@@ -91,6 +94,7 @@ impl MeshRequestMessage {
 impl World {
     pub fn new(seed: u32) -> Self {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
+        let item_manager = Arc::new(RwLock::new(ItemManager::new()));
 
         let worker_count = max((get() as f32 / 2.0).floor() as usize, 1);
         let chunk_generator = ChunkGenerator::with_max_pending(
@@ -105,6 +109,7 @@ impl World {
             chunks: HashMap::with_hasher(FxBuildHasher),
             chunk_generator,
             block_manager,
+            item_manager,
             waiting_to_mesh: UniqueQueue::with_capacity(256),
             mesh_request: MeshRequestMessage::empty(),
         }
@@ -112,7 +117,22 @@ impl World {
 
     pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut MeshRequestMessage {
         {
+            let mut item_manager = self.item_manager.write().unwrap();
+            let items =
+                game::assets::item_loader::load_item_definitions("assets/items/").expect("Failed to load item definitions");
+            for mut item in items {
+                if let Some(tex_path) = &item.texture_path {
+                    if let Ok(tex_id) = texture_loader.register(tex_path.clone(), RenderMode::Opaque) {
+                        item.texture_index = Some(tex_id.id());
+                    }
+                }
+                item_manager.register(item);
+            }
+        }
+
+        {
             let mut block_manager = self.block_manager.write().unwrap();
+            let item_manager = self.item_manager.read().unwrap();
 
             let mut defs =
                 game::assets::block_loader::load_block_definitions("assets/blocks/").expect("Failed to load block definitions");
@@ -129,6 +149,8 @@ impl World {
                 }
                 block_manager.register(def.clone());
             }
+
+            block_manager.resolve_item_mappings(&item_manager);
             block_manager.build_texture_lookup();
         }
 
@@ -158,6 +180,37 @@ impl World {
                 chunk.state = ChunkState::Ready;
             }
         }
+    }
+
+    pub fn chunk_infos_at(&self, cpos: &(i32, i32, i32)) -> Option<(ChunkState, bool)> {
+        self.chunks.get(cpos).map(|chunk| chunk.get_debug_infos())
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.chunks.is_empty()
+    }
+
+    pub fn get_texture_lookup(&self) -> Arc<Vec<u32>> {
+        let bm = self.block_manager.read().unwrap();
+        Arc::new(bm.get_texture_lookup().to_vec())
+    }
+
+    pub fn block_to_item(&self, block_id: u32) -> Option<ItemInstance> {
+        let bm = self.block_manager.read().unwrap();
+        let im = self.item_manager.read().unwrap();
+        bm.block_to_item(block_id, &im)
+    }
+
+    pub fn item_to_block(&self, item_id: u32) -> Option<u32> {
+        self.block_manager.read().unwrap().item_to_block_id(item_id)
+    }
+
+    pub const fn seed(&self) -> u32 {
+        self.seed
+    }
+
+    pub fn get_item_manager(&self) -> Arc<RwLock<ItemManager>> {
+        Arc::clone(&self.item_manager)
     }
 
     fn clean_chunks(&mut self, mesh_manager: &Arc<RwLock<GpuAllocator>>, world_mesh: &mut WorldMesh, player: &Player) {
@@ -378,41 +431,6 @@ impl World {
             }
         }
         true
-        // let keys = DIRECT_NORMALS_3D.map(|(x, y, z)| (cx + x, cy + y, cz + z));
-        // let keys_refs = [&keys[0], &keys[1], &keys[2], &keys[3], &keys[4], &keys[5]];
-        // unsafe {
-        //     for result in self.chunks.get_disjoint_unchecked_mut(keys_refs) {
-        //         let Some(chunk) = result else {
-        //             return false;
-        //         };
-        //         if chunk.state != ChunkState::Ready {
-        //             return false;
-        //         }
-        //     }
-        // }
-        // true
-    }
-
-    pub fn chunk_infos_at(&self, cpos: &(i32, i32, i32)) -> Option<(ChunkState, bool)> {
-        self.chunks.get(cpos).map(|chunk| chunk.get_debug_infos())
-    }
-
-    /// Retourne vrai si aucun chunk n'est chargé
-    pub fn is_empty(&self) -> bool {
-        self.chunks.is_empty()
-    }
-
-    pub fn get_texture_lookup(&self) -> Arc<Vec<u32>> {
-        let bm = self.block_manager.read().unwrap();
-        Arc::new(bm.get_texture_lookup().to_vec())
-    }
-
-    pub fn block_to_item(&self, block_id: u32) -> Option<game::inventory::Item> {
-        self.block_manager.read().unwrap().block_to_item(block_id)
-    }
-
-    pub const fn seed(&self) -> u32 {
-        self.seed
     }
 
     pub fn dispose(&mut self) {
