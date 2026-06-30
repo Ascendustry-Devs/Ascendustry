@@ -3,8 +3,8 @@ use std::path::Path;
 
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
-use crate::assets::block_loader::{block_id_str_to_item, load_block_definitions};
-use crate::inventory::Item;
+use crate::assets::block_loader::load_block_definitions;
+use crate::inventory::item_manager::{ItemInstance, ItemManager};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -63,6 +63,7 @@ pub struct BlockManager {
     blocks: Vec<BlockData>,
     mapped_blocks: FxHashMap<String, u32>,
     texture_lookup: Vec<u32>,
+    item_to_block: FxHashMap<u32, u32>,
 }
 
 impl Default for BlockManager {
@@ -76,10 +77,12 @@ impl BlockManager {
         let blocks = Vec::with_capacity(256);
         let mapped_blocks = HashMap::with_capacity_and_hasher(256, FxBuildHasher);
         let texture_lookup = Vec::new();
+        let item_to_block = HashMap::with_hasher(FxBuildHasher);
         Self {
             blocks,
             mapped_blocks,
             texture_lookup,
+            item_to_block,
         }
     }
 
@@ -121,15 +124,32 @@ impl BlockManager {
         self.blocks.push(block);
     }
 
-    pub fn block_to_item(&self, block_id: u32) -> Option<Item> {
+    pub fn resolve_item_mappings(&mut self, item_manager: &ItemManager) {
+        for block in &self.blocks {
+            let item_str = block
+                .drop
+                .as_ref()
+                .or_else(|| if block.has_item { Some(&block.id_str) } else { None });
+
+            if let Some(item_str) = item_str {
+                if let Some(item_id) = item_manager.get_id_by_string(item_str) {
+                    self.item_to_block.insert(item_id, block.get_id());
+                }
+            }
+        }
+    }
+
+    pub fn block_to_item(&self, block_id: u32, item_manager: &ItemManager) -> Option<ItemInstance> {
         let block = self.get_block_by_id(block_id)?;
-        if let Some(ref drop_str) = block.drop {
-            return block_id_str_to_item(drop_str);
-        }
-        if block.has_item {
-            return block_id_str_to_item(&block.id_str);
-        }
-        None
+        let item_str = block
+            .drop
+            .as_ref()
+            .or_else(|| if block.has_item { Some(&block.id_str) } else { None })?;
+        item_manager.get_id_by_string(item_str).map(ItemInstance::new)
+    }
+
+    pub fn item_to_block_id(&self, item_id: u32) -> Option<u32> {
+        self.item_to_block.get(&item_id).copied()
     }
 
     pub fn build_texture_lookup(&mut self) {
@@ -145,5 +165,6 @@ impl BlockManager {
     pub fn dispose(&mut self) {
         self.blocks.clear();
         self.mapped_blocks.clear();
+        self.item_to_block.clear();
     }
 }

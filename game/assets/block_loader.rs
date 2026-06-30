@@ -3,7 +3,6 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-use crate::inventory::Item;
 use crate::world::data::block::BlockData;
 
 #[derive(Deserialize)]
@@ -98,13 +97,4 @@ pub fn load_block_definitions<P: AsRef<Path>>(dir: P) -> Result<Vec<BlockData>, 
     }
 
     Ok(blocks)
-}
-
-pub fn block_id_str_to_item(id_str: &str) -> Option<Item> {
-    match id_str {
-        "dirt" => Some(Item::Dirt),
-        "grass" => Some(Item::Grass),
-        "stone" => Some(Item::Stone),
-        _ => None,
-    }
 }

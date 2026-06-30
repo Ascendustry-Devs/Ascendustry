@@ -1,9 +1,13 @@
 mod tests;
 
+pub mod item_manager;
+
 use std::fmt::Display;
 
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+
+pub use item_manager::{ItemDefinition, ItemInstance, ItemManager};
 
 pub const DEFAULT_INVENTORY_SIZE: usize = 16;
 
@@ -11,14 +15,7 @@ pub const DEFAULT_INVENTORY_SIZE: usize = 16;
 pub enum ItemType {
     Weapon,
     Placeable,
-}
-
-#[derive(Debug, Eq, PartialEq, Hash, Clone, Copy, Serialize, Deserialize)]
-pub enum Item {
-    Dirt,
-    Grass,
-    Stone,
-    Sword,
+    Material,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +27,7 @@ pub struct SlotData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemRules {
     pub max_quantity_per_stack: FxHashMap<ItemType, u32>,
-    pub item_type: FxHashMap<Item, ItemType>,
+    pub item_type: FxHashMap<u32, ItemType>,
 }
 
 impl Default for ItemRules {
@@ -38,47 +35,63 @@ impl Default for ItemRules {
         let mut stack_quantity = FxHashMap::default();
         stack_quantity.insert(ItemType::Placeable, 96);
         stack_quantity.insert(ItemType::Weapon, 1);
-
-        let mut item_type = FxHashMap::default();
-        item_type.insert(Item::Dirt, ItemType::Placeable);
-        item_type.insert(Item::Grass, ItemType::Placeable);
-        item_type.insert(Item::Stone, ItemType::Placeable);
-        item_type.insert(Item::Sword, ItemType::Weapon);
+        stack_quantity.insert(ItemType::Material, 96);
 
         Self {
             max_quantity_per_stack: stack_quantity,
-            item_type,
+            item_type: FxHashMap::default(),
         }
     }
 }
 
 impl ItemRules {
-    pub fn add_rule(&mut self, item: Item, item_type: ItemType, max_quantity_per_stack: u32) {
-        self.item_type.insert(item, item_type);
+    pub fn add_rule(&mut self, item_id: u32, item_type: ItemType, max_quantity_per_stack: u32) {
+        self.item_type.insert(item_id, item_type);
         self.max_quantity_per_stack.insert(item_type, max_quantity_per_stack);
+    }
+
+    pub fn build_from_item_manager(&mut self, item_manager: &ItemManager) {
+        for i in 0..item_manager.item_count() {
+            if let Some(def) = item_manager.get_by_id(i as u32) {
+                let item_type = match def.item_type.to_lowercase().as_str() {
+                    "weapon" => ItemType::Weapon,
+                    "material" => ItemType::Material,
+                    _ => ItemType::Placeable,
+                };
+                self.item_type.insert(def.get_id(), item_type);
+                let max = self.max_quantity_per_stack.entry(item_type).or_insert(def.max_stack);
+                if def.max_stack < *max {
+                    *max = def.max_stack;
+                }
+            }
+        }
+    }
+
+    pub fn get_item_type(&self, item_id: u32) -> Option<ItemType> {
+        self.item_type.get(&item_id).copied()
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub struct ItemData {
-    item: Item,
+    item: ItemInstance,
     custom_name: Option<String>,
 }
+
 impl ItemData {
-    pub const fn new(item: Item, custom_name: Option<String>) -> Self {
+    pub const fn new(item: ItemInstance, custom_name: Option<String>) -> Self {
         Self { item, custom_name }
     }
+
     pub fn get_item_type(&self, item_rules: &ItemRules) -> ItemType {
-        item_rules
-            .item_type
-            .get(&self.item)
-            .copied()
-            .expect("Item type not found, probably an item_rules is not initialized")
+        item_rules.get_item_type(self.item.id).unwrap_or(ItemType::Placeable)
     }
+
     pub fn modify_custom_name(&mut self, custom_name: Option<String>) {
         self.custom_name = custom_name;
     }
-    pub fn get_item(&self) -> Item {
+
+    pub fn get_item(&self) -> ItemInstance {
         self.item
     }
 }
@@ -88,14 +101,16 @@ pub struct ItemStack {
     item: ItemData,
     quantity: u32,
 }
+
 impl ItemStack {
     /// Retourne true si l'item peut être empilé avec l'autre item, false sinon.
     pub const fn new(item: ItemData, quantity: u32) -> Self {
         Self { item, quantity }
     }
+
     pub const fn empty() -> Self {
         Self {
-            item: ItemData::new(Item::Dirt, None),
+            item: ItemData::new(ItemInstance::new(0), None),
             quantity: 0,
         }
     }
@@ -119,9 +134,11 @@ impl ItemStack {
     pub const fn remove(&mut self, quantity: u32) {
         self.quantity = self.quantity.saturating_sub(quantity);
     }
+
     pub fn item(&self) -> &ItemData {
         &self.item
     }
+
     pub const fn quantity(&self) -> u32 {
         self.quantity
     }
@@ -132,6 +149,7 @@ pub struct Inventory {
     slot_data: Vec<ItemStack>,
     max_slot_number: usize,
 }
+
 impl Inventory {
     /// Crée un inventaire vide avec la capacité maximale spécifiée.
     pub fn default(max_slot_number: usize) -> Self {
