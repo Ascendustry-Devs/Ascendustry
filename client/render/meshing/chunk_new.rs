@@ -43,6 +43,11 @@ use project_core::geometry::corner::SquareCorner;
 use project_core::geometry::direction::Direction;
 use std::sync::Arc;
 
+use crate::game::{
+    MESH_HIST_AO, MESH_HIST_EMIT, MESH_HIST_IDX, MESH_HIST_LEN, MESH_HIST_MASK, MESH_HIST_OTHER, MESH_HIST_PREP,
+    MESH_HIST_RECT, MESH_HIST_TOTAL, MESH_STAT_AO, MESH_STAT_EMIT, MESH_STAT_MASK, MESH_STAT_OTHER, MESH_STAT_PREP,
+    MESH_STAT_RECT, MESH_STAT_TOTAL,
+};
 use crate::world::world::MeshSnapshot;
 
 /// Cellules par côté d'un chunk.
@@ -233,13 +238,9 @@ impl BitMatrix {
 
 /// Transpose une matrice de bits 32x32 en place.
 ///
-/// Algorithme « butterfly » (Hacker's Delight, 7-3) : 5 étages, ~160 opérations.
-/// Le bit `j` de `rows[i]` devient le bit `i` de `rows[j]`.
+/// Version naïve validée par `transpose_is_correct`. Coût négligeable.
+#[inline]
 fn transpose32(rows: &mut [u32; CHUNK]) {
-    // Transposition naïve bit à bit. 32×32 opérations par tranche, soit
-    // 64 tranches : le coût est négligeable devant le maillage lui-même, et
-    // la correction est évidente (contrairement aux échanges delta où le sens
-    // exact des bits dépend de conventions d'indexation).
     let mut out = [0u32; CHUNK];
 
     for i in 0..CHUNK {
@@ -250,6 +251,18 @@ fn transpose32(rows: &mut [u32; CHUNK]) {
     }
 
     *rows = out;
+}
+
+#[inline]
+fn transpose32_into(src: &[u32; CHUNK], dst: &mut [u32; CHUNK]) {
+    let mut out = [0u32; CHUNK];
+    for i in 0..CHUNK {
+        let row = src[i];
+        for j in 0..CHUNK {
+            out[j] |= ((row >> j) & 1) << i;
+        }
+    }
+    *dst = out;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +276,7 @@ fn block_ids(blocks: &[BlockInstance]) -> &[u32] {
 
 /// Construit les mots de solidité d'un chunk : `out[z * CHUNK + y]` contient les
 /// bits de solidité des cellules x = 0..=31 de la tranche (y, z).
+#[inline]
 fn build_core(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
     #[cfg(target_arch = "x86_64")]
     {
@@ -280,6 +294,40 @@ fn build_core(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
 
     #[cfg(not(target_arch = "x86_64"))]
     build_core_scalar(blocks, out);
+}
+
+#[inline]
+fn build_core_t_direct(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
+    for z in 0..CHUNK {
+        for x in 0..CHUNK {
+            let mut word = 0u32;
+            let mut idx = x + 0 * CHUNK + z * CHUNK * CHUNK;
+            for y in 0..CHUNK {
+                if blocks[idx] != 0 {
+                    word |= 1u32 << y;
+                }
+                idx += CHUNK;
+            }
+            out[z * CHUNK + x] = word;
+        }
+    }
+}
+
+#[inline]
+fn build_core_x_direct(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
+    for x in 0..CHUNK {
+        for y in 0..CHUNK {
+            let mut word = 0u32;
+            let mut idx = x + y * CHUNK + 0 * CHUNK * CHUNK;
+            for z in 0..CHUNK {
+                if blocks[idx] != 0 {
+                    word |= 1u32 << z;
+                }
+                idx += CHUNK * CHUNK;
+            }
+            out[x * CHUNK + y] = word;
+        }
+    }
 }
 
 /// Vrai si le CPU supporte AVX2.
@@ -325,7 +373,8 @@ unsafe fn build_core_sse2(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
             while x < CHUNK {
                 let v = _mm_loadu_si128(blocks.as_ptr().add(base + x) as *const __m128i);
                 let is_zero = _mm_cmpeq_epi32(v, _mm_setzero_si128());
-                let bits = !(_mm_movemask_ps(_mm_castsi128_ps(is_zero)) as u32) & 0xF;
+                let mask = _mm_movemask_ps(_mm_castsi128_ps(is_zero));
+                let bits = (!mask as u32) & 0xF;
                 word |= bits << x;
                 x += 4;
             }
@@ -350,7 +399,8 @@ unsafe fn build_core_avx2(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
             while x < CHUNK {
                 let v = _mm256_loadu_si256(blocks.as_ptr().add(base + x) as *const __m256i);
                 let is_zero = _mm256_cmpeq_epi32(v, _mm256_setzero_si256());
-                let bits = !(_mm256_movemask_ps(_mm256_castsi256_ps(is_zero)) as u32) & 0xFF;
+                let mask = _mm256_movemask_ps(_mm256_castsi256_ps(is_zero));
+                let bits = (!mask as u32) & 0xFF;
                 word |= bits << x;
                 x += 8;
             }
@@ -390,6 +440,7 @@ impl NeighborLayers {
 ///
 /// `kind` désigne l'axe du voisin (0/1 : X, 2/3 : Y, 4/5 : Z ; l'indice
 /// pair est le voisin négatif).
+#[inline]
 fn build_neighbor_layers(chunk: &Chunk, kind: usize) -> NeighborLayers {
     let ids = block_ids(&chunk.blocks);
     let mut primary = BitMatrix::ZERO;
@@ -486,43 +537,56 @@ impl ChunkSolidity {
         let mut core = [0u32; CHUNK * CHUNK];
         build_core(main_ids, &mut core);
 
-        // Transposée : `core_t[z * CHUNK + x]` = bits sur y.
-        let mut core_t = [0u32; CHUNK * CHUNK];
+        // Transposées construites depuis core (même logique que référence validée)
+        let mut core_t_arr = [0u32; CHUNK * CHUNK];
         for z in 0..CHUNK {
-            let mut slice = [0u32; CHUNK];
-            slice.copy_from_slice(&core[z * CHUNK..(z + 1) * CHUNK]);
-            transpose32(&mut slice);
-            core_t[z * CHUNK..(z + 1) * CHUNK].copy_from_slice(&slice);
+            let mut slice_out = [0u32; CHUNK];
+            let src = &core[z * CHUNK..(z + 1) * CHUNK];
+            let mut slice_in_arr = [0u32; CHUNK];
+            slice_in_arr.copy_from_slice(src);
+            transpose32_into(&slice_in_arr, &mut slice_out);
+            core_t_arr[z * CHUNK..(z + 1) * CHUNK].copy_from_slice(&slice_out);
         }
+        let core_t = core_t_arr;
 
-        // `core_x[x * CHUNK + y]` = bits sur z.
-        let mut core_x = [0u32; CHUNK * CHUNK];
+        let mut core_x_arr = [0u32; CHUNK * CHUNK];
         for x in 0..CHUNK {
-            let mut slice = [0u32; CHUNK];
+            let mut slice_in_arr = [0u32; CHUNK];
             for z in 0..CHUNK {
-                slice[z] = core_t[z * CHUNK + x];
+                slice_in_arr[z] = core_t[z * CHUNK + x];
             }
-            transpose32(&mut slice);
-            core_x[x * CHUNK..(x + 1) * CHUNK].copy_from_slice(&slice);
+            let mut slice_out = [0u32; CHUNK];
+            transpose32_into(&slice_in_arr, &mut slice_out);
+            core_x_arr[x * CHUNK..(x + 1) * CHUNK].copy_from_slice(&slice_out);
         }
-
-        let chunks = [
-            snapshot.neg_x.as_ref(),
-            snapshot.pos_x.as_ref(),
-            snapshot.neg_y.as_ref(),
-            snapshot.pos_y.as_ref(),
-            snapshot.neg_z.as_ref(),
-            snapshot.pos_z.as_ref(),
-        ];
+        let core_x = core_x_arr;
 
         let mut neighbors = [NeighborLayers::ZERO; 6];
         let mut neighbor_chunks: [Option<Arc<Chunk>>; 6] = [None, None, None, None, None, None];
 
-        for (i, chunk) in chunks.iter().enumerate() {
-            if let Some(chunk) = chunk {
-                neighbors[i] = build_neighbor_layers(chunk, i);
-                neighbor_chunks[i] = Some(Arc::clone(chunk));
-            }
+        if let Some(chunk) = snapshot.neg_x.as_ref() {
+            neighbors[NEG_X] = build_neighbor_layers(chunk, NEG_X);
+            neighbor_chunks[NEG_X] = Some(Arc::clone(chunk));
+        }
+        if let Some(chunk) = snapshot.pos_x.as_ref() {
+            neighbors[POS_X] = build_neighbor_layers(chunk, POS_X);
+            neighbor_chunks[POS_X] = Some(Arc::clone(chunk));
+        }
+        if let Some(chunk) = snapshot.neg_y.as_ref() {
+            neighbors[NEG_Y] = build_neighbor_layers(chunk, NEG_Y);
+            neighbor_chunks[NEG_Y] = Some(Arc::clone(chunk));
+        }
+        if let Some(chunk) = snapshot.pos_y.as_ref() {
+            neighbors[POS_Y] = build_neighbor_layers(chunk, POS_Y);
+            neighbor_chunks[POS_Y] = Some(Arc::clone(chunk));
+        }
+        if let Some(chunk) = snapshot.neg_z.as_ref() {
+            neighbors[NEG_Z] = build_neighbor_layers(chunk, NEG_Z);
+            neighbor_chunks[NEG_Z] = Some(Arc::clone(chunk));
+        }
+        if let Some(chunk) = snapshot.pos_z.as_ref() {
+            neighbors[POS_Z] = build_neighbor_layers(chunk, POS_Z);
+            neighbor_chunks[POS_Z] = Some(Arc::clone(chunk));
         }
 
         Self {
@@ -692,7 +756,7 @@ impl ChunkSolidity {
 #[inline(always)]
 fn match_row(row: usize, keys: &[u64; CHUNK * CHUNK], present: u32, key: u64, avx2: bool) -> u32 {
     #[cfg(target_arch = "x86_64")]
-    if avx2 && present.count_ones() >= 8 {
+    if avx2 {
         // SAFETY: avx2 a été vérifié par l'appelant.
         return unsafe { match_row_avx2(row, keys, present, key) } & present;
     }
@@ -799,6 +863,22 @@ fn mesh_axis(solidity: &ChunkSolidity, axis: Axis, vertices: &mut Vec<Vertex>, o
     for d in 0..CHUNK {
         solidity.build_plane(axis, d + 1, &mut hi);
 
+        // Skip rapide si le plan est vide (aucune face)
+        let mut has_faces = false;
+        for r in 0..CHUNK {
+            if ((lo.rows[r + 1] >> 1) as u32) ^ ((hi.rows[r + 1] >> 1) as u32) != 0 {
+                has_faces = true;
+                break;
+            }
+        }
+        if !has_faces {
+            for r in 0..CHUNK {
+                present[r] = 0;
+            }
+            std::mem::swap(&mut lo, &mut hi);
+            continue;
+        }
+
         // --- Étape 1 : détection des faces et calcul de l'AO ---------------
         for r in 0..CHUNK {
             let lo_core = (lo.rows[r + 1] >> 1) as u32;
@@ -842,7 +922,8 @@ fn mesh_axis(solidity: &ChunkSolidity, axis: Axis, vertices: &mut Vec<Vertex>, o
                 };
 
                 let packed_ao = face_ao(offsets, air_plane, r + 1, c + 1);
-                let texture = texture_lookup[block_id as usize];
+                let bid = block_id as usize;
+                let texture = if bid < texture_lookup.len() { texture_lookup[bid] } else { 0 };
 
                 keys[r * CHUNK + c] = ((texture as u64) << 16) | ((dir as u64) << 8) | packed_ao as u64;
             }
@@ -948,10 +1029,272 @@ fn mesh_axis(solidity: &ChunkSolidity, axis: Axis, vertices: &mut Vec<Vertex>, o
 /// Le résultat est ajouté à `vertices`, dans le même ordre que l'implémentation
 /// de référence : axes X, puis Y, puis Z.
 pub fn make_greedy_chunk(snapshot: &MeshSnapshot, vertices: &mut Vec<Vertex>, chunk_origin: [f32; 3], texture_lookup: &[u32]) {
+    use std::time::Instant;
+    let t0 = Instant::now();
+
+    let t_prep0 = Instant::now();
     let solidity = ChunkSolidity::new(snapshot);
+    let t_prep = t_prep0.elapsed().as_nanos();
+
+    let mut t_mask: u128 = 0;
+    let mut t_ao: u128 = 0;
+    let mut t_rect: u128 = 0;
+    let mut t_emit: u128 = 0;
 
     for axis in [Axis::X, Axis::Y, Axis::Z] {
-        mesh_axis(&solidity, axis, vertices, chunk_origin, texture_lookup);
+        let avx2 = has_avx2();
+        let axis_index = match axis {
+            Axis::X => 0,
+            Axis::Y => 1,
+            Axis::Z => 2,
+        };
+        let row_axis = axis.row_axis();
+        let col_axis = axis.col_axis();
+        let main_axis = axis.main_axis();
+        let faces_dirs = axis.faces();
+        let (dir_pos, dir_neg) = (faces_dirs[0], faces_dirs[1]);
+
+        let mut lo = PaddedPlane::ZERO;
+        let mut hi = PaddedPlane::ZERO;
+        let t_m0 = Instant::now();
+        solidity.build_plane(axis, 0, &mut lo);
+        let mut t_m_acc: u128 = t_m0.elapsed().as_nanos();
+
+        let mut keys_arr = [0u64; CHUNK * CHUNK];
+        let mut present_arr = [0u32; CHUNK];
+
+        for d in 0..CHUNK {
+            let t_m1 = Instant::now();
+            solidity.build_plane(axis, d + 1, &mut hi);
+            t_m_acc += t_m1.elapsed().as_nanos();
+
+            // skip rapide
+            let mut has_faces = false;
+            for r in 0..CHUNK {
+                if ((lo.rows[r + 1] >> 1) as u32) ^ ((hi.rows[r + 1] >> 1) as u32) != 0 {
+                    has_faces = true;
+                    break;
+                }
+            }
+            if !has_faces {
+                for r in 0..CHUNK {
+                    present_arr[r] = 0;
+                }
+                std::mem::swap(&mut lo, &mut hi);
+                continue;
+            }
+
+            let t_a0 = Instant::now();
+            for r in 0..CHUNK {
+                let lo_core = (lo.rows[r + 1] >> 1) as u32;
+                let hi_core = (hi.rows[r + 1] >> 1) as u32;
+                let f = lo_core ^ hi_core;
+                present_arr[r] = f;
+                if f == 0 {
+                    continue;
+                }
+                let mut bits = f;
+                while bits != 0 {
+                    let c = bits.trailing_zeros() as usize;
+                    bits &= bits - 1;
+                    let (dir, air_plane, block_id) = if (hi_core >> c) & 1 == 1 {
+                        let id = solidity.solid_block_id(axis, d, r, c);
+                        (dir_neg, &lo, id)
+                    } else {
+                        let id = if d == 0 {
+                            solidity.neighbor_block_id(axis, r, c)
+                        } else {
+                            solidity.solid_block_id(axis, d - 1, r, c)
+                        };
+                        (dir_pos, &hi, id)
+                    };
+                    let offsets = if dir == dir_neg {
+                        &AO_OFFSETS_NEG[axis_index]
+                    } else {
+                        &AO_OFFSETS_POS[axis_index]
+                    };
+                    let packed_ao = face_ao(offsets, air_plane, r + 1, c + 1);
+                    let bid = block_id as usize;
+                    let texture = if bid < texture_lookup.len() { texture_lookup[bid] } else { 0 };
+                    keys_arr[r * CHUNK + c] = ((texture as u64) << 16) | ((dir as u64) << 8) | packed_ao as u64;
+                }
+            }
+            t_ao += t_a0.elapsed().as_nanos();
+
+            let t_r0 = Instant::now();
+            for u in 0..CHUNK {
+                let mut v = 0usize;
+                while v < CHUNK {
+                    if present_arr[u] & (1 << v) == 0 {
+                        v += 1;
+                        continue;
+                    }
+                    let key = keys_arr[u * CHUNK + v];
+                    let mut width = 1usize;
+                    let mut common = match_row(u, &keys_arr, present_arr[u], key, avx2) & (!0u32 << v);
+                    let mut rr = u + 1;
+                    while rr < CHUNK {
+                        let matched = match_row(rr, &keys_arr, present_arr[rr], key, avx2);
+                        if matched & (1 << v) == 0 {
+                            break;
+                        }
+                        common &= matched;
+                        width += 1;
+                        rr += 1;
+                    }
+                    let height = (!(common >> v)).trailing_zeros() as usize;
+                    let texture = (key >> 16) as u32;
+                    let packed_ao = (key & 0xFF) as u8;
+                    let dirv = Direction::from_bits_unchecked(((key >> 8) & 0b111) as u8);
+                    let w_f = width as f32;
+                    let h_f = height as f32;
+                    let mut base = chunk_origin;
+                    base[main_axis] += d as f32;
+                    base[row_axis] += u as f32;
+                    base[col_axis] += v as f32;
+                    let (offsets_quad, uvs_quad) = match axis {
+                        Axis::X => (
+                            [(0.0, 0.0), (0.0, h_f), (w_f, 0.0), (w_f, h_f)],
+                            [(0.0, 0.0), (0.0, h_f), (w_f, 0.0), (w_f, h_f)],
+                        ),
+                        Axis::Y | Axis::Z => (
+                            [(0.0, 0.0), (w_f, 0.0), (0.0, h_f), (w_f, h_f)],
+                            [(0.0, 0.0), (0.0, w_f), (h_f, 0.0), (h_f, w_f)],
+                        ),
+                    };
+                    let mut quad_arr = [Vertex::new(0.0, 0.0, 0.0, texture, 0.0, 0.0, 0.0); 4];
+                    for i in 0..4 {
+                        let mut posv = base;
+                        posv[row_axis] += offsets_quad[i].0;
+                        posv[col_axis] += offsets_quad[i].1;
+                        let aoval = match i {
+                            0 => (packed_ao >> 6) as f32,
+                            1 => ((packed_ao >> 4) & 0b11) as f32,
+                            2 => ((packed_ao >> 2) & 0b11) as f32,
+                            _ => (packed_ao & 0b11) as f32,
+                        };
+                        quad_arr[i] = Vertex::new(posv[0], posv[1], posv[2], texture, aoval, uvs_quad[i].0, uvs_quad[i].1);
+                    }
+                    let t_e0 = Instant::now();
+                    if axis.reverse(dirv) {
+                        vertices.extend_from_slice(&[
+                            quad_arr[0],
+                            quad_arr[1],
+                            quad_arr[2],
+                            quad_arr[2],
+                            quad_arr[1],
+                            quad_arr[3],
+                        ]);
+                    } else {
+                        vertices.extend_from_slice(&[
+                            quad_arr[1],
+                            quad_arr[0],
+                            quad_arr[3],
+                            quad_arr[3],
+                            quad_arr[0],
+                            quad_arr[2],
+                        ]);
+                    }
+                    t_emit += t_e0.elapsed().as_nanos();
+                    let cleared = !(((1u64 << height) - 1) << v) as u32;
+                    for rrc in u..u + width {
+                        present_arr[rrc] &= cleared;
+                    }
+                    v += height;
+                }
+            }
+            t_rect += t_r0.elapsed().as_nanos();
+            std::mem::swap(&mut lo, &mut hi);
+        }
+        t_mask += t_m_acc;
+    }
+
+    let total_n = t0.elapsed().as_nanos();
+    unsafe {
+        let idx = MESH_HIST_IDX;
+        MESH_HIST_TOTAL[idx] = total_n;
+        MESH_HIST_PREP[idx] = t_prep;
+        MESH_HIST_MASK[idx] = t_mask;
+        MESH_HIST_AO[idx] = t_ao;
+        MESH_HIST_RECT[idx] = t_rect;
+        MESH_HIST_EMIT[idx] = t_emit;
+        MESH_HIST_OTHER[idx] = if total_n > t_prep + t_mask + t_ao + t_rect + t_emit {
+            total_n - t_prep - t_mask - t_ao - t_rect - t_emit
+        } else {
+            0
+        };
+        MESH_HIST_IDX = (idx + 1) % MESH_HIST_LEN;
+        // update stats total
+        let mut s = &mut MESH_STAT_TOTAL;
+        s.count += 1;
+        s.sum_nanos += total_n;
+        s.last_nanos = total_n;
+        if total_n < s.min_nanos {
+            s.min_nanos = total_n;
+        }
+        if total_n > s.max_nanos {
+            s.max_nanos = total_n;
+        }
+        let mut sp = &mut MESH_STAT_PREP;
+        sp.count += 1;
+        sp.sum_nanos += t_prep;
+        sp.last_nanos = t_prep;
+        if t_prep < sp.min_nanos {
+            sp.min_nanos = t_prep;
+        }
+        if t_prep > sp.max_nanos {
+            sp.max_nanos = t_prep;
+        }
+        let mut sm = &mut MESH_STAT_MASK;
+        sm.count += 1;
+        sm.sum_nanos += t_mask;
+        sm.last_nanos = t_mask;
+        if t_mask < sm.min_nanos {
+            sm.min_nanos = t_mask;
+        }
+        if t_mask > sm.max_nanos {
+            sm.max_nanos = t_mask;
+        }
+        let mut sa = &mut MESH_STAT_AO;
+        sa.count += 1;
+        sa.sum_nanos += t_ao;
+        sa.last_nanos = t_ao;
+        if t_ao < sa.min_nanos {
+            sa.min_nanos = t_ao;
+        }
+        if t_ao > sa.max_nanos {
+            sa.max_nanos = t_ao;
+        }
+        let mut sr = &mut MESH_STAT_RECT;
+        sr.count += 1;
+        sr.sum_nanos += t_rect;
+        sr.last_nanos = t_rect;
+        if t_rect < sr.min_nanos {
+            sr.min_nanos = t_rect;
+        }
+        if t_rect > sr.max_nanos {
+            sr.max_nanos = t_rect;
+        }
+        let mut se = &mut MESH_STAT_EMIT;
+        se.count += 1;
+        se.sum_nanos += t_emit;
+        se.last_nanos = t_emit;
+        if t_emit < se.min_nanos {
+            se.min_nanos = t_emit;
+        }
+        if t_emit > se.max_nanos {
+            se.max_nanos = t_emit;
+        }
+        let mut so = &mut MESH_STAT_OTHER;
+        so.count += 1;
+        so.sum_nanos += MESH_HIST_OTHER[(idx + MESH_HIST_LEN - 1) % MESH_HIST_LEN];
+        so.last_nanos = so.sum_nanos;
+        if so.last_nanos < so.min_nanos {
+            so.min_nanos = so.last_nanos;
+        }
+        if so.last_nanos > so.max_nanos {
+            so.max_nanos = so.last_nanos;
+        }
     }
 }
 
@@ -1806,5 +2149,108 @@ mod tests {
 
             check(&snapshot, &format!("terrain {iteration}"));
         }
+    }
+
+    #[test]
+    fn bench_make_greedy_chunk_samples() {
+        use std::time::Instant;
+
+        fn run(snapshot: &MeshSnapshot, iters: usize) -> u128 {
+            let mut total: u128 = 0;
+            let origin = [0.0f32, 0.0f32, 0.0f32];
+            for _ in 0..iters {
+                let mut vertices: Vec<Vertex> = Vec::new();
+                let start = Instant::now();
+                make_greedy_chunk(snapshot, &mut vertices, origin, &[]);
+                total += start.elapsed().as_nanos() as u128;
+                let _ = vertices.len();
+            }
+            total / (iters as u128)
+        }
+
+        // empty
+        let snap_empty = snapshot_of(empty_chunk(), None, None, None, None, None, None);
+        // solid
+        let snap_solid = snapshot_of(
+            chunk_from_bools(&vec![true; CHUNK * CHUNK * CHUNK]),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        // checkerboard
+        let mut cells_cb = vec![false; CHUNK * CHUNK * CHUNK];
+        for z in 0..CHUNK {
+            for y in 0..CHUNK {
+                for x in 0..CHUNK {
+                    cells_cb[x + y * CHUNK + z * CHUNK * CHUNK] = (x + y + z) % 2 == 0;
+                }
+            }
+        }
+        let snap_cb = snapshot_of(chunk_from_bools(&cells_cb), None, None, None, None, None, None);
+        // random
+        let mut rng = Rng(0xDEAD_BEEF);
+        let density = 0.3;
+        let mut cells_r = vec![false; CHUNK * CHUNK * CHUNK];
+        for cell in cells_r.iter_mut() {
+            *cell = rng.next_f32() < density;
+        }
+        let make_n = |r: &mut Rng, d: f32| -> Option<Arc<Chunk>> {
+            if r.next_f32() < 0.3 {
+                return None;
+            }
+            let mut c = vec![false; CHUNK * CHUNK * CHUNK];
+            for cell in c.iter_mut() {
+                *cell = r.next_f32() < d;
+            }
+            Some(chunk_from_bools(&c))
+        };
+        let snap_r = snapshot_of(
+            chunk_from_bools(&cells_r),
+            make_n(&mut rng, density),
+            make_n(&mut rng, density),
+            make_n(&mut rng, density),
+            make_n(&mut rng, density),
+            make_n(&mut rng, density),
+            make_n(&mut rng, density),
+        );
+        // terrain
+        let mut rng_t = Rng(0x1234_ABCD);
+        let mut cells_t = vec![false; CHUNK * CHUNK * CHUNK];
+        for z in 0..CHUNK {
+            for x in 0..CHUNK {
+                let height = 8 + ((x * 7 + z * 13) % 20) as usize;
+                for y in 0..height {
+                    cells_t[x + y * CHUNK + z * CHUNK * CHUNK] = true;
+                }
+            }
+        }
+        for _ in 0..200 {
+            let x = (rng_t.next_u32() as usize) % CHUNK;
+            let y = (rng_t.next_u32() as usize) % CHUNK;
+            let z = (rng_t.next_u32() as usize) % CHUNK;
+            cells_t[x + y * CHUNK + z * CHUNK * CHUNK] = rng_t.next_f32() < 0.5;
+        }
+        let snap_t = snapshot_of(
+            chunk_from_bools(&cells_t),
+            Some(chunk_from_bools(&cells_t)),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        eprintln!(
+            "bench: empty={}ns solid={}ns cb={}ns random(d0.3)={}ns terrain={}ns ({} iters)",
+            run(&snap_empty, 2000),
+            run(&snap_solid, 2000),
+            run(&snap_cb, 2000),
+            run(&snap_r, 1000),
+            run(&snap_t, 1000),
+            2000
+        );
     }
 }

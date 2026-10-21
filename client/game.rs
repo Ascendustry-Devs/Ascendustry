@@ -45,6 +45,76 @@ pub static mut TIME_SPENT_MESHING_NANOS: u128 = 0;
 pub static mut TIME_SPENT_PREPARING_NANOS: u128 = 0;
 pub static mut CHUNKS_MESHED: u32 = 0;
 
+#[derive(Clone, Debug, Default)]
+pub struct MeshTimeStats {
+    pub count: u64,
+    pub sum_nanos: u128,
+    pub min_nanos: u128,
+    pub max_nanos: u128,
+    pub last_nanos: u128,
+}
+
+pub static mut MESH_STAT_TOTAL: MeshTimeStats = MeshTimeStats {
+    count: 0,
+    sum_nanos: 0,
+    min_nanos: u128::MAX,
+    max_nanos: 0,
+    last_nanos: 0,
+};
+pub static mut MESH_STAT_PREP: MeshTimeStats = MeshTimeStats {
+    count: 0,
+    sum_nanos: 0,
+    min_nanos: u128::MAX,
+    max_nanos: 0,
+    last_nanos: 0,
+};
+pub static mut MESH_STAT_MASK: MeshTimeStats = MeshTimeStats {
+    count: 0,
+    sum_nanos: 0,
+    min_nanos: u128::MAX,
+    max_nanos: 0,
+    last_nanos: 0,
+};
+pub static mut MESH_STAT_AO: MeshTimeStats = MeshTimeStats {
+    count: 0,
+    sum_nanos: 0,
+    min_nanos: u128::MAX,
+    max_nanos: 0,
+    last_nanos: 0,
+};
+pub static mut MESH_STAT_RECT: MeshTimeStats = MeshTimeStats {
+    count: 0,
+    sum_nanos: 0,
+    min_nanos: u128::MAX,
+    max_nanos: 0,
+    last_nanos: 0,
+};
+pub static mut MESH_STAT_EMIT: MeshTimeStats = MeshTimeStats {
+    count: 0,
+    sum_nanos: 0,
+    min_nanos: u128::MAX,
+    max_nanos: 0,
+    last_nanos: 0,
+};
+pub static mut MESH_STAT_OTHER: MeshTimeStats = MeshTimeStats {
+    count: 0,
+    sum_nanos: 0,
+    min_nanos: u128::MAX,
+    max_nanos: 0,
+    last_nanos: 0,
+};
+
+// Buffer circulaire pour calculer médian/écart-type sans allocation massive
+pub const MESH_HIST_LEN: usize = 4096;
+pub static mut MESH_HIST_TOTAL: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
+pub static mut MESH_HIST_PREP: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
+pub static mut MESH_HIST_MASK: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
+pub static mut MESH_HIST_AO: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
+pub static mut MESH_HIST_RECT: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
+pub static mut MESH_HIST_EMIT: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
+pub static mut MESH_HIST_OTHER: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
+pub static mut MESH_HIST_IDX: usize = 0;
+
 pub struct GameState {
     pub world: World,
     pub world_mesh: WorldMesh,
@@ -162,27 +232,89 @@ impl GameState {
         }
 
         if self.inputs.take_key_pressed(KeyCode::KeyO) {
+            unsafe fn fmt_ns(v: u128) -> String {
+                if v >= 1_000_000 {
+                    let ms = v / 1_000_000;
+                    let us = (v / 1_000) % 1_000;
+                    let ns = v % 1_000;
+                    format!("{}.{:03}{:03}ms ({}µs {}ns)", ms, us, ns / 1000, v / 1000, v % 1000)
+                } else if v >= 1_000 {
+                    format!("{}.{:03}µs ({}ns)", v / 1000, v % 1000, v)
+                } else {
+                    format!("{}ns", v)
+                }
+            }
+            unsafe fn med_std(hist: &[u128; MESH_HIST_LEN], count: u64) -> (u128, f64) {
+                if count == 0 {
+                    return (0, 0.0);
+                }
+                let c_usize = count as usize;
+                let n = if c_usize < MESH_HIST_LEN { c_usize } else { MESH_HIST_LEN };
+                let mut tmp = [0u128; MESH_HIST_LEN];
+                for i in 0..n {
+                    tmp[i] = hist[i];
+                }
+                let slice = &mut tmp[0..n];
+                slice.sort_unstable_by(|a, b| a.cmp(b));
+                let med = slice[n / 2];
+                // mean
+                let mut sum: u128 = 0;
+                for i in 0..n {
+                    sum += slice[i];
+                }
+                let mean = (sum as f64) / (n as f64);
+                let mut var: f64 = 0.0;
+                for i in 0..n {
+                    let d = (slice[i] as f64) - mean;
+                    var += d * d;
+                }
+                var = var / (n as f64);
+                (med, var.sqrt())
+            }
+            unsafe fn print_stat(name: &str, s: &MeshTimeStats, hist: &[u128; MESH_HIST_LEN]) {
+                if s.count == 0 {
+                    println!("{}: aucun échantillon", name);
+                    return;
+                }
+                let avg = s.sum_nanos / (s.count as u128);
+                let (med, stddev) = med_std(hist, s.count);
+                println!(
+                    "{}: count={} sum={} avg={} min={} max={} med={} stddev={:.1}ns | {} | (min/avg/max/med/std)",
+                    name,
+                    s.count,
+                    fmt_ns(s.sum_nanos),
+                    fmt_ns(avg),
+                    fmt_ns(s.min_nanos),
+                    fmt_ns(s.max_nanos),
+                    fmt_ns(med),
+                    stddev,
+                    fmt_ns(s.last_nanos)
+                );
+            }
             unsafe {
                 let time_spent_preparing_nanos = TIME_SPENT_PREPARING_NANOS.clone();
                 let time_spent_meshing_nanos = TIME_SPENT_MESHING_NANOS.clone();
                 let chunks_meshed = CHUNKS_MESHED.clone();
-                println!("Time spent preparing: {}ns", time_spent_preparing_nanos);
-                println!("Time spent meshing: {}ns", time_spent_meshing_nanos);
-                println!("Numbers of chunks meshed: {}", chunks_meshed);
-                let avg_preparing_nanos = time_spent_preparing_nanos / (chunks_meshed as u128);
-                let avg_meshing_nanos = time_spent_meshing_nanos / (chunks_meshed as u128);
+                println!("==== MESH PROFILER (touche O) ====");
                 println!(
-                    "Average time spent preparing: {}ms {}µs {}ns",
-                    avg_preparing_nanos / 1000000,
-                    avg_preparing_nanos / 1000,
-                    avg_preparing_nanos
+                    "Global: preparing={}ns meshing={}ns chunks={}",
+                    time_spent_preparing_nanos, time_spent_meshing_nanos, chunks_meshed
                 );
-                println!(
-                    "Average time spent meshing: {}ms {}µs {}ns",
-                    avg_meshing_nanos / 1000000,
-                    avg_meshing_nanos / 1000,
-                    avg_meshing_nanos
-                );
+                if chunks_meshed > 0 {
+                    let avg_preparing_nanos = time_spent_preparing_nanos / (chunks_meshed as u128);
+                    let avg_meshing_nanos = time_spent_meshing_nanos / (chunks_meshed as u128);
+                    println!("  avg preparing: {}", fmt_ns(avg_preparing_nanos));
+                    println!("  avg meshing:    {}", fmt_ns(avg_meshing_nanos));
+                }
+                println!("--- Par chunk (détails) ---");
+                print_stat("TOTAL", &MESH_STAT_TOTAL, &MESH_HIST_TOTAL);
+                print_stat("PREP (ChunkSolidity::new + setup)", &MESH_STAT_PREP, &MESH_HIST_PREP);
+                print_stat("MASK (détection faces / plans)", &MESH_STAT_MASK, &MESH_HIST_MASK);
+                print_stat("AO (face_ao)", &MESH_STAT_AO, &MESH_HIST_AO);
+                print_stat("RECT (fusion greedy / rectangles)", &MESH_STAT_RECT, &MESH_HIST_RECT);
+                print_stat("EMIT (construction vertices / tri)", &MESH_STAT_EMIT, &MESH_HIST_EMIT);
+                print_stat("OTHER (reste / swap)", &MESH_STAT_OTHER, &MESH_HIST_OTHER);
+                println!("===============================");
             }
         }
     }
