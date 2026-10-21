@@ -14,6 +14,8 @@ struct Args {
     name: String,
 }
 
+fn read_info(a: &str) {}
+
 fn main() {
     env_logger::init();
     let args = Args::parse();

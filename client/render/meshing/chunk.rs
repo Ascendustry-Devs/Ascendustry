@@ -9,6 +9,62 @@ use project_core::geometry::corner::SquareCorner;
 use project_core::geometry::direction::Direction;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+pub struct PaddedChunkSliceMask {
+    mask: [u32; PADDED_CHUNK_SIZE_SQR_USIZE],
+}
+
+impl Default for PaddedChunkSliceMask {
+    fn default() -> Self {
+        Self {
+            mask: [0; PADDED_CHUNK_SIZE_SQR_USIZE],
+        }
+    }
+}
+
+impl PaddedChunkSliceMask {
+    pub const fn get_i(&self, i: usize) -> u32 {
+        let section_i = i.div_euclid(PADDED_CHUNK_SIZE_USIZE);
+        let inner_i = i % PADDED_CHUNK_SIZE_USIZE;
+        let section = self.get_section(section_i);
+        let n = (section >> (32 - inner_i)) & 0x1;
+        n
+    }
+
+    pub const fn get_section(&self, section_i: usize) -> u32 {
+        self.mask[section_i]
+    }
+
+    pub const fn get_section_mut(&mut self, section_i: usize) -> &mut u32 {
+        &mut self.mask[section_i]
+    }
+
+    /// `v` must be 0 or 1.
+    pub const fn set_i_to(&mut self, i: usize, v: u32) {
+        let section_i = i.div_euclid(PADDED_CHUNK_SIZE_USIZE);
+        let inner_i = i % PADDED_CHUNK_SIZE_USIZE;
+        let section = self.get_section_mut(section_i);
+        let offset = PADDED_CHUNK_SIZE_USIZE - inner_i;
+        let n = !(1 << offset);
+        *section = (*section & n) | (v << offset);
+    }
+
+    pub const fn set_i_to_one(&mut self, i: usize) {
+        let section_i = i.div_euclid(PADDED_CHUNK_SIZE_USIZE);
+        let inner_i = i % PADDED_CHUNK_SIZE_USIZE;
+        let section = self.get_section_mut(section_i);
+        let n = 1 << (PADDED_CHUNK_SIZE_USIZE - inner_i);
+        *section |= n;
+    }
+
+    pub const fn set_i_to_zero(&mut self, i: usize) {
+        let section_i = i.div_euclid(PADDED_CHUNK_SIZE_USIZE);
+        let inner_i = i % PADDED_CHUNK_SIZE_USIZE;
+        let section = self.get_section_mut(section_i);
+        let n = !(1 << (PADDED_CHUNK_SIZE_USIZE - inner_i));
+        *section &= n;
+    }
+}
+
 pub struct ChunkMesh {
     pub id: Option<EntryId>,
     dirty: AtomicBool,
@@ -45,16 +101,12 @@ impl ChunkMesh {
     }
 
     #[inline(always)]
-    pub const fn get_solidity_xyz(solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE], x: i32, y: i32, z: i32) -> bool {
-        solidity[(x + y * PADDED_CHUNK_SIZE + z * PADDED_CHUNK_SIZE_SQR) as usize]
+    pub const fn get_solidity_xyz(solidity: &PaddedChunkSliceMask, x: i32, y: i32, z: i32) -> bool {
+        solidity.get_i((x + y * PADDED_CHUNK_SIZE + z * PADDED_CHUNK_SIZE_SQR) as usize) != 0
     }
 
     #[inline(always)]
-    const fn get_face_ao(
-        solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE],
-        pos: [i32; 3],
-        neighbors: [(i32, i32, i32); 3],
-    ) -> u8 {
+    const fn get_face_ao(solidity: &PaddedChunkSliceMask, pos: [i32; 3], neighbors: [(i32, i32, i32); 3]) -> u8 {
         // AO for each configuration (range 0-3 both included)
         // Scheme:
         // [side1][side2][corner]
@@ -136,7 +188,7 @@ impl ChunkMesh {
     /// Makes the greedy mesh for the x axis, in both directions (+, -).
     pub fn make_greedy_x(
         padded_chunk: &PaddedChunk,
-        solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE],
+        solidity: &PaddedChunkSliceMask,
         vertices: &mut Vec<Vertex>,
         chunk_origin_x: f32,
         chunk_origin_y: f32,
@@ -195,14 +247,14 @@ impl ChunkMesh {
                         + previous_pos[2] * PADDED_CHUNK_SIZE_SQR) as usize; // index in the solidity array
                     let current_i = previous_i + 1; // current block is previous + x_stride (=1)
 
-                    let previous_is_solid = solidity[previous_i];
-                    let current_is_solid = solidity[current_i];
+                    let previous_is_solid = solidity.get_i(previous_i);
+                    let current_is_solid = solidity.get_i(current_i);
 
                     if previous_is_solid == current_is_solid {
                         continue;
                     }
 
-                    if !previous_is_solid && current_is_solid {
+                    if previous_is_solid == 0 && current_is_solid == 1 {
                         let current_pos = [unpadded_d, u, v]; // unpadded_d = d + 1
                         let current = padded_chunk.get_block_from_i(current_i);
 
@@ -369,7 +421,7 @@ impl ChunkMesh {
     /// Makes the greedy mesh for the y axis, in both directions (+, -).
     pub fn make_greedy_y(
         padded_chunk: &PaddedChunk,
-        solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE],
+        solidity: &PaddedChunkSliceMask,
         vertices: &mut Vec<Vertex>,
         chunk_origin_x: f32,
         chunk_origin_y: f32,
@@ -420,14 +472,14 @@ impl ChunkMesh {
                     // current = (X=v, Y=d+1, Z=u) → stride Y = +PADDED_CHUNK_SIZE
                     let current_i = previous_i + PADDED_CHUNK_SIZE_USIZE;
 
-                    let previous_is_solid = solidity[previous_i];
-                    let current_is_solid = solidity[current_i];
+                    let previous_is_solid = solidity.get_i(previous_i);
+                    let current_is_solid = solidity.get_i(current_i);
 
                     if previous_is_solid == current_is_solid {
                         continue;
                     }
 
-                    if !previous_is_solid && current_is_solid {
+                    if previous_is_solid == 0 && current_is_solid != 0 {
                         // current block est à (X=v, Y=unpadded_d, Z=u) en coords paddées
                         let current_pos = [v, unpadded_d, u];
                         let current = padded_chunk.get_block_from_i(current_i);
@@ -552,7 +604,7 @@ impl ChunkMesh {
     /// Makes the greedy mesh for the z axis, in both directions (+, -).
     pub fn make_greedy_z(
         padded_chunk: &PaddedChunk,
-        solidity: &[bool; PADDED_CHUNK_BLOCK_CBE_USIZE],
+        solidity: &PaddedChunkSliceMask,
         vertices: &mut Vec<Vertex>,
         chunk_origin_x: f32,
         chunk_origin_y: f32,
@@ -603,14 +655,14 @@ impl ChunkMesh {
                     // current = (X=u, Y=v, Z=d+1) → stride Z = +PADDED_CHUNK_SIZE_SQR
                     let current_i = previous_i + PADDED_CHUNK_SIZE_SQR_USIZE;
 
-                    let previous_is_solid = solidity[previous_i];
-                    let current_is_solid = solidity[current_i];
+                    let previous_is_solid = solidity.get_i(previous_i);
+                    let current_is_solid = solidity.get_i(current_i);
 
                     if previous_is_solid == current_is_solid {
                         continue;
                     }
 
-                    if !previous_is_solid && current_is_solid {
+                    if previous_is_solid == 0 && current_is_solid != 0 {
                         // current block est à (X=u, Y=v, Z=unpadded_d) en coords paddées
                         let current_pos = [u, v, unpadded_d];
                         let current = padded_chunk.get_block_from_i(current_i);

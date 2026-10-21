@@ -35,7 +35,9 @@ impl Default for WorldMesh {
 impl WorldMesh {
     pub fn new() -> Self {
         let worker_count = max(num_cpus::get() / 2, 1);
-        let buffer_pool = Arc::new(BufferPool::new(1024 * 256));
+        // Le pool est borné : sinon chaque buffer rendu (256 K sommets) reste
+        // en mémoire indéfiniment et l'empreinte explose avec le nombre de chunks.
+        let buffer_pool = Arc::new(BufferPool::with_max_buffers(1024 * 256, worker_count));
         Self {
             meshes: HashMap::with_hasher(FxBuildHasher),
             chunk_meshes: HashSet::with_hasher(FxBuildHasher),

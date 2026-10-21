@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use bytemuck::{Pod, Zeroable};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use crate::assets::block_loader::load_block_definitions;
 use crate::inventory::item_manager::{ItemInstance, ItemManager};
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable, serde::Serialize, serde::Deserialize)]
 pub struct BlockInstance {
     pub id: u32,
 }

@@ -31,7 +31,7 @@ use tokio::time::Instant;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
-const FPS_CAP: u32 = u32::MAX;
+const FPS_CAP: u32 = 60; // u32::MAX;
 const DT_CAP: f32 = {
     if FPS_CAP == 0 {
         0.0
@@ -40,6 +40,10 @@ const DT_CAP: f32 = {
     }
 };
 const PING_INTERVAL: Duration = Duration::from_secs(10);
+
+pub static mut TIME_SPENT_MESHING_NANOS: u128 = 0;
+pub static mut TIME_SPENT_PREPARING_NANOS: u128 = 0;
+pub static mut CHUNKS_MESHED: u32 = 0;
 
 pub struct GameState {
     pub world: World,
@@ -154,6 +158,31 @@ impl GameState {
                         log_err_client!("Failed to switch gamemode.\nError: {}", err);
                     }
                 }
+            }
+        }
+
+        if self.inputs.take_key_pressed(KeyCode::KeyO) {
+            unsafe {
+                let time_spent_preparing_nanos = TIME_SPENT_PREPARING_NANOS.clone();
+                let time_spent_meshing_nanos = TIME_SPENT_MESHING_NANOS.clone();
+                let chunks_meshed = CHUNKS_MESHED.clone();
+                println!("Time spent preparing: {}ns", time_spent_preparing_nanos);
+                println!("Time spent meshing: {}ns", time_spent_meshing_nanos);
+                println!("Numbers of chunks meshed: {}", chunks_meshed);
+                let avg_preparing_nanos = time_spent_preparing_nanos / (chunks_meshed as u128);
+                let avg_meshing_nanos = time_spent_meshing_nanos / (chunks_meshed as u128);
+                println!(
+                    "Average time spent preparing: {}ms {}µs {}ns",
+                    avg_preparing_nanos / 1000000,
+                    avg_preparing_nanos / 1000,
+                    avg_preparing_nanos
+                );
+                println!(
+                    "Average time spent meshing: {}ms {}µs {}ns",
+                    avg_meshing_nanos / 1000000,
+                    avg_meshing_nanos / 1000,
+                    avg_meshing_nanos
+                );
             }
         }
     }
