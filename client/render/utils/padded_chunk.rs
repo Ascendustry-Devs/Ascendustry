@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::world::world::MeshSnapshot;
+use crate::world::mesh_request::MeshSnapshot;
 use game::world::data::{
     block::BlockInstance,
     chunk::{Chunk, CHUNK_SIZE, LAST_CHUNK_AXIS_INDEX},

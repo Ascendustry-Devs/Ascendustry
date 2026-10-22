@@ -46,7 +46,7 @@ impl ChunkGenContext {
             cave_2: Arc::new(SuperSimplex::default().set_seed(seed.wrapping_add(2000))),
             temperature_noise: Arc::new(SuperSimplex::default().set_seed(seed.wrapping_add(5000))),
             humidity_noise: Arc::new(SuperSimplex::default().set_seed(seed.wrapping_add(6000))),
-            biome_registry: BiomeRegistry::load("assets/biomes.json"),
+            biome_registry: BiomeRegistry::load(crate::assets::resolve_asset_path("biomes.json")),
             block_manager,
             ore_configs,
             ore_noises,
@@ -54,7 +54,8 @@ impl ChunkGenContext {
     }
 
     fn load_ores(seed: u32) -> (Vec<OreVeinConfig>, Vec<Arc<SuperSimplex>>) {
-        let config = OreGenConfig::load("assets/ores.json").unwrap_or(OreGenConfig { ores: Vec::new() });
+        let config =
+            OreGenConfig::load(crate::assets::resolve_asset_path("ores.json")).unwrap_or(OreGenConfig { ores: Vec::new() });
         let configs = config.ores;
         let noises: Vec<Arc<SuperSimplex>> = configs
             .iter()

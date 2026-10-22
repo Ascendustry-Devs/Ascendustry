@@ -8,8 +8,8 @@ use crate::systems::inputs::InputState;
 use crate::world::world::World;
 use cgmath::Point3;
 use game::constants::{
-    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, RENDER_DISTANCE_CHUNK_COUNT, SPAWN_POSITION_X,
-    SPAWN_POSITION_Y, SPAWN_POSITION_Z, SPECTATOR_FLY_SPEED, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
+    HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
+    SPECTATOR_FLY_SPEED, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
 use game::inventory::{Inventory, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
@@ -21,7 +21,6 @@ use network::messages::{new_inventory_update_paquet, Paquet};
 use physics::{body::PhysicsBody, collision::resolve_collision};
 use project_core::log_client;
 use project_core::utils::updatable::Updatable;
-use rustc_hash::{FxBuildHasher, FxHashSet};
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
@@ -31,7 +30,6 @@ pub struct PlayerState {
     pub player_id: u64,
     pub pos: Updatable<Point3<f32>>,
     pub cpos: Updatable<Point3<i32>>,
-    pub chunk_keys: FxHashSet<(i32, i32, i32)>,
     pub game_mode: PlayerGameMode,
     pub inventory: Inventory,
     pub horizontal_render_distance: u16,
@@ -57,7 +55,6 @@ impl PlayerState {
             inventory: Inventory::default(DEFAULT_INVENTORY_SIZE),
             pos: Updatable::new(spawn_pos),
             cpos: Updatable::new(spawn_pos.map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32)),
-            chunk_keys: FxHashSet::with_capacity_and_hasher(RENDER_DISTANCE_CHUNK_COUNT as usize, FxBuildHasher),
             horizontal_render_distance: HORIZONTAL_RENDER_DISTANCE,
             vertical_render_distance: VERTICAL_RENDER_DISTANCE,
             horizontal_simulation_distance: HORIZONTAL_SIMULATION_DISTANCE,
@@ -253,15 +250,6 @@ impl PlayerState {
         let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.get_rendered_chunk_range();
         Chunk::get_cube_chunk_keys(min_cx, max_cx, min_cy, max_cy, min_cz, max_cz)
     }
-
-    /// Génère toutes les clés (cx, cy, cz) des chunks à afficher autour du joueur.
-    ///
-    /// Retourne un FxHashSet.
-    #[inline(always)]
-    pub fn get_rendered_chunk_keys_set(&self) -> FxHashSet<(i32, i32, i32)> {
-        let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.get_rendered_chunk_range();
-        Chunk::get_cube_chunk_keys_set(min_cx, max_cx, min_cy, max_cy, min_cz, max_cz)
-    }
 }
 
 /// Structure principale du joueur local.
@@ -312,9 +300,6 @@ impl Player {
                 .current()
                 .map(|coord| coord.div_euclid(CHUNK_SIZE_F).floor() as i32),
         );
-        if self.state.cpos.has_changed() {
-            self.state.chunk_keys = self.state.get_rendered_chunk_keys_set();
-        }
     }
 
     /// Délègue à `self.state`.
@@ -350,15 +335,75 @@ impl Player {
         self.state.get_rendered_chunk_keys()
     }
 
-    pub const fn get_rendered_chunk_keys_set(&self) -> &FxHashSet<(i32, i32, i32)> {
-        &self.state.chunk_keys
-    }
-
     pub fn get_simulation_chunk_keys(&self) -> Vec<(i32, i32, i32)> {
         self.state.get_simulation_chunk_keys()
     }
 
     pub fn get_rendered_chunk_range(&self) -> [i32; 6] {
         self.state.get_rendered_chunk_range()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::player::controllers::spectator::FreeCameraController;
+
+    fn new_state(spawn_pos: Point3<f32>) -> PlayerState {
+        PlayerState::new(
+            0,
+            Box::new(FreeCameraController::new(0.00390625)),
+            Box::new(WalkPlayerController),
+            spawn_pos,
+        )
+    }
+
+    /// Reproduit le test d'appartenance utilisé par l'élagage de rendu.
+    fn is_in_render_range(range: [i32; 6], chunk: (i32, i32, i32)) -> bool {
+        let (x, y, z) = chunk;
+        x >= range[0] && x <= range[1] && y >= range[2] && y <= range[3] && z >= range[4] && z <= range[5]
+    }
+
+    #[test]
+    fn test_render_range_contains_player_chunk_on_spawn() {
+        // Régression : la boîte de rendu doit contenir le chunk du joueur dès
+        // la première frame. Avant, un cache mal initialisé éliminait le monde
+        // entier de l'écran jusqu'au premier changement de chunk du joueur.
+        let state = new_state(Point3::new(0.5, 12.0, 0.5));
+        let range = state.get_rendered_chunk_range();
+        let cpos = (*state.cpos.current()).into();
+
+        assert!(
+            is_in_render_range(range, cpos),
+            "le chunk du joueur doit appartenir à la boîte de rendu, sinon rien n'est affiché"
+        );
+    }
+
+    #[test]
+    fn test_render_range_follows_teleportation() {
+        // Régression : après une téléportation, la boîte de rendu doit suivre la
+        // nouvelle position, y compris si le joueur change de chunk.
+        let mut state = new_state(Point3::new(0.5, 12.0, 0.5));
+        state.set_pos(Point3::new(100.5, 12.0, -64.5));
+
+        let cpos = (*state.cpos.current()).into();
+        assert_eq!(cpos, (3, 0, -3), "la position en chunk doit suivre la téléportation");
+
+        let range = state.get_rendered_chunk_range();
+        assert!(
+            is_in_render_range(range, cpos),
+            "la boîte de rendu doit contenir le chunk de destination"
+        );
+    }
+
+    #[test]
+    fn test_render_range_stays_consistent_when_chunk_does_not_change() {
+        // Se déplacer à l'intérieur du même chunk ne doit pas modifier la
+        // boîte de rendu.
+        let mut state = new_state(Point3::new(0.5, 12.0, 0.5));
+        let before = state.get_rendered_chunk_range();
+
+        state.set_pos(Point3::new(5.5, 13.0, 3.5));
+        assert_eq!(state.get_rendered_chunk_range(), before);
     }
 }

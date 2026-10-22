@@ -9,6 +9,7 @@ use network::messages::ChunkData;
 use project_core::log_warn_server;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 use physics::collision_world::CollisionWorld;
@@ -22,7 +23,7 @@ pub struct WorldState {
 }
 
 impl WorldState {
-    pub fn new(blocks_path: &str, items_path: &str) -> Self {
+    pub fn new(blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) -> Self {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
         let item_manager = Arc::new(RwLock::new(ItemManager::new()));
 
@@ -39,7 +40,7 @@ impl WorldState {
         instance
     }
 
-    pub fn init(&mut self, blocks_path: &str, items_path: &str) {
+    pub fn init(&mut self, blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) {
         {
             let mut item_manager = self.item_manager.write().unwrap();
             let items = game::assets::item_loader::load_item_definitions(items_path).expect("Failed to load item definitions");
@@ -212,6 +213,9 @@ impl CollisionWorld for WorldState {
 
 impl Default for WorldState {
     fn default() -> Self {
-        Self::new("assets/blocks/", "assets/items/")
+        Self::new(
+            game::assets::resolve_asset_path("blocks/"),
+            game::assets::resolve_asset_path("items/"),
+        )
     }
 }

@@ -7,7 +7,7 @@ use project_core::{buffer_pool::BufferPool, parallel::Parallelizable};
 use crate::{
     game::{CHUNKS_MESHED, TIME_SPENT_MESHING_NANOS},
     render::meshing::chunk_new::make_greedy_chunk,
-    world::world::MeshSnapshot,
+    world::mesh_request::MeshSnapshot,
 };
 
 pub struct GreedyMeshingProcessor;

@@ -8,7 +8,7 @@ use crate::render::meshing::world::WorldMesh;
 use crate::render::renderer::GameRenderer;
 use crate::systems::inputs::InputState;
 use crate::ui::ClientUI;
-use crate::world::world::{MeshRequestMessage, World};
+use crate::world::{mesh_request::MeshRequestMessage, world::World};
 use engine::audio::GameAudioManager;
 use engine::core::application::AppState;
 use engine::core::frame::EngineFrameData;
@@ -233,13 +233,8 @@ impl GameState {
 
         if self.inputs.take_key_pressed(KeyCode::KeyO) {
             unsafe fn fmt_ns(v: u128) -> String {
-                if v >= 1_000_000 {
-                    let ms = v / 1_000_000;
-                    let us = (v / 1_000) % 1_000;
-                    let ns = v % 1_000;
-                    format!("{}.{:03}{:03}ms ({}µs {}ns)", ms, us, ns / 1000, v / 1000, v % 1000)
-                } else if v >= 1_000 {
-                    format!("{}.{:03}µs ({}ns)", v / 1000, v % 1000, v)
+                if v >= 1_000 {
+                    format!("{}.{:03}µs", v / 1000, v % 1000,)
                 } else {
                     format!("{}ns", v)
                 }
@@ -279,7 +274,7 @@ impl GameState {
                 let avg = s.sum_nanos / (s.count as u128);
                 let (med, stddev) = med_std(hist, s.count);
                 println!(
-                    "{}: count={} sum={} avg={} min={} max={} med={} stddev={:.1}ns | {} | (min/avg/max/med/std)",
+                    "{}: count={} sum={} avg={} min={} max={} med={} stddev={} | {}",
                     name,
                     s.count,
                     fmt_ns(s.sum_nanos),
@@ -287,7 +282,7 @@ impl GameState {
                     fmt_ns(s.min_nanos),
                     fmt_ns(s.max_nanos),
                     fmt_ns(med),
-                    stddev,
+                    fmt_ns(stddev.floor() as u128),
                     fmt_ns(s.last_nanos)
                 );
             }
@@ -486,6 +481,10 @@ impl AppState for GameState {
             &item_manager.read().unwrap(),
         );
         let mesh_manager = &mut renderer.render_manager.world_buffer;
+
+        // La position du joueur sert à ordonner les requêtes de maillage par
+        // priorité (les chunks les plus proches sont maillés en premier).
+        self.world_mesh.set_player_chunk(self.player.get_cpos().into());
 
         let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request);
         self.world.listen(&mut responses);

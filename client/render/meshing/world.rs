@@ -1,13 +1,14 @@
 use crate::{
     render::meshing::{chunk::ChunkMesh, processor::GreedyMeshingProcessor},
-    world::world::{MeshRequestAdd, MeshRequestDelete, MeshRequestMessage, MeshResponse, MeshSnapshot},
+    world::mesh_request::{
+        MeshRequestAdd, MeshRequestDelete, MeshRequestMessage, MeshRequestQueue, MeshResponse, MeshSnapshot,
+    },
 };
 use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use game::constants::MAX_MESHING_CHUNKS_IN_QUEUE;
 use project_core::{
     buffer_pool::BufferPool,
     parallel::{WorkResult, WorkerPool},
-    utils::unique_queue::FxUniqueQueue,
 };
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet};
@@ -20,7 +21,11 @@ pub struct WorldMesh {
     mesh_worker: WorkerPool<GreedyMeshingProcessor>,
     pending: FxHashMap<usize, MeshRequestAdd>,
     pending_keys: FxHashMap<(i32, i32, i32), MeshSnapshot>,
-    queued: FxUniqueQueue<MeshRequestAdd>,
+    /// Requêtes de maillage en attente de soumission, ordonnées par priorité.
+    queued: MeshRequestQueue,
+    /// Position du joueur (en coordonnées de chunk), utilisée pour trier la
+    /// file par priorité. `None` tant que la position n'est pas connue.
+    player_chunk: Option<(i32, i32, i32)>,
 
     alloc: Option<Arc<RwLock<GpuAllocator>>>,
     texture_lookup: Arc<Vec<u32>>,
@@ -44,7 +49,8 @@ impl WorldMesh {
             mesh_worker: WorkerPool::with_max_pending(worker_count, buffer_pool, Some(MAX_MESHING_CHUNKS_IN_QUEUE as usize)),
             pending: HashMap::with_hasher(FxBuildHasher),
             pending_keys: HashMap::with_hasher(FxBuildHasher),
-            queued: FxUniqueQueue::new(),
+            queued: MeshRequestQueue::with_capacity(MAX_MESHING_CHUNKS_IN_QUEUE as usize),
+            player_chunk: None,
             alloc: None,
             texture_lookup: Arc::new(Vec::new()),
         }
@@ -57,6 +63,12 @@ impl WorldMesh {
 
     pub fn set_texture_lookup(&mut self, texture_lookup: Arc<Vec<u32>>) {
         self.texture_lookup = texture_lookup;
+    }
+
+    /// Indique la position du joueur (en coordonnées de chunk), utilisée pour
+    /// trier les requêtes de maillage par priorité.
+    pub fn set_player_chunk(&mut self, player_chunk: (i32, i32, i32)) {
+        self.player_chunk = Some(player_chunk);
     }
 
     pub fn update(
@@ -82,7 +94,10 @@ impl WorldMesh {
 
     fn add_to_mesh(&mut self, request: MeshRequestAdd) {
         self.chunk_meshes.insert(request.coords);
-        self.queued.push_back(request);
+        // `insert` remplace l'instantané si le chunk était déjà en attente,
+        // tout en conservant sa position dans la file : une modification de
+        // bloc sur un chunk pas encore maillé n'est donc jamais perdue.
+        self.queued.insert(request);
     }
 
     fn delete_mesh_with_alloc(&mut self, alloc: &mut GpuAllocator, coords: &(i32, i32, i32)) {
@@ -119,15 +134,26 @@ impl WorldMesh {
             return;
         }
 
-        let mut keep_going = true;
+        // Les chunks sont maillés **du plus proche du joueur au plus loin** :
+        // c'est ce qui évite les "trous" visuels autour du joueur et rend
+        // l'apparition du monde progressive et radiale.
+        if let Some(player_chunk) = self.player_chunk {
+            self.queued.sort_by_priority(player_chunk);
+        }
+
+        // Drapeau permettant d'interrompre le parcours dès que la file du
+        // pool de maillage est saturée.
+        let mut queue_saturated = false;
+
         self.queued.retain(|chunk| {
+            // La file du pool est pleine : on s'arrête et on conserve le reste
+            // de la file (qui sera servie lors d'un prochain appel).
+            if queue_saturated {
+                return true;
+            }
             // Si ce chunk n'est pas enregistré, on ne le traite pas
             if !self.chunk_meshes.contains(&chunk.coords) {
                 return false;
-            }
-            // Si on doit arrêter la boucle (file d'attente pleine), on garde les éléments même s'ils sont indésirables
-            if !keep_going {
-                return true;
             }
             // Si un traitement est déjà en cours, on attend pour cette requête
             if self.pending_keys.contains_key(&chunk.coords) {
@@ -150,7 +176,7 @@ impl WorldMesh {
                 }
                 Err(_) => {
                     // La file d'attente est pleine, on arrête ici pour l'instant et on conserve cette requête
-                    keep_going = true;
+                    queue_saturated = true;
                     true
                 }
             }
@@ -270,23 +296,22 @@ impl WorldMesh {
         };
 
         // Does not include mesh_worker buffers
-        let alloc = (
-            self.chunk_meshes.capacity() * size_of::<(i32, i32, i32)>()
+        let alloc = (self.chunk_meshes.capacity() * size_of::<(i32, i32, i32)>()
                 + self.meshes.capacity() * size_of::<((i32, i32, i32), ChunkMesh)>()
                 + self.pending.capacity() * size_of::<(usize, MeshRequestAdd)>()
                 + self.pending_keys.capacity() * size_of::<((i32, i32, i32), MeshSnapshot)>()
-                + self.queued.capacity() * 2 * size_of::<MeshRequestAdd>()
-            // * 2 because UniqueQueue has a HashSet and a VecDeque with the same value
-        ) as u32;
+                // La file est composée d'un Vec de coordonnées et d'une table
+                // de hachage des requêtes.
+                + self.queued.capacity() * size_of::<(i32, i32, i32)>()
+                + self.queued.requests_capacity()
+                    * (size_of::<(i32, i32, i32)>() + size_of::<MeshRequestAdd>())) as u32;
 
-        let used = (
-            self.chunk_meshes.len() * size_of::<(i32, i32, i32)>()
-                + self.meshes.len() * size_of::<((i32, i32, i32), ChunkMesh)>()
-                + self.pending.len() * size_of::<(usize, MeshRequestAdd)>()
-                + self.pending_keys.len() * size_of::<((i32, i32, i32), MeshSnapshot)>()
-                + self.queued.len() * 2 * size_of::<MeshRequestAdd>()
-            // * 2 because UniqueQueue has a HashSet and a VecDeque with the same value
-        ) as u32;
+        let used = (self.chunk_meshes.len() * size_of::<(i32, i32, i32)>()
+            + self.meshes.len() * size_of::<((i32, i32, i32), ChunkMesh)>()
+            + self.pending.len() * size_of::<(usize, MeshRequestAdd)>()
+            + self.pending_keys.len() * size_of::<((i32, i32, i32), MeshSnapshot)>()
+            + self.queued.len() * size_of::<(i32, i32, i32)>()
+            + self.queued.len() * (size_of::<(i32, i32, i32)>() + size_of::<MeshRequestAdd>())) as u32;
 
         let (alloc_kb, alloc_b) = conversion(alloc);
         let (used_kb, used_b) = conversion(used);

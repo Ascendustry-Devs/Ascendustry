@@ -11,6 +11,7 @@ use network::messages::{BroadcastMessage, ChunkData, ContenuPaquet, Paquet, Type
 use physics::position::{find_safe_spawn_point, is_position_free};
 use physics::validator::is_movement_plausible;
 use project_core::log_server;
+use std::path::Path;
 use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 
@@ -29,10 +30,13 @@ impl Default for AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        Self::with_blocks_path("assets/blocks/", "assets/items/")
+        Self::with_blocks_path(
+            game::assets::resolve_asset_path("blocks/"),
+            game::assets::resolve_asset_path("items/"),
+        )
     }
 
-    pub fn with_blocks_path(blocks_path: &str, items_path: &str) -> Self {
+    pub fn with_blocks_path(blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) -> Self {
         Self {
             world: RwLock::new(WorldState::new(blocks_path, items_path)),
             players: RwLock::new(PlayerRegistry::new()),

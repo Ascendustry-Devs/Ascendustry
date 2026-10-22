@@ -210,7 +210,10 @@ impl Chunk {
         min_cz: i32,
         max_cz: i32,
     ) -> FxHashSet<(i32, i32, i32)> {
-        let chunk_number = ((max_cx - min_cx) * (max_cy - min_cy) * (max_cz - min_cz)) as usize;
+        // Les bornes sont inclusives : la capacité doit couvrir
+        // (max - min + 1) valeurs par axe, sinon la table de hash doit
+        // être redimensionnée en cours de remplissage.
+        let chunk_number = ((max_cx - min_cx + 1) * (max_cy - min_cy + 1) * (max_cz - min_cz + 1)) as usize;
         let mut keys = HashSet::with_capacity_and_hasher(chunk_number, FxBuildHasher);
 
         for x in min_cx..=max_cx {

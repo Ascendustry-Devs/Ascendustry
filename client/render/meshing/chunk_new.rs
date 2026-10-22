@@ -48,7 +48,7 @@ use crate::game::{
     MESH_HIST_RECT, MESH_HIST_TOTAL, MESH_STAT_AO, MESH_STAT_EMIT, MESH_STAT_MASK, MESH_STAT_OTHER, MESH_STAT_PREP,
     MESH_STAT_RECT, MESH_STAT_TOTAL,
 };
-use crate::world::world::MeshSnapshot;
+use crate::world::mesh_request::MeshSnapshot;
 
 /// Cellules par côté d'un chunk.
 const CHUNK: usize = CHUNK_SIZE as usize;
@@ -301,7 +301,7 @@ fn build_core_t_direct(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
     for z in 0..CHUNK {
         for x in 0..CHUNK {
             let mut word = 0u32;
-            let mut idx = x + 0 * CHUNK + z * CHUNK * CHUNK;
+            let mut idx = x + z * CHUNK * CHUNK;
             for y in 0..CHUNK {
                 if blocks[idx] != 0 {
                     word |= 1u32 << y;
@@ -318,7 +318,7 @@ fn build_core_x_direct(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
     for x in 0..CHUNK {
         for y in 0..CHUNK {
             let mut word = 0u32;
-            let mut idx = x + y * CHUNK + 0 * CHUNK * CHUNK;
+            let mut idx = x + y * CHUNK;
             for z in 0..CHUNK {
                 if blocks[idx] != 0 {
                     word |= 1u32 << z;

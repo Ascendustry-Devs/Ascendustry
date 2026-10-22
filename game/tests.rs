@@ -139,21 +139,16 @@ mod tests {
     fn test_chunk_generation_deterministic() {
         use std::sync::{Arc, RwLock};
 
+        // On charge les vraies définitions de blocs : la génération dépend du
+        // contenu de `assets/biomes.json`, qui référence des blocs variables
+        // (sable, neige, eau...). Hardcoder une liste de blocs rendrait ce
+        // test fragile et leaky (il échouerait dès qu'un biome Evolue).
         let mut bm = BlockManager::new();
-        use crate::world::data::block::BlockData;
-        for id in &["air", "stone", "dirt", "grass"] {
-            bm.register(BlockData {
-                id: None,
-                id_str: id.to_string(),
-                name: id.to_string(),
-                solid: true,
-                hardness: 0.5,
-                texture_path: None,
-                texture_index: None,
-                render_mode: "opaque".to_string(),
-                drop: None,
-                has_item: true,
-            });
+        let blocks = crate::assets::block_loader::load_block_definitions(crate::assets::resolve_asset_path("blocks/"))
+            .expect("Failed to load block definitions");
+        assert!(!blocks.is_empty());
+        for block in blocks {
+            bm.register(block);
         }
         let bm = Arc::new(RwLock::new(bm));
         let chunk1 = Chunk::generate(Arc::clone(&bm), 0, 2, 0, 42);
@@ -214,5 +209,67 @@ mod tests {
 
         cd.set_dirty();
         assert_eq!(cd.get_debug_infos(), (ChunkState::Ready, true));
+    }
+
+    #[test]
+    fn test_chunk_volume_constants_match_real_ranges() {
+        use crate::constants::{
+            horizontal_chunk_axis_count, vertical_chunk_axis_count, HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE,
+            MAX_GENERATION_CHUNKS_IN_QUEUE, MAX_MESHING_CHUNKS_IN_QUEUE, RENDER_DISTANCE_CHUNK_COUNT,
+            SIMULATION_DISTANCE_CHUNK_COUNT, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
+        };
+
+        // Les constantes d'axe doivent refléter exactement la taille du cube
+        // réellement produit par `get_cube_chunk_range`.
+        let render = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE);
+        assert_eq!(
+            render[1] - render[0] + 1,
+            horizontal_chunk_axis_count(HORIZONTAL_RENDER_DISTANCE) as i32
+        );
+        assert_eq!(
+            render[3] - render[2] + 1,
+            vertical_chunk_axis_count(VERTICAL_RENDER_DISTANCE) as i32
+        );
+        assert_eq!(
+            render[5] - render[4] + 1,
+            horizontal_chunk_axis_count(HORIZONTAL_RENDER_DISTANCE) as i32
+        );
+
+        let simulation = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_SIMULATION_DISTANCE, VERTICAL_SIMULATION_DISTANCE);
+        assert_eq!(
+            simulation[1] - simulation[0] + 1,
+            horizontal_chunk_axis_count(HORIZONTAL_SIMULATION_DISTANCE) as i32
+        );
+        assert_eq!(
+            simulation[3] - simulation[2] + 1,
+            vertical_chunk_axis_count(VERTICAL_SIMULATION_DISTANCE) as i32
+        );
+
+        // Volumes attendus : rendu 15x5x15 = 1125, simulation 17x7x17 = 2023.
+        assert_eq!(RENDER_DISTANCE_CHUNK_COUNT, 1125);
+        assert_eq!(SIMULATION_DISTANCE_CHUNK_COUNT, 2023);
+
+        // Les files doivent pouvoir contenir l'intégralité du volume concerné.
+        assert_eq!(MAX_MESHING_CHUNKS_IN_QUEUE, RENDER_DISTANCE_CHUNK_COUNT as u32);
+        assert_eq!(MAX_GENERATION_CHUNKS_IN_QUEUE, SIMULATION_DISTANCE_CHUNK_COUNT as u32);
+    }
+
+    #[test]
+    fn test_simulation_cube_contains_render_cube() {
+        use crate::constants::{
+            HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
+        };
+
+        // Le cube de simulation doit contenir le cube de rendu, ainsi que la
+        // coquille de voisins nécessaire au maillage (1 chunk de marge).
+        let render = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE);
+        let simulation = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_SIMULATION_DISTANCE, VERTICAL_SIMULATION_DISTANCE);
+
+        assert!(simulation[0] < render[0]);
+        assert!(simulation[1] > render[1]);
+        assert!(simulation[2] < render[2]);
+        assert!(simulation[3] > render[3]);
+        assert!(simulation[4] < render[4]);
+        assert!(simulation[5] > render[5]);
     }
 }

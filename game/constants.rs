@@ -4,9 +4,42 @@ use crate::world::data::chunk::CHUNK_SIZE_F;
 
 pub const HORIZONTAL_RENDER_DISTANCE: u16 = 15;
 pub const VERTICAL_RENDER_DISTANCE: u16 = 5;
-pub const RENDER_DISTANCE_CHUNK_COUNT: u16 = HORIZONTAL_RENDER_DISTANCE * VERTICAL_RENDER_DISTANCE;
 pub const HORIZONTAL_SIMULATION_DISTANCE: u16 = HORIZONTAL_RENDER_DISTANCE + 2;
 pub const VERTICAL_SIMULATION_DISTANCE: u16 = VERTICAL_RENDER_DISTANCE + 2;
+
+/// Nombre de chunks couverts sur un axe horizontal par une distance donnée.
+///
+/// La distance est exprimée en nombre de chunks de part et d'autre du joueur :
+/// `get_cube_chunk_range` utilise `distance / 2` (arrondi vers le bas), d'où
+/// la formule `2 * (distance / 2) + 1`.
+pub const fn horizontal_chunk_axis_count(distance: u16) -> u16 {
+    (distance.div_euclid(2)) * 2 + 1
+}
+
+/// Nombre de chunks couverts sur un axe vertical par une distance donnée.
+pub const fn vertical_chunk_axis_count(distance: u16) -> u16 {
+    (distance.div_euclid(2)) * 2 + 1
+}
+
+/// Nombre total de chunks du cube de **rendu** (15 x 5 x 15 = 1125).
+///
+/// C'est le volume qui doit être **maillé** : un chunk n'est maillé que si
+/// ses 6 voisins existent, donc le cube maillé est le cube de rendu.
+pub const RENDER_DISTANCE_CHUNK_COUNT: u16 = {
+    let h = horizontal_chunk_axis_count(HORIZONTAL_RENDER_DISTANCE);
+    let v = vertical_chunk_axis_count(VERTICAL_RENDER_DISTANCE);
+    h * h * v
+};
+
+/// Nombre total de chunks du cube de **simulation** (17 x 7 x 17 = 2023).
+///
+/// C'est le volume qui doit être **généré** : il contient le cube de rendu
+/// plus une coquille de chunks, qui sert de voisinage pour le maillage.
+pub const SIMULATION_DISTANCE_CHUNK_COUNT: u16 = {
+    let h = horizontal_chunk_axis_count(HORIZONTAL_SIMULATION_DISTANCE);
+    let v = vertical_chunk_axis_count(VERTICAL_SIMULATION_DISTANCE);
+    h * h * v
+};
 
 pub const HORIZONTAL_SIMULATION_DISTANCE_HALFED_F: f32 = (HORIZONTAL_SIMULATION_DISTANCE as f32) / 2.0;
 pub const VERTICAL_SIMULATION_DISTANCE_HALFED_F: f32 = (VERTICAL_SIMULATION_DISTANCE as f32) / 2.0;
@@ -22,17 +55,18 @@ pub const CHUNK_PRIORITY_DISTANCE_SQR: f32 = CHUNK_PRIORITY_DISTANCE * CHUNK_PRI
 
 pub const CHUNK_VECTOR: Vector3<f32> = Vector3::new(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F);
 
-pub const MAX_MESHING_CHUNKS_IN_QUEUE: u32 = {
-    let h_chunks = HORIZONTAL_RENDER_DISTANCE as u32;
-    let v_chunks = VERTICAL_RENDER_DISTANCE as u32;
-    h_chunks * h_chunks * v_chunks
-};
+/// Nombre maximum de chunks en attente de **maillage**.
+///
+/// Doit couvrir le cube de rendu : au-delà, les chunks proches ne seraient
+/// jamais maillés.
+pub const MAX_MESHING_CHUNKS_IN_QUEUE: u32 = RENDER_DISTANCE_CHUNK_COUNT as u32;
 
-pub const MAX_GENERATION_CHUNKS_IN_QUEUE: u32 = {
-    let h_chunks = HORIZONTAL_RENDER_DISTANCE as u32;
-    let v_chunks = VERTICAL_RENDER_DISTANCE as u32;
-    h_chunks * h_chunks * v_chunks
-};
+/// Nombre maximum de chunks en attente de **génération**.
+///
+/// Doit couvrir le cube de simulation : la file doit pouvoir contenir
+/// l'intégralité des chunks nécessaires autour du joueur, sinon les chunks
+/// les plus lointains sont systématiquement écartés.
+pub const MAX_GENERATION_CHUNKS_IN_QUEUE: u32 = SIMULATION_DISTANCE_CHUNK_COUNT as u32;
 
 // Player physics
 

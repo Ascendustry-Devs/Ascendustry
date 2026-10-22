@@ -39,13 +39,17 @@ impl GameRenderer {
         let cam_frustum_aabb = cam.get_frustum_aabb();
 
         let meshes = &state.world_mesh.meshes;
-        let chunks_to_render = state.player.get_rendered_chunk_keys_set();
+        // Boîte de rendu autour du joueur, en coordonnées de chunk :
+        // [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz].
+        // Un test d'intervalle est plus rapide qu'une recherche dans un ensemble
+        // haché, et surtout ne nécessite aucun cache à invalider.
+        let render_range = state.player.get_rendered_chunk_range();
 
         let out = &mut data.visible_meshes;
         let aabb = &cam_frustum_aabb;
 
         for (coords, mesh) in meshes.iter() {
-            if let ControlFlow::Break(_) = Self::cull_chunk(out, aabb, cam_frustum, chunks_to_render, coords, mesh) {
+            if let ControlFlow::Break(_) = Self::cull_chunk(out, aabb, cam_frustum, render_range, coords, mesh) {
                 continue;
             }
         }
@@ -56,7 +60,7 @@ impl GameRenderer {
         out: &mut HashSet<u32, FxBuildHasher>,
         cam_frustum_aabb: &AABB,
         cam_frustum: &[Plane; 6],
-        chunks_to_render: &HashSet<(i32, i32, i32), FxBuildHasher>,
+        render_range: [i32; 6],
         coords: &(i32, i32, i32),
         mesh: &ChunkMesh,
     ) -> ControlFlow<()> {
@@ -75,8 +79,8 @@ impl GameRenderer {
         }
 
         // Last check to avoid edge cases & not-to-render chunks (in the future, e.g.: occluded chunks).
-        // Hash lookup is the slowest part of the hot loop.
-        if !chunks_to_render.contains(coords) {
+        // 6 comparaisons d'entiers : bien moins coûteux qu'une recherche dans un ensemble haché.
+        if !Self::is_chunk_in_render_range(render_range, coords) {
             return ControlFlow::Break(());
         }
 
@@ -87,6 +91,20 @@ impl GameRenderer {
         out.insert(id);
 
         ControlFlow::Continue(())
+    }
+
+    /// Indique si le chunk appartient à la boîte de rendu autour du joueur.
+    ///
+    /// `render_range` = [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz].
+    #[inline(always)]
+    fn is_chunk_in_render_range(render_range: [i32; 6], coords: &(i32, i32, i32)) -> bool {
+        let (x, y, z) = *coords;
+        x >= render_range[0]
+            && x <= render_range[1]
+            && y >= render_range[2]
+            && y <= render_range[3]
+            && z >= render_range[4]
+            && z <= render_range[5]
     }
 
     #[inline(never)]

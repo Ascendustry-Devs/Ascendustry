@@ -2,16 +2,19 @@ use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use engine::render::modes::RenderMode;
 use num_cpus::get;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
-use std::hash::{Hash, Hasher};
 
 use crate::api::texture_loader::TextureLoader;
 use cgmath::Point3;
-use game::constants::{DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE};
+use game::constants::{
+    DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE,
+    SIMULATION_DISTANCE_CHUNK_COUNT,
+};
 use game::inventory::item_manager::ItemManager;
 use game::inventory::ItemInstance;
 use game::world::data::block::{BlockInstance, BlockManager};
 use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
 use game::world::generation::chunk_generator::ChunkGenerator;
+use game::world::scheduling::compute_missing_chunks_sorted;
 use physics::aabb::AABB;
 use physics::collision_world::CollisionWorld;
 use project_core::{
@@ -21,23 +24,16 @@ use project_core::{
 use std::collections::HashSet;
 use std::{
     cmp::max,
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     mem,
     sync::{Arc, RwLock},
 };
 
-use crate::{player::player::Player, render::meshing::world::WorldMesh};
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct MeshSnapshot {
-    pub main: Arc<Chunk>,
-    pub neg_x: Option<Arc<Chunk>>,
-    pub pos_x: Option<Arc<Chunk>>,
-    pub neg_y: Option<Arc<Chunk>>,
-    pub pos_y: Option<Arc<Chunk>>,
-    pub neg_z: Option<Arc<Chunk>>,
-    pub pos_z: Option<Arc<Chunk>>,
-}
+use crate::{
+    player::player::Player,
+    render::meshing::world::WorldMesh,
+    world::mesh_request::{MeshRequestAdd, MeshRequestMessage, MeshResponse, MeshSnapshot},
+};
 
 pub struct World {
     seed: u32,
@@ -45,50 +41,21 @@ pub struct World {
     chunk_generator: ChunkGenerator,
     block_manager: Arc<RwLock<BlockManager>>,
     item_manager: Arc<RwLock<ItemManager>>,
+    /// Chunks déjà générés mais pas encore maillés (il manque des voisins).
     waiting_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
+    /// Chunks restant à générer, triés par priorité (distance au joueur).
+    ///
+    /// Cette liste est **persistante** : les chunks qui n'ont pas pu être
+    /// demandés au générateur (file pleine) y restent et seront servis dès
+    /// que de la place se libère, au lieu d'être perdus.
+    missing_chunks: VecDeque<(i32, i32, i32)>,
+    /// Chunks demandés au générateur mais pas encore reçus.
+    ///
+    /// Sert à ne pas demander deux fois le même chunk (le générateur étant
+    /// asynchrone, un chunk en cours de génération n'est pas encore présent
+    /// dans `chunks`).
+    in_flight: FxHashSet<(i32, i32, i32)>,
     mesh_request: MeshRequestMessage,
-}
-
-pub type MeshResponse = (i32, i32, i32);
-
-pub type MeshRequestDelete = (i32, i32, i32);
-
-#[derive(Clone)]
-pub struct MeshRequestAdd {
-    pub coords: (i32, i32, i32),
-    pub snapshot: MeshSnapshot,
-}
-
-impl MeshRequestAdd {
-    pub const fn new(coords: (i32, i32, i32), snapshot: MeshSnapshot) -> Self {
-        Self { coords, snapshot }
-    }
-}
-
-impl PartialEq for MeshRequestAdd {
-    fn eq(&self, other: &Self) -> bool {
-        self.coords == other.coords
-    }
-}
-impl Eq for MeshRequestAdd {}
-impl Hash for MeshRequestAdd {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.coords.hash(state);
-    }
-}
-
-pub struct MeshRequestMessage {
-    pub add: FxHashSet<MeshRequestAdd>,
-    pub delete: FxHashSet<MeshRequestDelete>,
-}
-
-impl MeshRequestMessage {
-    pub const fn empty() -> Self {
-        Self {
-            add: HashSet::with_hasher(FxBuildHasher),
-            delete: HashSet::with_hasher(FxBuildHasher),
-        }
-    }
 }
 
 impl World {
@@ -111,6 +78,8 @@ impl World {
             block_manager,
             item_manager,
             waiting_to_mesh: UniqueQueue::with_capacity(256),
+            missing_chunks: VecDeque::with_capacity(SIMULATION_DISTANCE_CHUNK_COUNT as usize),
+            in_flight: HashSet::with_hasher(FxBuildHasher),
             mesh_request: MeshRequestMessage::empty(),
         }
     }
@@ -118,8 +87,8 @@ impl World {
     pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut MeshRequestMessage {
         {
             let mut item_manager = self.item_manager.write().unwrap();
-            let items =
-                game::assets::item_loader::load_item_definitions("assets/items/").expect("Failed to load item definitions");
+            let items = game::assets::item_loader::load_item_definitions(game::assets::resolve_asset_path("items/"))
+                .expect("Failed to load item definitions");
             for mut item in items {
                 if let Some(tex_path) = &item.texture_path {
                     if let Ok(tex_id) = texture_loader.register(tex_path.clone(), RenderMode::Opaque) {
@@ -134,8 +103,8 @@ impl World {
             let mut block_manager = self.block_manager.write().unwrap();
             let item_manager = self.item_manager.read().unwrap();
 
-            let mut defs =
-                game::assets::block_loader::load_block_definitions("assets/blocks/").expect("Failed to load block definitions");
+            let mut defs = game::assets::block_loader::load_block_definitions(game::assets::resolve_asset_path("blocks/"))
+                .expect("Failed to load block definitions");
 
             for def in &mut defs {
                 if let Some(tex_path) = &def.texture_path {
@@ -154,7 +123,7 @@ impl World {
             block_manager.build_texture_lookup();
         }
 
-        self.generate_missing_chunks(player);
+        self.refresh_missing_chunks(player);
         &mut self.mesh_request
     }
 
@@ -166,9 +135,15 @@ impl World {
     ) -> &mut MeshRequestMessage {
         if player.state.cpos.has_changed() || self.chunks.is_empty() {
             self.clean_chunks(mesh_manager, world_mesh, player);
-            self.generate_missing_chunks(player);
+            // La liste des chunks manquants est reconstruite et re-triée par
+            // rapport à la nouvelle position du joueur.
+            self.refresh_missing_chunks(player);
         }
+        // Récupération des chunks générés par le pool.
         self.compute_generated_chunks();
+        // Remplissage du générateur : autant que sa file le permet, et non
+        // seulement quand le joueur bouge.
+        self.pump_generation();
         self.submit_to_mesh();
         &mut self.mesh_request
     }
@@ -254,52 +229,59 @@ impl World {
         });
     }
 
-    fn generate_missing_chunks(&self, player: &Player) {
-        // Si la file d'attente est pleine, ça ne sert à rien d'essayer de soumettre des demandes
-        if self.chunk_generator.is_queue_full() {
-            return;
-        }
+    /// Recalcule la liste des chunks restant à générer, triés par priorité
+    /// (distance au joueur).
+    ///
+    /// Sont exclus :
+    /// - les chunks déjà générés (`chunks`) ;
+    /// - les chunks déjà demandés au générateur et pas encore reçus
+    ///   (`in_flight`) : les redemander produirait du travail inutile.
+    ///
+    /// Appelé lorsque le joueur change de chunk : la liste est reconstruite
+    /// depuis zéro, ce qui a pour effet de **re-prioriser** les chunks encore
+    /// manquants par rapport à la nouvelle position.
+    fn refresh_missing_chunks(&mut self, player: &Player) {
+        let player_chunk: (i32, i32, i32) = player.get_cpos().into();
 
-        // Identifier les chunks manquants
-        let mut missing_keys: Vec<(i32, i32, i32)> = {
-            let mut needed_keys = player.get_simulation_chunk_keys();
-            needed_keys.retain(|key| !self.chunks.contains_key(key));
-            needed_keys
-        };
+        let missing = compute_missing_chunks_sorted(
+            player.get_simulation_chunk_keys(),
+            &self.chunks.keys().copied().collect(),
+            &self.in_flight,
+            player_chunk,
+        );
 
-        // Coordonnées joueur (entiers)
-        let (px, py, pz) = player.get_pos().map(|coord| coord.floor() as i32).into();
+        self.missing_chunks = missing.into();
+    }
 
-        // Trier les demandes de chunks manquants en fonction de leur distance au joueur (proche = prioritaire)
-        missing_keys.sort_by_key(|chunk| {
-            // Chaque coordonnée représente la position du chunk dans le monde, à l'échelle d'un bloc, et centré sur le joueur
-            let x = chunk.0 * CHUNK_SIZE - px;
-            let y = chunk.1 * CHUNK_SIZE - py;
-            let z = chunk.2 * CHUNK_SIZE - pz;
+    /// Demande au générateur autant de chunks que sa file peut en accepter.
+    ///
+    /// Les chunks sont pris dans l'ordre de priorité. Ceux qui n'ont pas pu
+    /// être demandés restent dans la file (`missing_chunks`) et seront servis
+    /// dès que de la place se libère.
+    fn pump_generation(&mut self) {
+        while !self.chunk_generator.is_queue_full() {
+            let Some(coords) = self.missing_chunks.pop_front() else {
+                break;
+            };
 
-            // Distance au carrée
-            x * x + y * y + z * z
-        });
+            // Le chunk a pu être fourni entre-temps (chunk distant reçu du
+            // serveur) : inutile de le regénérer.
+            if self.chunks.contains_key(&coords) {
+                continue;
+            }
 
-        // On soumet les clés des chunks manquants pour les faire générer
-        let mut removed = 0;
-        for chunk in missing_keys.iter() {
-            let (cx, cy, cz) = *chunk;
-            let result = self.chunk_generator.request(cx, cy, cz);
-            match result {
+            let (cx, cy, cz) = coords;
+            match self.chunk_generator.request(cx, cy, cz) {
                 Ok(_) => {
-                    removed += 1;
+                    self.in_flight.insert(coords);
                 }
                 Err(_) => {
-                    // La file d'attente est pleine, on arrête ici pour l'instant
-                    log_err_client!("World chunk generation: queue is full!");
+                    // La file du générateur est pleine : on remet le chunk en
+                    // tête de liste et on arrête.
+                    self.missing_chunks.push_front(coords);
                     break;
                 }
             }
-        }
-
-        if removed > 0 {
-            missing_keys.drain(0..removed);
         }
     }
 
@@ -314,14 +296,18 @@ impl World {
         };
         let chunk_data = ChunkData::new(chunk);
         self.chunks.insert((cx, cy, cz), chunk_data);
+        // Le chunk vient du serveur : il n'est plus à générer.
+        self.in_flight.remove(&(cx, cy, cz));
+        self.missing_chunks.retain(|coords| *coords != (cx, cy, cz));
+
         let data = MeshRequestAdd::new((cx, cy, cz), self.get_mesh_snapshot(cx, cy, cz));
-        self.mesh_request.add.replace(data);
+        self.mesh_request.add.insert(data);
         for (dx, dy, dz) in DIRECT_NORMALS_3D {
             let (cx, cy, cz) = (cx + dx, cy + dy, cz + dz);
             let coords = (cx, cy, cz);
             if self.chunks.contains_key(&coords) {
                 let data = MeshRequestAdd::new(coords, self.get_mesh_snapshot(cx, cy, cz));
-                self.mesh_request.add.replace(data);
+                self.mesh_request.add.insert(data);
             }
         }
     }
@@ -330,6 +316,9 @@ impl World {
         while let Some(result) = self.chunk_generator.try_recv() {
             let (cx, cy, cz, chunk_with_checksum) = result.output;
             let key = (cx, cy, cz);
+
+            // Le chunk a été généré : il n'est plus en vol.
+            self.in_flight.remove(&key);
 
             if self.chunks.contains_key(&key) {
                 continue;
@@ -352,6 +341,15 @@ impl World {
         waiting.retain(|chunk| {
             let chunk = *chunk;
             let (cx, cy, cz) = chunk;
+
+            // Le chunk a pu être nettoyé (sorti de la zone du joueur) depuis
+            // sa génération : il n'existe plus, il n'a plus lieu d'être
+            // dans la file. Sans cette purge, la file grossirait
+            // indéfiniment au fil des déplacements du joueur.
+            if !self.chunks.contains_key(&chunk) {
+                return false;
+            }
+
             if self.are_all_neighbors_ready(cx, cy, cz) {
                 let data = MeshRequestAdd::new(chunk, self.get_mesh_snapshot(cx, cy, cz));
                 self.mesh_request.add.insert(data);
@@ -435,6 +433,9 @@ impl World {
 
     pub fn dispose(&mut self) {
         self.chunks.clear();
+        self.waiting_to_mesh.clear();
+        self.missing_chunks.clear();
+        self.in_flight.clear();
         // TODO: faire fonctionner -> self.block_manager.dispose();
         self.chunk_generator.dispose();
     }
