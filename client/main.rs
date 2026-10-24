@@ -1,6 +1,6 @@
 use clap::Parser;
 use network::DEFAULT_SERVER_ADDRESS;
-use winit::{error::EventLoopError, event_loop::EventLoop};
+use winit::event_loop::EventLoop;
 
 use client::game::GameState;
 use engine::core::application::App;

@@ -38,7 +38,7 @@
 
 use engine::geometry::vertex::Vertex;
 use game::world::data::block::BlockInstance;
-use game::world::data::chunk::{Chunk, CHUNK_SIZE, LAST_CHUNK_AXIS_INDEX_USIZE};
+use game::world::data::chunk::{Chunk, CHUNK_SIZE_SQR_USIZE, CHUNK_SIZE_USIZE, LAST_CHUNK_AXIS_INDEX_USIZE};
 use project_core::geometry::corner::SquareCorner;
 use project_core::geometry::direction::Direction;
 use std::sync::Arc;
@@ -51,7 +51,8 @@ use crate::game::{
 use crate::world::mesh_request::MeshSnapshot;
 
 /// Cellules par côté d'un chunk.
-const CHUNK: usize = CHUNK_SIZE as usize;
+const CHUNK: usize = CHUNK_SIZE_USIZE;
+const CHUNK_SQR: usize = CHUNK_SIZE_SQR_USIZE;
 /// Taille d'un plan de solidité paddé : lignes et colonnes 0..=33.
 const PAD: usize = CHUNK + 2;
 
@@ -445,14 +446,18 @@ fn build_neighbor_layers(chunk: &Chunk, kind: usize) -> NeighborLayers {
     let ids = block_ids(&chunk.blocks);
     let mut primary = BitMatrix::ZERO;
 
+    const KINDS: [usize; 2] = [CHUNK - 1, 0];
+
+    let w = KINDS[kind & 1];
+
     match kind {
         // Couche x = 31 (négatif) ou x = 0 (positif) : lignes z, bits y.
         NEG_X | POS_X => {
-            let x = if kind == NEG_X { CHUNK - 1 } else { 0 };
             for z in 0..CHUNK {
                 let mut word = 0u32;
+                let z_offset = z * CHUNK_SQR;
                 for y in 0..CHUNK {
-                    let id = ids[x + y * CHUNK + z * CHUNK * CHUNK];
+                    let id = ids[w + y * CHUNK + z_offset];
                     word |= ((id != 0) as u32) << y;
                 }
                 primary.rows[z] = word;
@@ -460,9 +465,9 @@ fn build_neighbor_layers(chunk: &Chunk, kind: usize) -> NeighborLayers {
         }
         // Couche y = 31 (négatif) ou y = 0 (positif) : lignes z, bits x.
         NEG_Y | POS_Y => {
-            let y = if kind == NEG_Y { CHUNK - 1 } else { 0 };
+            let w_offset = w * CHUNK;
             for z in 0..CHUNK {
-                let base = y * CHUNK + z * CHUNK * CHUNK;
+                let base = w_offset + z * CHUNK_SQR;
                 let mut word = 0u32;
                 for x in 0..CHUNK {
                     word |= ((ids[base + x] != 0) as u32) << x;
@@ -472,9 +477,9 @@ fn build_neighbor_layers(chunk: &Chunk, kind: usize) -> NeighborLayers {
         }
         // Couche z = 31 (négatif) ou z = 0 (positif) : lignes y, bits x.
         NEG_Z | POS_Z => {
-            let z = if kind == NEG_Z { CHUNK - 1 } else { 0 };
+            let w_offset = w * CHUNK_SQR;
             for y in 0..CHUNK {
-                let base = y * CHUNK + z * CHUNK * CHUNK;
+                let base = y * CHUNK + w_offset;
                 let mut word = 0u32;
                 for x in 0..CHUNK {
                     word |= ((ids[base + x] != 0) as u32) << x;
@@ -520,7 +525,7 @@ struct ChunkSolidity {
     /// Encore transposé : `core_x[x * CHUNK + y]` = bits sur z.
     core_x: [u32; CHUNK * CHUNK],
     /// Les couches de surface des six voisins (`[neg_x, pos_x, neg_y, pos_y,
-    /// neg_z, pos_z]`). Un voisin absent est represented par des plans vides
+    /// neg_z, pos_z]`). Un voisin absent est representé par des plans vides
     /// (de l'air), exactement comme le `PaddedChunk` de référence.
     neighbors: [NeighborLayers; 6],
     /// Les identités de blocs des six voisins. Les `Arc<Chunk>` sont
@@ -1308,6 +1313,8 @@ const LAST_AXIS_INDEX: usize = LAST_CHUNK_AXIS_INDEX_USIZE;
 
 #[cfg(test)]
 mod tests {
+    use game::world::data::chunk::CHUNK_SIZE;
+
     use super::*;
 
     use crate::render::utils::face_mask::FaceMask;

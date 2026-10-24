@@ -12,5 +12,8 @@
     "file_scan_exclusions": [
         "./target/",
         "./Flamegraph/",
+        ".opencode/",
+        ".git/",
+        "_apart/",
     ],
 }

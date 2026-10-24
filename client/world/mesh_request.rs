@@ -11,6 +11,8 @@ use game::world::data::chunk::Chunk;
 use game::world::scheduling::chunk_priority_sq;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
+// TODO : rajouter les 8 coins extérieurs du chunk (+x;+y;+z, +x;+y;-z, etc...) et les 12 voisins diagonaux (+x;+y;z, +x;-y;z, etc...) puis adapter le calcul des plans (PaddedPlane) pour régler le bug de l'AO aux bordures des chunks qui a lieu seulement sur les lignes de blocs ayant 2 chunks voisins minimum.
+
 /// Instantané d'un chunk et de ses 6 voisins directs.
 ///
 /// Les voisins sont nécessaires au maillage "greedy" : sans eux, les faces

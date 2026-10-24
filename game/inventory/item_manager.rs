@@ -94,6 +94,8 @@ impl ItemManager {
     /// Supprime tous les items du gestionnaire, effaçant ainsi les données en mémoire.
     pub fn dispose(&mut self) {
         self.items.clear();
+        self.items.shrink_to(0);
         self.mapped_items.clear();
+        self.mapped_items.shrink_to(0);
     }
 }
