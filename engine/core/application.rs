@@ -56,7 +56,9 @@ impl<S: AppState> App<S> {
 impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
     #[inline(never)]
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window_attributes = Window::default_attributes().with_maximized(true).with_title("Ascendustry");
+        let window_attributes = Window::default_attributes()
+            // .with_maximized(true)
+            .with_title("Ascendustry");
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         let mut engine = pollster::block_on(State::new(window, event_loop, &self.app_state)).unwrap();
         self.app_state.init(&mut engine.renderer, &mut engine.audio_manager);

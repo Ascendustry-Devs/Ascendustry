@@ -1,35 +1,49 @@
-use crate::api::texture_loader::TextureLoader;
-use crate::network::NetworkManager;
-use crate::player::controllers::spectator::FreeCameraController;
-use crate::player::controllers::walk::WalkPlayerController;
-use crate::player::player::Player;
-use crate::player::remote_players::RemotePlayersManager;
-use crate::render::meshing::world::WorldMesh;
-use crate::render::renderer::GameRenderer;
-use crate::systems::inputs::InputState;
-use crate::ui::ClientUI;
-use crate::world::{mesh_request::MeshRequestMessage, world::World};
-use engine::audio::GameAudioManager;
-use engine::core::application::AppState;
-use engine::core::frame::EngineFrameData;
-use engine::core::frame::GameFrameData;
-use engine::gpu::allocator::gpu_allocator::GpuAllocator;
-use engine::render::render::Renderer;
-use engine::render::ui::interpreter::compiler::UiCompiler;
-use engine::render::ui::interpreter::translator::UiTranslator;
-use engine::render::ui::widgets::textured_panel::TexturedPanel;
-use engine::render::ui::widgets::{Widget, WidgetTransform};
-use game::world::data::block::BlockInstance;
-use network::messages::new_save_request_paquet;
-use network::messages::ContenuPaquet;
+use crate::{
+    api::texture_loader::TextureLoader,
+    network::NetworkManager,
+    player::{
+        controllers::{spectator::FreeCameraController, walk::WalkPlayerController},
+        player::Player,
+        remote_players::RemotePlayersManager,
+    },
+    render::{meshing::world::WorldMesh, renderer::GameRenderer},
+    systems::inputs::InputState,
+    ui::ClientUI,
+    world::{mesh_request::MeshRequestMessage, world::World},
+};
+use engine::{
+    audio::GameAudioManager,
+    core::{
+        application::AppState,
+        frame::{EngineFrameData, GameFrameData},
+    },
+    gpu::allocator::gpu_allocator::GpuAllocator,
+    render::{
+        render::Renderer,
+        ui::{
+            interpreter::{compiler::UiCompiler, translator::UiTranslator},
+            widgets::{textured_panel::TexturedPanel, Widget, WidgetTransform},
+        },
+    },
+};
+use game::world::{
+    data::block::BlockInstance,
+    generation::profiler::{
+        CHUNKS_GENERATED, GEN_HIST_CAVE, GEN_HIST_LEN, GEN_HIST_NOISE, GEN_HIST_ORE, GEN_HIST_OTHER, GEN_HIST_SURFACE,
+        GEN_HIST_TERRAIN, GEN_HIST_TOTAL, GEN_HIST_VEGETATION, GEN_STAT_CAVE, GEN_STAT_NOISE, GEN_STAT_ORE, GEN_STAT_OTHER,
+        GEN_STAT_SURFACE, GEN_STAT_TERRAIN, GEN_STAT_TOTAL, GEN_STAT_VEGETATION, TIME_SPENT_GENERATING_NANOS,
+    },
+};
+use network::messages::{new_save_request_paquet, ContenuPaquet};
 use project_core::{log_client, log_err_client};
-use std::mem;
-use std::process::exit;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::{
+    mem,
+    process::exit,
+    sync::{Arc, RwLock},
+    time::Duration,
+};
 use tokio::time::Instant;
-use winit::event::MouseButton;
-use winit::keyboard::KeyCode;
+use winit::{event::MouseButton, keyboard::KeyCode};
 
 const FPS_CAP: u32 = 60; // u32::MAX;
 const DT_CAP: f32 = {
@@ -312,6 +326,89 @@ impl GameState {
                 println!("===============================");
             }
         }
+
+        if self.inputs.take_key_pressed(KeyCode::KeyY) {
+            unsafe fn fmt_ns(v: u128) -> String {
+                if v >= 1_000_000 {
+                    format!("{}.{:03}ms", v / 1_000_000, (v % 1_000_000) / 1000)
+                } else if v >= 1_000 {
+                    format!("{}.{:03}µs", v / 1000, v % 1000)
+                } else {
+                    format!("{}ns", v)
+                }
+            }
+            unsafe fn med_std(hist: &[u128; GEN_HIST_LEN], count: u64) -> (u128, f64) {
+                if count == 0 {
+                    return (0, 0.0);
+                }
+                let c_usize = count as usize;
+                let n = if c_usize < GEN_HIST_LEN { c_usize } else { GEN_HIST_LEN };
+                let mut tmp = [0u128; GEN_HIST_LEN];
+                for i in 0..n {
+                    tmp[i] = hist[i];
+                }
+                let slice = &mut tmp[0..n];
+                slice.sort_unstable_by(|a, b| a.cmp(b));
+                let med = slice[n / 2];
+                let mut sum: u128 = 0;
+                for i in 0..n {
+                    sum += slice[i];
+                }
+                let mean = (sum as f64) / (n as f64);
+                let mut var: f64 = 0.0;
+                for i in 0..n {
+                    let d = (slice[i] as f64) - mean;
+                    var += d * d;
+                }
+                var = var / (n as f64);
+                (med, var.sqrt())
+            }
+            unsafe fn print_stat(name: &str, s: &game::world::generation::profiler::GenTimeStats, hist: &[u128; GEN_HIST_LEN]) {
+                if s.count == 0 {
+                    println!("{}: aucun échantillon", name);
+                    return;
+                }
+                let avg = s.sum_nanos / (s.count as u128);
+                let (med, stddev) = med_std(hist, s.count);
+                println!(
+                    "{}: count={} sum={} avg={} min={} max={} med={} stddev={} | {}",
+                    name,
+                    s.count,
+                    fmt_ns(s.sum_nanos),
+                    fmt_ns(avg),
+                    fmt_ns(s.min_nanos),
+                    fmt_ns(s.max_nanos),
+                    fmt_ns(med),
+                    fmt_ns(stddev.floor() as u128),
+                    fmt_ns(s.last_nanos)
+                );
+            }
+            unsafe {
+                let time_spent_generating_nanos =
+                    TIME_SPENT_GENERATING_NANOS.load(std::sync::atomic::Ordering::Relaxed) as u128;
+                let chunks_generated = CHUNKS_GENERATED.load(std::sync::atomic::Ordering::Relaxed);
+                println!("==== GEN PROFILER (touche Y) ====");
+                println!(
+                    "Global: generating={} chunks={}",
+                    fmt_ns(time_spent_generating_nanos),
+                    chunks_generated
+                );
+                if chunks_generated > 0 {
+                    let avg_generating_nanos = time_spent_generating_nanos / (chunks_generated as u128);
+                    println!("  avg generating: {}", fmt_ns(avg_generating_nanos));
+                }
+                println!("--- Par chunk (détails) ---");
+                print_stat("TOTAL", &GEN_STAT_TOTAL, &GEN_HIST_TOTAL);
+                print_stat("NOISE", &GEN_STAT_NOISE, &GEN_HIST_NOISE);
+                print_stat("SURFACE", &GEN_STAT_SURFACE, &GEN_HIST_SURFACE);
+                print_stat("TERRAIN", &GEN_STAT_TERRAIN, &GEN_HIST_TERRAIN);
+                print_stat("CAVE", &GEN_STAT_CAVE, &GEN_HIST_CAVE);
+                print_stat("ORE", &GEN_STAT_ORE, &GEN_HIST_ORE);
+                print_stat("VEGETATION", &GEN_STAT_VEGETATION, &GEN_HIST_VEGETATION);
+                print_stat("OTHER", &GEN_STAT_OTHER, &GEN_HIST_OTHER);
+                println!("================================");
+            }
+        }
     }
 
     #[inline(never)]
@@ -334,23 +431,30 @@ impl GameState {
 
     #[inline(never)]
     fn update_network(&mut self, network_commands: Vec<network::messages::Paquet>) {
-        let net = self.network.as_mut().expect("NetworkManager: uninitialized.");
-        if !net.is_connected() {
-            log_client!("Déconnecté du serveur. Arrêt du client.");
-            exit(0);
-        }
-        // Envoi un ping si aucun échange n'a eu lieu depuis PING_INTERVAL
-        if net.get_last_communication().elapsed() >= PING_INTERVAL {
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            if let Err(e) = net.send_ping(timestamp) {
-                log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
-            } else {
-                log_client!("Ping envoyé !");
+        {
+            let net = self.network.as_mut().expect("NetworkManager: uninitialized.");
+            if !net.is_connected() {
+                log_client!("Déconnecté du serveur. Arrêt du client.");
+                exit(0);
+            }
+            // Envoi un ping si aucun échange n'a eu lieu depuis PING_INTERVAL
+            if net.get_last_communication().elapsed() >= PING_INTERVAL {
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                if let Err(e) = net.send_ping(timestamp) {
+                    log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
+                } else {
+                    log_client!("Ping envoyé !");
+                }
             }
         }
+
+        self.apply_received_packets();
+
+        let net = self.network.as_mut().expect("NetworkManager: uninitialized.");
+
         // Envoi la position et rotation du joueur au serveur si elles ont changés
         if self.player.has_moved() {
             let pos = self.player.get_pos();
@@ -360,10 +464,39 @@ impl GameState {
             }
             self.player.state.reset_moved();
         }
-        // Réception des positions des autres joueurs
+
+        for command in network_commands {
+            let result = net.send_packet(command);
+            match result {
+                Ok(_) => {}
+                Err(err) => {
+                    log_err_client!("Failed to send command packet.\nError: {}", err);
+                }
+            }
+        }
+        // Envoyer une demande de sauvegarde
+        if self.inputs.is_key_pressed(KeyCode::Digit3) && self.last_save_request.elapsed() > Duration::from_secs(5) {
+            self.last_save_request = Instant::now();
+            let packet = new_save_request_paquet();
+            if let Some(net) = self.network.as_mut() {
+                match net.send_packet(packet) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log_err_client!("Failed to send save request packet.\nError: {}", err);
+                    }
+                }
+            }
+        }
+        // Nettoyer les joueurs distants qui n'ont pas envoyé de mise à jour depuis 30s
+        self.remote_players.cleanup_stale(Duration::from_secs(30));
+    }
+
+    fn apply_received_packets(&mut self) {
+        let net = self.network.as_mut().expect("NetworkManager: uninitialized");
         if let Ok(Some(packet)) = net.receive_packet() {
             use ContenuPaquet;
             match packet.contenu {
+                // Réception des positions des autres joueurs
                 ContenuPaquet::MultiplePlayerTransformation { data } => {
                     let my_id = net.player_id();
                     self.remote_players.update(data, my_id);
@@ -402,30 +535,6 @@ impl GameState {
                 _ => {}
             }
         }
-        for command in network_commands {
-            let result = net.send_packet(command);
-            match result {
-                Ok(_) => {}
-                Err(err) => {
-                    log_err_client!("Failed to send command packet.\nError: {}", err);
-                }
-            }
-        }
-        // Envoyer une demande de sauvegarde
-        if self.inputs.is_key_pressed(KeyCode::Digit3) && self.last_save_request.elapsed() > Duration::from_secs(5) {
-            self.last_save_request = Instant::now();
-            let packet = new_save_request_paquet();
-            if let Some(net) = self.network.as_mut() {
-                match net.send_packet(packet) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        log_err_client!("Failed to send save request packet.\nError: {}", err);
-                    }
-                }
-            }
-        }
-        // Nettoyer les joueurs distants qui n'ont pas envoyé de mise à jour depuis 30s
-        self.remote_players.cleanup_stale(Duration::from_secs(30));
     }
 
     #[inline(always)]
@@ -437,6 +546,8 @@ impl GameState {
 impl AppState for GameState {
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>) {
         let mut tex_loader = TextureLoader::new(&mut renderer.texture_manager);
+        self.apply_received_packets();
+        println!("player initial pos: {:?} {:?}", self.player.get_pos(), self.player.get_cpos());
         let meshin = self.world.init(&mut tex_loader, &self.player);
         let alloc = Arc::clone(&renderer.render_manager.world_buffer);
         self.world_mesh.init(alloc, meshin);
@@ -469,6 +580,10 @@ impl AppState for GameState {
 
         self.update_physics(frame);
 
+        // Mettre à jour la position du joueur pour le tri des maillages AVANT
+        // world.update / world_mesh.update afin d'avoir la bonne priorité dès cette frame.
+        self.world_mesh.set_player_chunk(self.player.get_cpos().into());
+
         let (network_commands, mut mesh_request) = self.update_logic(frame, &mut renderer.render_manager.world_buffer);
 
         self.update_network(network_commands);
@@ -481,10 +596,6 @@ impl AppState for GameState {
             &item_manager.read().unwrap(),
         );
         let mesh_manager = &mut renderer.render_manager.world_buffer;
-
-        // La position du joueur sert à ordonner les requêtes de maillage par
-        // priorité (les chunks les plus proches sont maillés en premier).
-        self.world_mesh.set_player_chunk(self.player.get_cpos().into());
 
         let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request);
         self.world.listen(&mut responses);

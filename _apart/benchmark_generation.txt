@@ -1,0 +1,177 @@
+Initial :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=230436.429ms chunks=15128
+  avg generating: 15.232ms
+--- Par chunk (détails) ---
+TOTAL: count=15127 sum=230404.235ms avg=15.231ms min=325.160µs max=197.769ms med=22.727ms stddev=14.975ms | 22.344ms
+NOISE: count=15127 sum=602.820ms avg=39.850µs min=4.590µs max=12.342ms med=22.890µs stddev=79.912µs | 13.430µs
+SURFACE: count=15126 sum=2854.933ms avg=188.743µs min=117.080µs max=7.156ms med=137.420µs stddev=218.714µs | 122.870µs
+TERRAIN: count=15126 sum=1801.254ms avg=119.083µs min=75.800µs max=9.201ms med=84.170µs stddev=156.975µs | 82.640µs
+CAVE: count=15126 sum=69324.238ms avg=4.583ms min=0ns max=75.933ms med=6.641ms stddev=4.736ms | 6.648ms
+ORE: count=15126 sum=126941.308ms avg=8.392ms min=0ns max=95.875ms med=12.819ms stddev=8.719ms | 12.626ms
+VEGETATION: count=15126 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15126 sum=28503.259ms avg=1.884ms min=96.320µs max=48.423ms med=2.582ms stddev=1.899ms | 2.833ms
+================================
+
+Après étape 1 :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=197743.703ms chunks=15184
+  avg generating: 13.023ms
+--- Par chunk (détails) ---
+TOTAL: count=15184 sum=197743.703ms avg=13.023ms min=589.198µs max=112.292ms med=947.437µs stddev=12.421ms | 23.043ms
+NOISE: count=15184 sum=277.044ms avg=18.245µs min=3.960µs max=3.040ms med=10.680µs stddev=31.293µs | 11.850µs
+SURFACE: count=15184 sum=4567.666ms avg=300.821µs min=238.580µs max=5.257ms med=256.008µs stddev=235.474µs | 253.830µs
+TERRAIN: count=15184 sum=2961.336ms avg=195.030µs min=149.540µs max=7.175ms med=161.870µs stddev=203.567µs | 161.960µs
+CAVE: count=15184 sum=58307.571ms avg=3.840ms min=0ns max=42.013ms med=69.170µs stddev=3.966ms | 7.143ms
+ORE: count=15184 sum=106015.687ms avg=6.982ms min=0ns max=55.792ms med=10.120µs stddev=7.137ms | 12.772ms
+VEGETATION: count=15184 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15184 sum=25338.388ms avg=1.668ms min=171.780µs max=23.183ms med=243.239µs stddev=1.548ms | 2.689ms
+================================
+
+Après étape 2 :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=189709.233ms chunks=15104
+  avg generating: 12.560ms
+--- Par chunk (détails) ---
+TOTAL: count=15104 sum=189709.233ms avg=12.560ms min=594.358µs max=80.274ms med=1.423ms stddev=13.007ms | 755.768µs
+NOISE: count=15106 sum=326.854ms avg=21.637µs min=4.020µs max=4.085ms med=11.360µs stddev=64.743µs | 9.700µs
+SURFACE: count=15103 sum=4591.422ms avg=304.007µs min=238.519µs max=6.511ms med=256.199µs stddev=266.114µs | 335.109µs
+TERRAIN: count=15103 sum=2845.082ms avg=188.378µs min=152.569µs max=6.209ms med=161.109µs stddev=263.479µs | 158.770µs
+CAVE: count=15103 sum=55243.847ms avg=3.657ms min=0ns max=29.993ms med=294.128µs stddev=4.084ms | 0ns
+ORE: count=15103 sum=102437.728ms avg=6.782ms min=0ns max=47.628ms med=48.450µs stddev=7.559ms | 0ns
+VEGETATION: count=15103 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15103 sum=23977.344ms avg=1.587ms min=174.758µs max=17.345ms med=328.588µs stddev=1.582ms | 228.439µs
+================================
+
+Après étape 3 :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=229411.519ms chunks=15174
+  avg generating: 15.118ms
+--- Par chunk (détails) ---
+TOTAL: count=15174 sum=229411.519ms avg=15.118ms min=873.387µs max=82.034ms med=1.408ms stddev=12.856ms | 23.687ms
+NOISE: count=15176 sum=268.085ms avg=17.665µs min=4.480µs max=3.056ms med=10.280µs stddev=60.075µs | 11.120µs
+SURFACE: count=15173 sum=7080.323ms avg=466.639µs min=362.078µs max=7.576ms med=397.770µs stddev=306.740µs | 381.829µs
+TERRAIN: count=15173 sum=4383.719ms avg=288.915µs min=221.200µs max=4.848ms med=241.980µs stddev=232.793µs | 241.400µs
+CAVE: count=15173 sum=65102.457ms avg=4.290ms min=0ns max=30.015ms med=69.629µs stddev=4.038ms | 6.953ms
+ORE: count=15173 sum=10109.744ms avg=666.298µs min=0ns max=9.432ms med=10.460µs stddev=672.311µs | 1.035ms
+VEGETATION: count=15173 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15173 sum=142171.731ms avg=9.370ms min=250.380µs max=54.729ms med=355.500µs stddev=8.336ms | 15.048ms
+================================
+
+Après l'étape 4 :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=213264.869ms chunks=15146
+  avg generating: 14.080ms
+--- Par chunk (détails) ---
+TOTAL: count=15145 sum=213239.986ms avg=14.079ms min=333.107µs max=96.920ms med=21.923ms stddev=16.250ms | 358.158µs
+NOISE: count=15148 sum=509.037ms avg=33.604µs min=4.590µs max=5.143ms med=20.930µs stddev=80.112µs | 117.849µs
+SURFACE: count=15145 sum=2526.613ms avg=166.828µs min=120.260µs max=7.396ms med=132.187µs stddev=241.752µs | 131.699µs
+TERRAIN: count=15145 sum=1609.260ms avg=106.256µs min=74.929µs max=4.084ms med=84.959µs stddev=194.176µs | 84.619µs
+CAVE: count=15145 sum=63918.881ms avg=4.220ms min=0ns max=44.178ms med=6.547ms stddev=5.176ms | 0ns
+ORE: count=15145 sum=9874.378ms avg=651.989µs min=0ns max=11.868ms med=983.493µs stddev=849.086µs | 0ns
+VEGETATION: count=15145 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15145 sum=134494.266ms avg=8.880ms min=104.760µs max=61.546ms med=13.608ms stddev=10.606ms | 111.660µs
+================================
+
+Après l'étape 5 :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=168570.375ms chunks=15327
+  avg generating: 10.998ms
+--- Par chunk (détails) ---
+TOTAL: count=15327 sum=168570.375ms avg=10.998ms min=172.636µs max=85.524ms med=488.401µs stddev=12.572ms | 269.135µs
+NOISE: count=15326 sum=623.506ms avg=40.682µs min=4.470µs max=4.750ms med=22.279µs stddev=125.040µs | 24.820µs
+SURFACE: count=15327 sum=2272.820ms avg=148.288µs min=85.137µs max=3.778ms med=122.715µs stddev=168.214µs | 137.913µs
+TERRAIN: count=15327 sum=1515.212ms avg=98.859µs min=56.758µs max=2.519ms med=81.810µs stddev=112.142µs | 91.942µs
+CAVE: count=15327 sum=38102.266ms avg=2.485ms min=0ns max=26.909ms med=131.637µs stddev=3.032ms | 4.509ms
+ORE: count=15327 sum=125605.065ms avg=8.195ms min=0ns max=71.292ms med=10.380µs stddev=9.719ms | 18.927ms
+VEGETATION: count=15326 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15326 sum=57.048ms avg=3.722µs min=1.080µs max=2.694ms med=2.121µs stddev=50.370µs | 1.921µs
+================================
+
+Après l'étape 5 (métriques réglées) :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=163118.232ms chunks=15218
+  avg generating: 10.718ms
+--- Par chunk (détails) ---
+TOTAL: count=15218 sum=163118.232ms avg=10.718ms min=299.774µs max=113.291ms med=3.339ms stddev=10.860ms | 326.854µs
+NOISE: count=15217 sum=339.173ms avg=22.289µs min=4.020µs max=3.301ms med=10.879µs stddev=81.636µs | 12.389µs
+SURFACE: count=15217 sum=2480.119ms avg=162.983µs min=118.157µs max=7.141ms med=129.997µs stddev=209.409µs | 135.627µs
+TERRAIN: count=15217 sum=1526.487ms avg=100.314µs min=76.937µs max=10.180ms med=80.849µs stddev=202.665µs | 84.699µs
+CAVE: count=15217 sum=31757.200ms avg=2.086ms min=0ns max=31.324ms med=3.229ms stddev=2.233ms | 0ns
+ORE: count=15217 sum=113445.722ms avg=7.455ms min=0ns max=75.558ms med=12.962ms stddev=7.745ms | 0ns
+VEGETATION: count=15217 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15217 sum=13286.575ms avg=873.140µs min=78.300µs max=16.459ms med=1.373ms stddev=964.739µs | 80.929µs
+================================
+
+Après l'étape 6 :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=133324.277ms chunks=15152
+  avg generating: 8.799ms
+--- Par chunk (détails) ---
+TOTAL: count=15152 sum=133324.277ms avg=8.799ms min=296.378µs max=71.546ms med=3.479ms stddev=9.190ms | 333.817µs
+NOISE: count=15151 sum=348.353ms avg=22.992µs min=3.980µs max=4.400ms med=11.010µs stddev=102.522µs | 9.680µs
+SURFACE: count=15151 sum=2501.317ms avg=165.092µs min=118.689µs max=6.140ms med=130.269µs stddev=244.603µs | 149.630µs
+TERRAIN: count=15151 sum=1516.654ms avg=100.102µs min=74.630µs max=6.579ms med=80.659µs stddev=174.106µs | 82.710µs
+CAVE: count=15151 sum=2489.842ms avg=164.335µs min=0ns max=6.231ms med=225.248µs stddev=289.294µs | 0ns
+ORE: count=15151 sum=112863.406ms avg=7.449ms min=0ns max=67.101ms med=12.909ms stddev=8.116ms | 0ns
+VEGETATION: count=15152 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15152 sum=13326.782ms avg=879.539µs min=77.439µs max=20.465ms med=1.368ms stddev=1.035ms | 1.602ms
+================================
+
+Après l'étape 7 (minerais à la position exacte) :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=133520.426ms chunks=15500
+  avg generating: 8.614ms
+--- Par chunk (détails) ---
+TOTAL: count=15500 sum=133520.426ms avg=8.614ms min=312.048µs max=77.772ms med=9.886ms stddev=8.587ms | 13.612ms
+NOISE: count=15499 sum=803.570ms avg=51.846µs min=4.840µs max=9.494ms med=24.230µs stddev=168.018µs | 21.200µs
+SURFACE: count=15499 sum=3962.017ms avg=255.630µs min=121.558µs max=9.285ms med=174.939µs stddev=410.982µs | 163.589µs
+TERRAIN: count=15499 sum=2412.417ms avg=155.649µs min=76.770µs max=10.130ms med=107.160µs stddev=317.715µs | 107.170µs
+CAVE: count=15499 sum=4034.956ms avg=260.336µs min=0ns max=13.414ms med=294.409µs stddev=564.562µs | 297.089µs
+ORE: count=15499 sum=94462.437ms avg=6.094ms min=0ns max=68.928ms med=9.396ms stddev=7.143ms | 9.654ms
+VEGETATION: count=15499 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15499 sum=27341.920ms avg=1.764ms min=78.670µs max=23.948ms med=2.267ms stddev=2.084ms | 3.344ms
+================================
+
+Après l'étape 7 (minerais à une position approximative) :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=59521.291ms chunks=15305
+  avg generating: 3.889ms
+--- Par chunk (détails) ---
+TOTAL: count=15305 sum=59521.291ms avg=3.889ms min=408.138µs max=48.956ms med=3.778ms stddev=3.531ms | 4.891ms
+NOISE: count=15302 sum=729.078ms avg=47.645µs min=5.720µs max=11.043ms med=22.680µs stddev=252.796µs | 19.760µs
+SURFACE: count=15302 sum=4135.721ms avg=270.273µs min=159.609µs max=15.270ms med=173.230µs stddev=574.112µs | 191.299µs
+TERRAIN: count=15301 sum=2697.904ms avg=176.322µs min=101.110µs max=16.115ms med=106.770µs stddev=433.759µs | 105.799µs
+CAVE: count=15301 sum=4302.476ms avg=281.189µs min=0ns max=10.321ms med=295.569µs stddev=613.890µs | 283.559µs
+ORE: count=15301 sum=17939.543ms avg=1.172ms min=0ns max=29.883ms med=1.441ms stddev=1.829ms | 1.611ms
+VEGETATION: count=15301 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15301 sum=29184.309ms avg=1.907ms min=104.690µs max=43.953ms med=2.215ms stddev=2.507ms | 2.662ms
+================================
+
+Après l'étape 8 (minerais à une position approximative) :
+
+==== GEN PROFILER (touche Y) ====
+Global: generating=18041.954ms chunks=15364
+  avg generating: 1.174ms
+--- Par chunk (détails) ---
+TOTAL: count=15362 sum=18041.225ms avg=1.174ms min=296.901µs max=11.007ms med=1.141ms stddev=945.644µs | 1.472ms
+NOISE: count=15364 sum=337.334ms avg=21.956µs min=3.930µs max=7.021ms med=11.120µs stddev=110.290µs | 10.760µs
+SURFACE: count=15364 sum=2792.235ms avg=181.738µs min=118.160µs max=9.809ms med=131.890µs stddev=288.997µs | 148.061µs
+TERRAIN: count=15364 sum=1785.910ms avg=116.239µs min=75.580µs max=6.613ms med=81.320µs stddev=235.873µs | 176.430µs
+CAVE: count=15364 sum=2901.749ms avg=188.866µs min=0ns max=9.272ms med=226.310µs stddev=364.654µs | 355.171µs
+ORE: count=15364 sum=8125.561ms avg=528.870µs min=0ns max=9.788ms med=698.142µs stddev=701.863µs | 680.371µs
+VEGETATION: count=15364 sum=0ns avg=0ns min=0ns max=0ns med=0ns stddev=0ns | 0ns
+OTHER: count=15364 sum=1784.478ms avg=116.146µs min=78.050µs max=7.588ms med=79.691µs stddev=214.463µs | 89.780µs
+================================
+
+(WTF)

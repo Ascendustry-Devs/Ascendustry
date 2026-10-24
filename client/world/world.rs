@@ -21,6 +21,7 @@ use project_core::{
     log_err_client,
     utils::unique_queue::{FxUniqueQueue, UniqueQueue},
 };
+use std::cmp::min;
 use std::collections::HashSet;
 use std::{
     cmp::max,
@@ -63,7 +64,10 @@ impl World {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
         let item_manager = Arc::new(RwLock::new(ItemManager::new()));
 
-        let worker_count = max((get() as f32 / 2.0).floor() as usize, 1);
+        let cpus_count = get();
+        let worker_count = max(cpus_count / 2, min(cpus_count, 2));
+        println!("Available cpus: {}", cpus_count);
+        println!("ChunkGenerator worker_count: {}", worker_count);
         let chunk_generator = ChunkGenerator::with_max_pending(
             worker_count,
             Arc::clone(&block_manager),
