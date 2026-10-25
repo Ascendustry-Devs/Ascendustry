@@ -50,7 +50,7 @@ const DT_CAP: f32 = {
     if FPS_CAP == 0 {
         0.0
     } else {
-        1.0 / (FPS_CAP as f32 + 0.125)
+        1.0 / (FPS_CAP as f32 + 0.25)
     }
 };
 const PING_INTERVAL: Duration = Duration::from_secs(10);
@@ -172,8 +172,11 @@ impl GameState {
     #[inline(never)]
     fn update_debug_commands(&mut self, alloc: &Arc<RwLock<GpuAllocator>>) {
         // MESH MEMORY OVERVIEW (CPU & GPU)
-        if self.inputs.take_key_pressed(KeyCode::KeyV) {
-            println!("==== Mesh Memory Tracker ====");
+        if self.inputs.take_key_pressed(KeyCode::Semicolon) {
+            println!("==== Memory Tracker ====");
+            println!("| World |");
+            self.world.print_memory();
+            println!("| Meshs |");
             println!("CPU:");
             self.world_mesh.print_memory();
             println!("-----------------------------");
@@ -182,9 +185,9 @@ impl GameState {
             println!("=============================");
         }
         // MESH MEMORY DUMP (CPU)
-        if self.inputs.is_key_pressed(KeyCode::ControlLeft) && self.inputs.is_key_pressed(KeyCode::KeyD) {
+        if self.inputs.is_key_pressed(KeyCode::ControlLeft) && self.inputs.is_key_pressed(KeyCode::Semicolon) {
             self.inputs.take_key_pressed(KeyCode::ControlLeft);
-            self.inputs.take_key_pressed(KeyCode::KeyD);
+            self.inputs.take_key_pressed(KeyCode::Semicolon);
             let alloc = alloc.read().unwrap();
             let meshes = &self.world_mesh.meshes;
             println!("==== Mesh CPU Memory Dump ====");
@@ -570,6 +573,11 @@ impl AppState for GameState {
         // UPDATE DELAY
         self.delay_s += frame.dt;
 
+        // println!(
+        //     "frame took {:7.2}µs ({:3.1}% of budget)",
+        //     self.delay_s * 1_000_000.0,
+        //     (self.delay_s * 100.0) / DT_CAP
+        // );
         if self.delay_s < DT_CAP {
             spin_sleep::sleep(Duration::from_micros(((DT_CAP - self.delay_s) * 1_000_000.0) as u64));
         }

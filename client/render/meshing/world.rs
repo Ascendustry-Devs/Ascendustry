@@ -317,7 +317,12 @@ impl WorldMesh {
         let (used_kb, used_b) = conversion(used);
         let (free_kb, free_b) = (alloc_kb - used_kb, alloc_b - used_b);
 
-        println!("Mesh count: {}", self.meshes.len());
+        println!(
+            "Mesh count/capacity: {}/{} ({:3.1}%)",
+            self.meshes.len(),
+            self.meshes.capacity(),
+            (100f32 * self.meshes.len() as f32) / (self.meshes.capacity() as f32)
+        );
         println!("Allocated Memory (CPU) {:3}Kb | {:6}b", alloc_kb, alloc_b);
         println!("└─ Free                {:3}Kb | {:6}b", free_kb, free_b);
         println!("└─ Used                {:3}Kb | {:6}b", used_kb, used_b);

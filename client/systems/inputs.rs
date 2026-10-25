@@ -5,6 +5,7 @@ use rustc_hash::{FxBuildHasher, FxHashMap};
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
+#[derive(Debug)]
 pub struct InputState {
     mouse_delta: (f64, f64),
     mouse_wheel_delta: f32,

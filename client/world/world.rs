@@ -12,7 +12,7 @@ use game::constants::{
 use game::inventory::item_manager::ItemManager;
 use game::inventory::ItemInstance;
 use game::world::data::block::{BlockInstance, BlockManager};
-use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
+use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_BLOCK_NUMBER, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
 use game::world::generation::chunk_generator::ChunkGenerator;
 use game::world::scheduling::compute_missing_chunks_sorted;
 use physics::aabb::AABB;
@@ -433,6 +433,46 @@ impl World {
             }
         }
         true
+    }
+
+    pub fn print_memory(&self) {
+        let conversion = |b: u32| {
+            let kb = b / 1024;
+            let mb = kb / 1024;
+            (mb, kb, b)
+        };
+
+        let chunk_size = size_of::<Chunk>() + size_of::<[BlockInstance; CHUNK_BLOCK_NUMBER]>() - size_of::<Vec<Chunk>>();
+        let chunks_capacity = (chunk_size * self.chunks.capacity()) as u32;
+        let chunks_length = (chunk_size * self.chunks.len()) as u32;
+
+        let chunk_alloc = chunks_capacity;
+        let (chunk_alloc_mb, chunk_alloc_kb, chunk_alloc_b) = conversion(chunk_alloc);
+
+        let chunk_free = chunks_capacity - chunks_length;
+        let (chunk_free_mb, chunk_free_kb, chunk_free_b) = conversion(chunk_free);
+
+        let chunk_used = chunks_length;
+        let (chunk_used_mb, chunk_used_kb, chunk_used_b) = conversion(chunk_used);
+
+        println!(
+            "Chunk count/capacity: {}/{} ({:3.1}%)",
+            self.chunks.len(),
+            self.chunks.capacity(),
+            (100f32 * self.chunks.len() as f32) / (self.chunks.capacity() as f32)
+        );
+        println!(
+            "Allocated Memory (CPU) {:3}Mb | {:6}Kb | {:9}b",
+            chunk_alloc_mb, chunk_alloc_kb, chunk_alloc_b
+        );
+        println!(
+            "└─ Free                {:3}Mb | {:6}Kb | {:9}b",
+            chunk_free_mb, chunk_free_kb, chunk_free_b
+        );
+        println!(
+            "└─ Used                {:3}Mb | {:6}Kb | {:9}b",
+            chunk_used_mb, chunk_used_kb, chunk_used_b
+        );
     }
 
     pub fn dispose(&mut self) {
