@@ -35,7 +35,6 @@ use game::world::{
     },
 };
 use network::messages::{new_save_request_paquet, ContenuPaquet};
-use project_core::{log_client, log_err_client};
 use std::{
     mem,
     process::exit,
@@ -230,7 +229,7 @@ impl GameState {
         if self.inputs.is_key_pressed(KeyCode::ControlLeft) && self.inputs.is_key_pressed(KeyCode::KeyS) {
             self.inputs.take_key_pressed(KeyCode::ControlLeft);
             self.inputs.take_key_pressed(KeyCode::KeyS);
-            log_client!("CLIENT WORLD SEED: {}", self.world.seed());
+            project_core::log_client!("CLIENT WORLD SEED: {}", self.world.seed());
         }
 
         // SWITCH GAMEMODE
@@ -242,7 +241,7 @@ impl GameState {
                 match result {
                     Ok(_) => {}
                     Err(err) => {
-                        log_err_client!("Failed to switch gamemode.\nError: {}", err);
+                        project_core::log_err_client!("Failed to switch gamemode.\nError: {}", err);
                     }
                 }
             }
@@ -437,7 +436,7 @@ impl GameState {
         {
             let net = self.network.as_mut().expect("NetworkManager: uninitialized.");
             if !net.is_connected() {
-                log_client!("Déconnecté du serveur. Arrêt du client.");
+                project_core::log_client!("Déconnecté du serveur. Arrêt du client.");
                 exit(0);
             }
             // Envoi un ping si aucun échange n'a eu lieu depuis PING_INTERVAL
@@ -447,9 +446,9 @@ impl GameState {
                     .unwrap()
                     .as_secs();
                 if let Err(e) = net.send_ping(timestamp) {
-                    log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
+                    project_core::log_err_client!("Échec de l'envoi du ping.\nErreur : {}", e);
                 } else {
-                    log_client!("Ping envoyé !");
+                    project_core::log_client!("Ping envoyé !");
                 }
             }
         }
@@ -463,7 +462,7 @@ impl GameState {
             let pos = self.player.get_pos();
             let (rx, ry) = self.player.state.camera.get_rotation();
             if let Err(e) = net.send_position(pos.x, pos.y, pos.z, rx, ry) {
-                log_err_client!("Échec de l'envoi de la position.\nErreur : {}", e);
+                project_core::log_err_client!("Échec de l'envoi de la position.\nErreur : {}", e);
             }
             self.player.state.reset_moved();
         }
@@ -473,7 +472,7 @@ impl GameState {
             match result {
                 Ok(_) => {}
                 Err(err) => {
-                    log_err_client!("Failed to send command packet.\nError: {}", err);
+                    project_core::log_err_client!("Failed to send command packet.\nError: {}", err);
                 }
             }
         }
@@ -485,7 +484,7 @@ impl GameState {
                 match net.send_packet(packet) {
                     Ok(_) => {}
                     Err(err) => {
-                        log_err_client!("Failed to send save request packet.\nError: {}", err);
+                        project_core::log_err_client!("Failed to send save request packet.\nError: {}", err);
                     }
                 }
             }
@@ -513,7 +512,7 @@ impl GameState {
                     }
                 }
                 ContenuPaquet::DonneesMonde { chunks } => {
-                    log_client!("Paquet ContenuPaquet::DonneesMonde reçu !");
+                    project_core::log_client!("Paquet ContenuPaquet::DonneesMonde reçu !");
                     for c in chunks {
                         self.world.apply_remote_chunk(c.x, c.y, c.z, &c.data);
                     }
@@ -523,7 +522,7 @@ impl GameState {
                     self.world.set_block(x, y, z, block);
                 }
                 ContenuPaquet::Kick { reason } => {
-                    log_client!("Kicked by server: {}", reason);
+                    project_core::log_client!("Kicked by server: {}", reason);
                     exit(0);
                 }
                 ContenuPaquet::InventorySet { inventory } => {
@@ -561,7 +560,7 @@ impl AppState for GameState {
 
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {
-                log_err_client!("Échec de la lecture du thème principal.\nErreur : {}", e);
+                project_core::log_err_client!("Échec de la lecture du thème principal.\nErreur : {}", e);
             }
             audio.stop_main_theme();
         }

@@ -14,7 +14,6 @@ use anyhow::Result;
 use game::constants::GUARD_CYCLE_INTERVAL_MS;
 use network::crypto::generate_server_id;
 use network::messages::BroadcastMessage;
-use project_core::log_err_server;
 use project_core::log_server;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -92,9 +91,9 @@ impl Server {
                 interval.tick().await;
                 let data = state.export_save().await;
                 if let Err(e) = persistence.save(data).await {
-                    log_err_server!("Auto-save échoué : {}", e);
+                    project_core::log_err_server!("Auto-save échoué : {}", e);
                 } else {
-                    log_server!("Auto-save effectué.");
+                    project_core::log_server!("Auto-save effectué.");
                 }
             }
         });
@@ -116,11 +115,11 @@ impl Server {
         loop {
             let (stream, addr) = self.listener.accept().await?;
             self.state.metrics.record_connection();
-            log_server!("Serveur: connexion de l'adresse {}.", addr);
+            project_core::log_server!("Serveur: connexion de l'adresse {}.", addr);
 
             let player_id = self.next_id.fetch_add(1, Ordering::SeqCst);
             let server_id = generate_server_id();
-            log_server!("Joueur {}: connexion (ID serveur: {:02x?}).", player_id, server_id);
+            project_core::log_server!("Joueur {}: connexion (ID serveur: {:02x?}).", player_id, server_id);
 
             let handler = ProductionHandler;
 
@@ -142,7 +141,7 @@ impl Server {
 
             tokio::spawn(async move {
                 if let Err(e) = session.run(stream).await {
-                    log_err_server!("Échec du traitement du client.\nErreur : {}", e);
+                    project_core::log_err_server!("Échec du traitement du client.\nErreur : {}", e);
                 }
                 sessions.lock().unwrap().remove(&player_id);
             });
@@ -160,7 +159,7 @@ impl Server {
             self.state.kick_player(id, reason).await;
             true
         } else {
-            log_server!("Joueur {} non trouvé dans les sessions actives.", id);
+            project_core::log_server!("Joueur {} non trouvé dans les sessions actives.", id);
             false
         }
     }

@@ -1,4 +1,4 @@
-use project_core::utils::data_manager::Id;
+use project_core::general_types::data_manager::Id;
 
 use crate::render::ui::widgets::{list::List, panel::Panel, textured_panel::TexturedPanel};
 

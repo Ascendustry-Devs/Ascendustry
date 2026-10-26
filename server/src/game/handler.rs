@@ -4,7 +4,7 @@ use std::time::SystemTime;
 use crate::{persistence::PersistenceService, state::AppState};
 use game::player::PlayerTransformation;
 use network::messages::{BroadcastMessage, *};
-use project_core::{log_err_server, log_server};
+use project_core::log_server;
 use tokio::sync::broadcast;
 
 pub struct HandlerContext {
@@ -90,13 +90,13 @@ impl PacketHandler for ProductionHandler {
             }
 
             ContenuPaquet::SaveRequest => {
-                log_server!("Sauvegarde demandée par le joueur {}.", ctx.player_id);
+                project_core::log_server!("Sauvegarde demandée par le joueur {}.", ctx.player_id);
                 let state = Arc::clone(&ctx.state);
                 let persistence = Arc::clone(&ctx.persistence);
                 tokio::spawn(async move {
                     let data = state.export_save().await;
                     if let Err(e) = persistence.save(data).await {
-                        log_err_server!("Échec de la sauvegarde : {}", e);
+                        project_core::log_err_server!("Échec de la sauvegarde : {}", e);
                     }
                 });
                 Some(packet)
@@ -119,7 +119,7 @@ impl PacketHandler for ProductionHandler {
             }
 
             _ => {
-                log_server!("Joueur {}: paquet non géré, éjection.", ctx.player_id);
+                project_core::log_server!("Joueur {}: paquet non géré, éjection.", ctx.player_id);
                 None
             }
         }

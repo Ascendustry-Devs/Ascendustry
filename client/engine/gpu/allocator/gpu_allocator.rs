@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use project_core::utils::id_pool::IdPool;
+use project_core::general_types::id_pool::IdPool;
 use rustc_hash::FxHashSet;
 use wgpu::{Buffer, BufferAddress, BufferUsages, CommandEncoder};
 
@@ -68,7 +68,7 @@ impl GpuAllocator {
             data: Vec::with_capacity(256),
             gaps: Vec::with_capacity(32),
             pending_destruction: Vec::with_capacity(1),
-            id_pool: IdPool::new(),
+            id_pool: IdPool::default(),
             write_operations: vec![],
             schedule_batch: false,
             arena: Vec::with_capacity(ARENA_MIN_SIZE),

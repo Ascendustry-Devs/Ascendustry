@@ -5,7 +5,7 @@ use cgmath::{Matrix4, Vector3};
 use engine::{core::frame::GameFrameData, geometry::vertex::generate_cube, render::render::Renderer};
 use game::{constants::CHUNK_VECTOR, world::data::chunk::CHUNK_SIZE_F};
 use physics::aabb::AABB;
-use project_core::geometry::plane::Plane;
+use project_core::math::geometry::plane::Plane;
 use rustc_hash::FxBuildHasher;
 
 use crate::{game::GameState, render::meshing::chunk::ChunkMesh};

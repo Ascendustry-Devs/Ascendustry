@@ -17,10 +17,7 @@ use game::world::generation::chunk_generator::ChunkGenerator;
 use game::world::scheduling::compute_missing_chunks_sorted;
 use physics::aabb::AABB;
 use physics::collision_world::CollisionWorld;
-use project_core::{
-    log_err_client,
-    utils::unique_queue::{FxUniqueQueue, UniqueQueue},
-};
+use project_core::general_types::unique_queue::{FxUniqueQueue, UniqueQueue};
 use std::cmp::min;
 use std::collections::HashSet;
 use std::{
@@ -221,7 +218,7 @@ impl World {
             match result {
                 Ok(_) => {}
                 Err(err) => {
-                    log_err_client!(
+                    project_core::log_err_client!(
                         "World: an error occured while trying to free chunk (pos: {:?})'s mesh with id {}.\nError: {}",
                         *key,
                         mesh_id,

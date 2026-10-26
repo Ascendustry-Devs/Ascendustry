@@ -6,10 +6,7 @@ use crate::{
 };
 use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use game::constants::MAX_MESHING_CHUNKS_IN_QUEUE;
-use project_core::{
-    buffer_pool::BufferPool,
-    parallel::{WorkResult, WorkerPool},
-};
+use project_core::parallel::{buffer_pool::BufferPool, worker_pool::WorkerPool, WorkResult};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

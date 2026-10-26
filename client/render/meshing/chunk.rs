@@ -5,8 +5,8 @@ use engine::{
     gpu::allocator::{entry::EntryId, error::AllocError, gpu_allocator::GpuAllocator},
 };
 use game::world::data::chunk::{CHUNK_SIZE, LAST_CHUNK_AXIS_INDEX_USIZE};
-use project_core::geometry::corner::SquareCorner;
-use project_core::geometry::direction::Direction;
+use project_core::math::geometry::corner::SquareCorner;
+use project_core::math::geometry::direction::Direction;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct PaddedChunkSliceMask {

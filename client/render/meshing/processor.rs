@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Instant};
 
 use engine::geometry::vertex::Vertex;
 use game::world::data::chunk::CHUNK_SIZE;
-use project_core::{buffer_pool::BufferPool, parallel::Parallelizable};
+use project_core::parallel::{buffer_pool::BufferPool, Parallelizable};
 
 use crate::{
     game::{CHUNKS_MESHED, TIME_SPENT_MESHING_NANOS},

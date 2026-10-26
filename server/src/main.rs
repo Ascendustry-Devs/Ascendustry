@@ -95,32 +95,32 @@ async fn run_with_tui(args: &Args) -> Result<()> {
     let srv = Arc::clone(&server);
     tokio::spawn(async move {
         if let Err(e) = srv.run().await {
-            log_server!("Serveur arrêté avec erreur : {}", e);
+            project_core::log_server!("Serveur arrêté avec erreur : {}", e);
         }
     });
 
     while let Some(cmd) = command_rx.recv().await {
         match cmd {
             TuiCommand::Shutdown => {
-                log_server!("Arrêt du serveur: Sauvegarde en cours...");
+                project_core::log_server!("Arrêt du serveur: Sauvegarde en cours...");
                 if let Err(e) = server.save().await {
-                    log_server!("Échec de la sauvegarde : {}", e);
+                    project_core::log_server!("Échec de la sauvegarde : {}", e);
                 }
-                log_server!("Arrêt demandé par la TUI.");
+                project_core::log_server!("Arrêt demandé par la TUI.");
                 break;
             }
             TuiCommand::Save => {
-                log_server!("Sauvegarde demandée par la TUI.");
+                project_core::log_server!("Sauvegarde demandée par la TUI.");
                 if let Err(e) = server.save().await {
-                    log_server!("Échec de la sauvegarde : {}", e);
+                    project_core::log_server!("Échec de la sauvegarde : {}", e);
                 }
             }
             TuiCommand::Kick(id) => {
                 if let Some(player) = server.state.get_player(id).await {
-                    log_server!("Kick du joueur {} ({}) demandé par le Serveur.", player.username, id);
+                    project_core::log_server!("Kick du joueur {} ({}) demandé par le Serveur.", player.username, id);
                     server.kick_player(&id, "Kické par le Serveur").await;
                 } else {
-                    log_server!("Joueur {} non trouvé.", id);
+                    project_core::log_server!("Joueur {} non trouvé.", id);
                 }
             }
             _ => {}

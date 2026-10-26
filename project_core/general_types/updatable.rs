@@ -2,12 +2,12 @@ use std::mem::replace;
 
 /// A simple yet effective struct to get track of the last 2 values used.
 #[derive(Clone)]
-pub struct Updatable<T: Clone + PartialEq> {
+pub struct Updatable<T> {
     last: T,
     current: T,
 }
 
-impl<T: Clone + PartialEq> Updatable<T> {
+impl<T: Clone> Updatable<T> {
     #[inline(always)]
     pub fn new(value: T) -> Self {
         Self {
@@ -15,7 +15,9 @@ impl<T: Clone + PartialEq> Updatable<T> {
             last: value,
         }
     }
+}
 
+impl<T> Updatable<T> {
     #[inline(always)]
     pub fn update(&mut self, value: T) {
         self.last = replace(&mut self.current, value);
@@ -53,7 +55,9 @@ impl<T: Clone + PartialEq> Updatable<T> {
     pub const fn values_mut(&mut self) -> (&mut T, &mut T) {
         (&mut self.current, &mut self.last)
     }
+}
 
+impl<T: PartialEq> Updatable<T> {
     #[inline(always)]
     pub fn has_changed(&self) -> bool {
         self.current.ne(&self.last)

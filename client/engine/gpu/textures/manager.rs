@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Error;
-use project_core::geometry::rect::Rect2;
+use project_core::math::geometry::rect::Rect2;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use crate::{

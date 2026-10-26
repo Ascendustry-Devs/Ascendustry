@@ -19,8 +19,7 @@ use game::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};
 use game::world::raycast::voxel_raycast;
 use network::messages::{new_inventory_update_paquet, Paquet};
 use physics::{body::PhysicsBody, collision::resolve_collision};
-use project_core::log_client;
-use project_core::utils::updatable::Updatable;
+use project_core::general_types::updatable::Updatable;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
@@ -85,7 +84,7 @@ impl PlayerState {
         }
 
         if inputs.take_key_pressed(KeyCode::KeyE) {
-            log_client!("{}", self.inventory);
+            project_core::log_client!("{}", self.inventory);
         }
 
         if inputs.take_mouse_button_pressed(MouseButton::Left) {
@@ -114,7 +113,7 @@ impl PlayerState {
             let block_id = world.get_block_from_xyz(x, y, z).get_block_id();
             let item = world.block_to_item(block_id);
             if let Some(item) = item {
-                log_client!("Ajout d'un item dans l'inventaire");
+                project_core::log_client!("Ajout d'un item dans l'inventaire");
                 if let Some(slot) = self.inventory.add_item(ItemData::new(item, None), 1, &ItemRules::default()) {
                     commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
                 }
@@ -138,7 +137,7 @@ impl PlayerState {
 
             let item = world.block_to_item(block.get_block_id());
             if let Some(item) = item {
-                log_client!("Retrait d'un item dans l'inventaire");
+                project_core::log_client!("Retrait d'un item dans l'inventaire");
                 self.inventory
                     .remove_item(ItemData::new(item, None), 1, self.selected_slot as usize);
                 // commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
@@ -167,7 +166,7 @@ impl PlayerState {
 
     pub fn teleport(&mut self, x: f32, y: f32, z: f32) {
         let pos = Point3 { x, y, z };
-        log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), pos);
+        project_core::log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), pos);
         self.set_pos(pos);
     }
 

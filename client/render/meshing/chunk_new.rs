@@ -39,8 +39,8 @@
 use engine::geometry::vertex::Vertex;
 use game::world::data::block::BlockInstance;
 use game::world::data::chunk::{Chunk, CHUNK_SIZE_SQR_USIZE, CHUNK_SIZE_USIZE, LAST_CHUNK_AXIS_INDEX_USIZE};
-use project_core::geometry::corner::SquareCorner;
-use project_core::geometry::direction::Direction;
+use project_core::math::geometry::corner::SquareCorner;
+use project_core::math::geometry::direction::Direction;
 use std::sync::Arc;
 
 use crate::game::{

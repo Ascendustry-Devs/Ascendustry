@@ -2,7 +2,7 @@ use cgmath::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3, Vector4};
 use engine::render::camera::OPENGL_TO_WGPU_MATRIX;
 use game::constants::UP;
 use physics::aabb::AABB;
-use project_core::{geometry::plane::Plane, utils::updatable::Updatable};
+use project_core::{general_types::updatable::Updatable, math::geometry::plane::Plane};
 
 #[derive(Clone)]
 pub struct Camera {

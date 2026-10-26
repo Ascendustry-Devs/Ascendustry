@@ -1,5 +1,5 @@
 use game::player::PlayerTransformation;
-use project_core::utils::updatable::Updatable;
+use project_core::general_types::updatable::Updatable;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use std::time::{Duration, Instant};
 

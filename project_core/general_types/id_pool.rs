@@ -1,22 +1,10 @@
+#[derive(Default)]
 pub struct IdPool {
     next: u32,
     free: Vec<u32>,
 }
 
-impl Default for IdPool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl IdPool {
-    pub const fn new() -> Self {
-        Self {
-            next: 0,
-            free: Vec::new(),
-        }
-    }
-
     pub fn get_new_id(&mut self) -> u32 {
         self.free.pop().unwrap_or_else(|| {
             let id = self.next;

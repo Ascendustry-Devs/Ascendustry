@@ -98,7 +98,7 @@ impl ClientSession {
         let packet = match self.conn.receive_packet(&mut stream).await {
             Ok(packet_payload) => packet_payload,
             Err(e) => {
-                log_err_server!("Échec de la réception du paquet.\nErreur : {}", e);
+                project_core::log_err_server!("Échec de la réception du paquet.\nErreur : {}", e);
                 return Ok(());
             }
         };
@@ -129,7 +129,7 @@ impl ClientSession {
 
         // Ajout du joueur à l'état partagé
         self.state.add_player(player_id, self.username.clone()).await;
-        log_server!("Joueur {} ({}): ajout à l'état global du serveur", self.username, player_id);
+        project_core::log_server!("Joueur {} ({}): ajout à l'état global du serveur", self.username, player_id);
 
         // Le handler traite le paquet de connexion (log)
         let ctx = HandlerContext {
@@ -142,17 +142,17 @@ impl ClientSession {
 
         let ack = messages::create_handshake_ack(player_id, 0, true);
         if let Err(e) = self.conn.send_packet(&mut stream, &ack).await {
-            log_err_server!("Échec de l'envoi du handshake ack.\nErreur : {}", e);
+            project_core::log_err_server!("Échec de l'envoi du handshake ack.\nErreur : {}", e);
             return Ok(());
         }
 
         // Réponse : seed du monde
         let seed_packet = new_server_seed_paquet(self.state.get_seed().await);
         if let Err(e) = self.conn.send_packet(&mut stream, &seed_packet).await {
-            log_err_server!("Échec de l'envoi de la seed.\nErreur : {}", e);
+            project_core::log_err_server!("Échec de l'envoi de la seed.\nErreur : {}", e);
             return Ok(());
         }
-        log_server!("Seed envoyée au joueur {} !", player_id);
+        project_core::log_server!("Seed envoyée au joueur {} !", player_id);
 
         // Restauration de la position sauvegardée pour un joueur qui se reconnecte
         if self.player_unique_id != 0 {
@@ -171,13 +171,13 @@ impl ClientSession {
                     },
                 );
                 if let Err(e) = self.conn.send_packet(&mut stream, &correction).await {
-                    log_err_server!("Échec de l'envoi de la position restaurée.\nErreur : {}", e);
+                    project_core::log_err_server!("Échec de l'envoi de la position restaurée.\nErreur : {}", e);
                 }
             }
         }
 
         let modified_chunks = self.state.get_modified_chunks_data().await;
-        log_server!("Envoi de {} chunks modifiés", modified_chunks.len());
+        project_core::log_server!("Envoi de {} chunks modifiés", modified_chunks.len());
 
         for chunk_batch in modified_chunks.chunks(MAX_CHUNKS_PER_WORLD_DATA) {
             let world_data_packet = Paquet::new(
@@ -187,7 +187,7 @@ impl ClientSession {
                 },
             );
             if let Err(e) = self.conn.send_packet(&mut stream, &world_data_packet).await {
-                log_err_server!("Échec de l'envoi des données monde: {}", e);
+                project_core::log_err_server!("Échec de l'envoi des données monde: {}", e);
                 break;
             }
         }
@@ -209,7 +209,7 @@ impl ClientSession {
                     ContenuPaquet::MultiplePlayerTransformation { data: players_data },
                 );
                 if let Err(e) = self.conn.send_packet(&mut stream, &sync_packet).await {
-                    log_err_server!("Échec de l'envoi du sync initial.\nErreur : {}", e);
+                    project_core::log_err_server!("Échec de l'envoi du sync initial.\nErreur : {}", e);
                 }
             }
         }
@@ -222,7 +222,7 @@ impl ClientSession {
                 },
             );
             if let Err(e) = self.conn.send_packet(&mut stream, &inventory_packet).await {
-                log_err_server!("Échec de l'envoi de l'inventaire initial.\nErreur : {}", e);
+                project_core::log_err_server!("Échec de l'envoi de l'inventaire initial.\nErreur : {}", e);
             }
         }
 
@@ -353,11 +353,11 @@ impl ClientSession {
 
         let data = self.state.export_save().await;
         if let Err(e) = self.persistence.save(data).await {
-            log_err_server!("Échec de la sauvegarde du joueur.\nErreur : {}", e);
+            project_core::log_err_server!("Échec de la sauvegarde du joueur.\nErreur : {}", e);
         }
 
         self.state.remove_player(&player_id).await;
-        log_server!("Joueur {}: déconnexion.", player_id);
+        project_core::log_server!("Joueur {}: déconnexion.", player_id);
         Ok(())
     }
 }

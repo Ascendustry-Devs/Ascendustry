@@ -168,7 +168,7 @@ impl<S: AppState> ApplicationHandler<AppEvent> for App<S> {
             self.app_state.dispose(&mut engine.renderer.render_manager.world_buffer);
             engine.dispose();
         }
-        log_client!("Exiting...");
+        project_core::log_client!("Exiting...");
         exit(0);
     }
 }

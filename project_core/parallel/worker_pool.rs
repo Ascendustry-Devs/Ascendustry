@@ -4,29 +4,7 @@ use std::sync::{
 };
 use std::thread::{Builder, JoinHandle};
 
-#[derive(Debug)]
-pub struct QueueFull;
-
-static ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-pub struct WorkItem<I, O> {
-    pub input: I,
-    pub id: usize,
-    _phantom: Option<O>,
-}
-
-pub struct WorkResult<O> {
-    pub output: O,
-    pub id: usize,
-}
-
-pub trait Parallelizable: Send + 'static {
-    type Input: Send + 'static;
-    type Output: Send + 'static;
-    type Context: Clone + Send + 'static;
-
-    fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output;
-}
+use crate::parallel::{Parallelizable, QueueFull, WorkItem, WorkResult, ID_COUNTER};
 
 pub struct WorkerPool<P: Parallelizable> {
     request_tx: mpsc::Sender<WorkItem<P::Input, P::Output>>,

@@ -10,7 +10,6 @@ use game::types::{Position, Rotation};
 use network::messages::{BroadcastMessage, ChunkData, ContenuPaquet, Paquet, TypePaquet};
 use physics::position::{find_safe_spawn_point, is_position_free};
 use physics::validator::is_movement_plausible;
-use project_core::log_server;
 use std::path::Path;
 use tokio::sync::broadcast;
 use tokio::sync::RwLock;
@@ -158,7 +157,7 @@ impl AppState {
         let players = self.players.read().await.get_all().unwrap_or_default();
         let identity = self.identity.read().await.clone();
         let modif_count = world.chunks.len();
-        log_server!(
+        project_core::log_server!(
             "export_save: {} chunks modifiés sauvegardés (seed={})",
             modif_count,
             self.world.read().await.seed
@@ -168,7 +167,7 @@ impl AppState {
 
     pub async fn import_save(&self, data: SaveData) {
         let modif_count = data.world.chunks.len();
-        log_server!("import_save: {} chunks modifiés chargés (seed={})", modif_count, data.seed);
+        project_core::log_server!("import_save: {} chunks modifiés chargés (seed={})", modif_count, data.seed);
         self.world.write().await.seed = data.seed;
         self.world.write().await.world_generated_chunks.clear();
         self.world.write().await.modifications = data.world.into();
