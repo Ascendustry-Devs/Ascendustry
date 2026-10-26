@@ -29,7 +29,7 @@ impl GameAudioManager {
             return Ok(());
         }
 
-        let main_theme_data = include_bytes!("../../assets/sounds/main_theme.mp3");
+        let main_theme_data = include_bytes!("../../../assets/sounds/main_theme.mp3");
         let cursor = Cursor::new(main_theme_data.as_slice());
         let sound_data = StreamingSoundData::from_cursor(cursor)?;
 

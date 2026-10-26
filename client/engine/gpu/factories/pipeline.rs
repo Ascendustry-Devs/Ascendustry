@@ -74,7 +74,7 @@ impl PipelineFactory {
 
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Opaque Shader"),
-            source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/shader.wgsl").into()),
+            source: ShaderSource::Wgsl(include_str!("../../../../assets/shaders/shader.wgsl").into()),
         });
 
         let vertex = VertexState {
@@ -146,7 +146,7 @@ impl PipelineFactory {
 
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("Opaque Shader"),
-            source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/shader.wgsl").into()),
+            source: ShaderSource::Wgsl(include_str!("../../../../assets/shaders/shader.wgsl").into()),
         });
 
         let vertex = VertexState {
@@ -197,7 +197,7 @@ impl PipelineFactory {
 
         let shader = device.create_shader_module(ShaderModuleDescriptor {
             label: Some("UI Shader"),
-            source: ShaderSource::Wgsl(include_str!("../../../assets/shaders/ui.wgsl").into()),
+            source: ShaderSource::Wgsl(include_str!("../../../../assets/shaders/ui.wgsl").into()),
         });
 
         let vertex = VertexState {

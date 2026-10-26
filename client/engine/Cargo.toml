@@ -3,6 +3,7 @@ name = "engine"
 version.workspace = true
 edition.workspace = true
 
+
 [lib]
 path = "lib.rs"
 
@@ -21,7 +22,7 @@ wgpu_text = { workspace = true }
 pollster = { workspace = true }
 anyhow = { workspace = true }
 image = { workspace = true }
-project_core = { path = "../project_core" }
-game = { path = "../game" }
+project_core = { path = "../../project_core" }
+game = { path = "../../game" }
 
 # log = { workspace = true }

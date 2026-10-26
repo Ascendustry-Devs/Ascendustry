@@ -13,7 +13,7 @@ pub struct TextRenderer {
 
 impl TextRenderer {
     pub fn new(device: &Device, _queue: &wgpu::Queue, surface_format: wgpu::TextureFormat) -> Self {
-        let font_data = include_bytes!("../../../assets/fonts/font.ttf");
+        let font_data = include_bytes!("../../../../assets/fonts/font.ttf");
 
         let brush: TextBrush<FontRef<'static>> =
             BrushBuilder::using_font_bytes(font_data)
