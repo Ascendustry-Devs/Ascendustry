@@ -7,7 +7,7 @@ pub mod panel;
 pub mod textured_panel;
 // pub mod window;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WidgetTransform {
     x: u32,
     y: u32,
@@ -95,17 +95,14 @@ pub enum WidgetType {
 impl WidgetType {
     fn draw(&self, commands: &mut Vec<DrawCommand>) {
         match self {
-            Self::List(p) => {
-                for child in p.children() {
-                    child.draw(commands);
-                }
-            }
+            Self::List(p) => p.draw(commands),
             Self::Panel(p) => p.draw(commands),
             Self::TexturedPanel(p) => p.draw(commands),
         }
     }
 }
 
+#[derive(Debug)]
 pub enum DrawCommand {
     Panel { transform: WidgetTransform, color: u32 },
     TexturedPanel { transform: WidgetTransform, texture: Id },

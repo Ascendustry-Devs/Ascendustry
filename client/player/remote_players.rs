@@ -58,4 +58,8 @@ impl RemotePlayersManager {
     pub fn get_all_mut(&mut self) -> Vec<&mut RemotePlayer> {
         self.players.values_mut().collect()
     }
+
+    pub fn get_player_count(&self) -> u32 {
+        self.players.len() as u32
+    }
 }

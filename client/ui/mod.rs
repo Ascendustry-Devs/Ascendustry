@@ -1,3 +1,10 @@
+pub mod action;
+pub mod context;
+pub mod event;
+pub mod layer;
+pub mod layouts;
+pub mod stack;
+
 use std::collections::HashMap;
 
 use engine::{
@@ -14,9 +21,13 @@ use game::inventory::item_manager::ItemManager;
 use game::inventory::Inventory;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
+use crate::ui::layouts::{UiLayout, UiMode};
+use crate::ui::stack::UiStack;
+
 pub struct ClientUI {
     item_textures: FxHashMap<u32, u32>,
     screen_size: (u32, u32),
+    stack: UiStack,
     vertices: Vec<u8>,
 }
 
@@ -25,6 +36,7 @@ impl Default for ClientUI {
         Self {
             item_textures: HashMap::with_hasher(FxBuildHasher),
             screen_size: (0, 0),
+            stack: UiStack::default(),
             vertices: Vec::new(),
         }
     }
@@ -80,42 +92,71 @@ impl ClientUI {
         if w == 0 || h == 0 {
             return;
         }
-        let selected_slot = selected_slot as usize;
         self.screen_size = (w, h);
 
-        let mut commands = Vec::with_capacity(16);
-        let slot = 60u32;
-        let gap = 6u32;
-        let total = 8 * slot + 7 * gap;
-        let start_x = w.saturating_sub(total) / 2;
-        let start_y = h.saturating_sub(slot + 8);
+        let mut commands = Vec::with_capacity(32);
 
-        for i in 0..8usize {
-            let x = start_x + i as u32 * (slot + gap);
-            let bg = WidgetTransform::new(x, start_y, slot, slot);
-            commands.push(DrawCommand::Panel {
-                transform: bg,
-                color: if i == selected_slot { 0xFF0000FF } else { 0xAA333333 },
-            });
+        // Déterminer le mode actif depuis la stack (layout du dessus)
+        let active_mode = self.stack.peek().map(|l| l.mode()).unwrap_or(UiMode::Hotbar);
 
-            if let Some(stack) = inventory.get_slot(i) {
-                let icon = WidgetTransform::new(x + 6, start_y + 6, slot - 12, slot - 12);
-                let item_id = stack.item().get_item().get_id();
-                let tex = self.ensure_item_texture(item_id, item_manager, &mut renderer.texture_manager);
-                if let Some(tex_id) = tex {
-                    commands.push(DrawCommand::TexturedPanel {
-                        transform: icon,
-                        texture: tex_id,
-                    });
-                } else {
+        match active_mode {
+            UiMode::Hotbar => {
+                // Rendre la hotbar : 8 slots avec items de l'inventaire
+                // Basé sur l'implémentation originale, mais en utilisant le système de layout
+                let slot_count = 8u32;
+                let slot = 60u32;
+                let gap = 6u32;
+                let total = 8 * slot + 7 * gap;
+                let start_x = w.saturating_sub(total) / 2;
+                let start_y = h.saturating_sub(slot + 8);
+
+                for i in 0..8usize {
+                    let x = start_x + i as u32 * (slot + gap);
+                    let bg = WidgetTransform::new(x, start_y, slot, slot);
                     commands.push(DrawCommand::Panel {
-                        transform: icon,
-                        color: 0xFFAAAAAA,
+                        transform: bg,
+                        color: if i == selected_slot as usize { 0xFF0000FF } else { 0xAA333333 },
+                    });
+
+                    if let Some(stack) = inventory.get_slot(i) {
+                        let icon = WidgetTransform::new(x + 6, start_y + 6, slot - 12, slot - 12);
+                        let item_id = stack.item().get_item().get_id();
+                        let tex = self.ensure_item_texture(item_id, item_manager, &mut renderer.texture_manager);
+                        if let Some(tex_id) = tex {
+                            commands.push(DrawCommand::TexturedPanel {
+                                transform: icon,
+                                texture: tex_id,
+                            });
+                        } else {
+                            commands.push(DrawCommand::Panel {
+                                transform: icon,
+                                color: 0xFFAAAAAA,
+                            });
+                        }
+                    }
+                }
+            }
+            UiMode::Inventory => {
+                // TODO : renderer l'inventaire complet
+                // Pour l'instant, afficher la hotbar par défaut
+                let slot = 60u32;
+                let gap = 6u32;
+                let total = 8 * slot + 7 * gap;
+                let start_x = w.saturating_sub(total) / 2;
+                let start_y = h.saturating_sub(slot + 8);
+
+                for i in 0..8usize {
+                    let x = start_x + i as u32 * (slot + gap);
+                    let bg = WidgetTransform::new(x, start_y, slot, slot);
+                    commands.push(DrawCommand::Panel {
+                        transform: bg,
+                        color: if i == selected_slot as usize { 0xFF0000FF } else { 0xAA333333 },
                     });
                 }
             }
         }
 
+        // Traduire les commandes en vertices et mettre à jour le GPU
         let vertices = UiTranslator::translate(commands, &renderer.texture_manager);
         let bytes = UiCompiler::compile(vertices);
         self.vertices = bytes;
