@@ -5,6 +5,7 @@ use crate::ui::{
     context::UiContext,
     layer::UiLayer,
     layouts::{UiLayout, UiMode},
+    views::hotbar::{HotbarView, SlotView},
 };
 
 pub struct Hotbar {
@@ -49,17 +50,6 @@ impl UiLayout for Hotbar {
     fn spacing(&self) -> u32 {
         self.spacing
     }
-}
-
-#[derive(Debug)]
-pub struct SlotView {
-    icon: u32,
-    quantity: u32,
-}
-
-#[derive(Debug)]
-pub struct HotbarView {
-    slots: Vec<Option<SlotView>>,
 }
 
 #[derive(Debug)]

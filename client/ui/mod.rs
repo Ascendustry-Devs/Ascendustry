@@ -1,9 +1,11 @@
 pub mod action;
+pub mod adapters;
 pub mod context;
 pub mod event;
 pub mod layer;
 pub mod layouts;
 pub mod stack;
+pub mod views;
 
 use std::collections::HashMap;
 

@@ -1,4 +1,4 @@
-use engine::core::frame::EngineFrameData;
+use engine::{core::frame::EngineFrameData, gpu::textures::manager::TextureManager};
 use game::{
     inventory::ItemStack,
     world::data::block::{BlockData, BlockManager},
@@ -19,6 +19,10 @@ pub struct PlayerBrowser<'a> {
     them: &'a RemotePlayersManager,
 }
 
+pub struct AssetBrowser<'a> {
+    textures: &'a TextureManager,
+}
+
 pub struct TechnicalBrowser<'a> {
     frame: &'a EngineFrameData,
 }
@@ -26,6 +30,7 @@ pub struct TechnicalBrowser<'a> {
 pub struct UiContext<'a> {
     pub world: WorldBrowser<'a>,
     pub players: PlayerBrowser<'a>,
+    pub assets: AssetBrowser<'a>,
     pub system: TechnicalBrowser<'a>,
 }
 
@@ -43,6 +48,12 @@ impl<'a> PlayerBrowser<'a> {
 
     pub fn browse_total_player_count(&self) -> u32 {
         1 + self.them.get_player_count()
+    }
+}
+
+impl<'a> AssetBrowser<'a> {
+    pub fn get_item_texture(&self, id: u32) -> u32 {
+        todo!("Implémenter un Index des textures GPUs sur le TextureManager puis le connecter ici")
     }
 }
 
