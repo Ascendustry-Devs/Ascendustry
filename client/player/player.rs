@@ -20,6 +20,7 @@ use game::world::raycast::voxel_raycast;
 use network::messages::{new_inventory_update_paquet, Paquet};
 use physics::{body::PhysicsBody, collision::resolve_collision};
 use project_core::general_types::updatable::Updatable;
+use project_core::log_client;
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
@@ -84,7 +85,7 @@ impl PlayerState {
         }
 
         if inputs.take_key_pressed(KeyCode::KeyE) {
-            project_core::log_client!("{}", self.inventory);
+            log_client!("{}", self.inventory);
         }
 
         if inputs.take_mouse_button_pressed(MouseButton::Left) {
@@ -94,7 +95,7 @@ impl PlayerState {
         if inputs.take_mouse_button_pressed(MouseButton::Right) {
             if let Some(slot_item_stack) = self.inventory.get_slot(self.selected_slot as usize) {
                 let item_id = slot_item_stack.item().get_item().get_id();
-                if let Some(block_id) = world.item_to_block(item_id) {
+                if let Some(block_id) = world.item_to_block(&item_id) {
                     let block = BlockInstance::new(block_id);
                     self.place_block(block, world, &mut commands);
                 }
@@ -111,9 +112,9 @@ impl PlayerState {
         if let Some(hit) = hit {
             let (x, y, z) = hit.block_pos;
             let block_id = world.get_block_from_xyz(x, y, z).get_block_id();
-            let item = world.block_to_item(block_id);
+            let item = world.block_to_item(&block_id);
             if let Some(item) = item {
-                project_core::log_client!("Ajout d'un item dans l'inventaire");
+                log_client!("Ajout de l'item id n°{:?} dans l'inventaire", item.id);
                 if let Some(slot) = self.inventory.add_item(ItemData::new(item, None), 1, &ItemRules::default()) {
                     commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
                 }
@@ -135,9 +136,9 @@ impl PlayerState {
             let (d, u, v) = hit.normal;
             let (dx, uy, vz) = (x - d, y - u, z - v);
 
-            let item = world.block_to_item(block.get_block_id());
+            let item = world.block_to_item(&block.get_block_id());
             if let Some(item) = item {
-                project_core::log_client!("Retrait d'un item dans l'inventaire");
+                log_client!("Retrait de l'item id n°{:?} de l'inventaire", item.id);
                 self.inventory
                     .remove_item(ItemData::new(item, None), 1, self.selected_slot as usize);
                 // commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
@@ -166,7 +167,7 @@ impl PlayerState {
 
     pub fn teleport(&mut self, x: f32, y: f32, z: f32) {
         let pos = Point3 { x, y, z };
-        project_core::log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), pos);
+        log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), pos);
         self.set_pos(pos);
     }
 

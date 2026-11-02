@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 pub use item_manager::{ItemDefinition, ItemInstance, ItemManager};
 
+use crate::inventory::item_manager::ItemId;
+
 pub const DEFAULT_INVENTORY_SIZE: usize = 16;
 
 #[derive(Debug, Eq, PartialEq, Hash, Clone, Copy, Serialize, Deserialize)]
@@ -27,7 +29,7 @@ pub struct SlotData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemRules {
     pub max_quantity_per_stack: FxHashMap<ItemType, u32>,
-    pub item_type: FxHashMap<u32, ItemType>,
+    pub item_type: FxHashMap<ItemId, ItemType>,
 }
 
 impl Default for ItemRules {
@@ -45,14 +47,14 @@ impl Default for ItemRules {
 }
 
 impl ItemRules {
-    pub fn add_rule(&mut self, item_id: u32, item_type: ItemType, max_quantity_per_stack: u32) {
+    pub fn add_rule(&mut self, item_id: ItemId, item_type: ItemType, max_quantity_per_stack: u32) {
         self.item_type.insert(item_id, item_type);
         self.max_quantity_per_stack.insert(item_type, max_quantity_per_stack);
     }
 
     pub fn build_from_item_manager(&mut self, item_manager: &ItemManager) {
         for i in 0..item_manager.item_count() {
-            if let Some(def) = item_manager.get_by_id(i as u32) {
+            if let Some(def) = item_manager.get_by_id(&ItemId(i as u32)) {
                 let item_type = match def.item_type.to_lowercase().as_str() {
                     "weapon" => ItemType::Weapon,
                     "material" => ItemType::Material,
@@ -67,7 +69,7 @@ impl ItemRules {
         }
     }
 
-    pub fn get_item_type(&self, item_id: u32) -> Option<ItemType> {
+    pub fn get_item_type(&self, item_id: ItemId) -> Option<ItemType> {
         self.item_type.get(&item_id).copied()
     }
 }
@@ -110,7 +112,7 @@ impl ItemStack {
 
     pub const fn empty() -> Self {
         Self {
-            item: ItemData::new(ItemInstance::new(0), None),
+            item: ItemData::new(ItemInstance::new(ItemId(0)), None),
             quantity: 0,
         }
     }

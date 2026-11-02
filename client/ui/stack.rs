@@ -1,4 +1,4 @@
-use std::slice::Iter;
+use std::slice::IterMut;
 
 use crate::ui::layers::DynUiLayer;
 
@@ -8,10 +8,6 @@ pub struct UiStack {
 }
 
 impl UiStack {
-    pub fn iter(&self) -> Iter<'_, Box<dyn DynUiLayer>> {
-        self.internal.iter()
-    }
-
     pub fn peek(&self) -> Option<&Box<dyn DynUiLayer>> {
         self.internal.last()
     }
@@ -22,5 +18,9 @@ impl UiStack {
 
     pub fn pop(&mut self) {
         self.internal.pop();
+    }
+
+    pub fn iter_mut(&mut self) -> IterMut<'_, Box<dyn DynUiLayer>> {
+        self.internal.iter_mut()
     }
 }

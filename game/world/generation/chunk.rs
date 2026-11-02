@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use noise::NoiseFn;
 
-use crate::world::data::block::{BlockInstance, BlockManager};
+use crate::world::data::block::{BlockId, BlockInstance, BlockManager};
 use crate::world::data::chunk::{Chunk, CHUNK_BLOCK_NUMBER, CHUNK_SIZE};
 use crate::world::generation::chunk_generator::ChunkGenContext;
 use crate::world::generation::profiler::{
@@ -35,7 +35,7 @@ impl Chunk {
         let t_noise_start = Instant::now();
         let blocks = ctx.block_manager.read().unwrap();
 
-        let block_id = |name: &str| -> u32 {
+        let block_id = |name: &str| -> BlockId {
             blocks
                 .get_block_by_string(String::from(name))
                 .unwrap_or_else(|| panic!("Did not find block '{name}' in block manager"))
@@ -50,7 +50,7 @@ impl Chunk {
         let water_id = block_id("water");
 
         let ore_count = ctx.get_ore_count().min(32);
-        let mut ore_ids: [Option<u32>; 32] = [None; 32];
+        let mut ore_ids: [Option<BlockId>; 32] = [None; 32];
         for i in 0..ore_count {
             if let Some(config) = ctx.get_ore_config(i) {
                 ore_ids[i] = blocks.get_block_by_string(config.block_id.clone()).map(|b| b.get_id());
@@ -66,8 +66,8 @@ impl Chunk {
         struct ColInfo {
             terrain_y: i32,
             subsurface_depth: i32,
-            surface_id: u32,
-            subsurface_id: u32,
+            surface_id: BlockId,
+            subsurface_id: BlockId,
         }
 
         let mut col_info = [ColInfo {

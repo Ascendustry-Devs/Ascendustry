@@ -3,6 +3,7 @@ mod tests {
     use crate::state::AppState;
     use game::player::PlayerGameMode;
     use game::types::{Position, Rotation};
+    use game::world::data::block::BlockId;
 
     const BLOCKS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/blocks/");
     const ITEMS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/items/");
@@ -82,7 +83,7 @@ mod tests {
     async fn test_app_state_set_block() {
         let state = test_state();
         state.init_seed(42).await;
-        state.set_block(0, 64, 0, 1).await;
+        state.set_block(0, 64, 0, BlockId(1)).await;
         // Should not panic even without generated chunks
     }
 

@@ -1,5 +1,6 @@
 use crate::{
     render::meshing::{chunk::ChunkMesh, processor::GreedyMeshingProcessor},
+    systems::texture_registry::TextureRegistry,
     world::mesh_request::{
         MeshRequestAdd, MeshRequestDelete, MeshRequestMessage, MeshRequestQueue, MeshResponse, MeshSnapshot,
     },
@@ -25,7 +26,6 @@ pub struct WorldMesh {
     player_chunk: Option<(i32, i32, i32)>,
 
     alloc: Option<Arc<RwLock<GpuAllocator>>>,
-    texture_lookup: Arc<Vec<u32>>,
 }
 
 impl Default for WorldMesh {
@@ -49,17 +49,12 @@ impl WorldMesh {
             queued: MeshRequestQueue::with_capacity(MAX_MESHING_CHUNKS_IN_QUEUE as usize),
             player_chunk: None,
             alloc: None,
-            texture_lookup: Arc::new(Vec::new()),
         }
     }
 
     pub fn init(&mut self, alloc: Arc<RwLock<GpuAllocator>>, mesh_request: &mut MeshRequestMessage) {
         self.alloc = Some(alloc);
         self.listen(mesh_request);
-    }
-
-    pub fn set_texture_lookup(&mut self, texture_lookup: Arc<Vec<u32>>) {
-        self.texture_lookup = texture_lookup;
     }
 
     /// Indique la position du joueur (en coordonnées de chunk), utilisée pour
@@ -72,9 +67,10 @@ impl WorldMesh {
         &mut self,
         mesh_manager: &mut Arc<RwLock<GpuAllocator>>,
         mesh_request: &mut MeshRequestMessage,
+        textures: Arc<TextureRegistry>,
     ) -> Vec<MeshResponse> {
         self.listen(mesh_request);
-        self.submit_meshes();
+        self.submit_meshes(textures);
         self.compute_generated_meshes(&mesh_request.delete, mesh_manager)
     }
 
@@ -125,7 +121,7 @@ impl WorldMesh {
         self.alloc = Some(raw_alloc);
     }
 
-    fn submit_meshes(&mut self) {
+    fn submit_meshes(&mut self, textures: Arc<TextureRegistry>) {
         // Si la file d'attente est pleine, ça ne sert à rien d'essayer de soumettre des demandes
         if self.mesh_worker.is_queue_full() {
             return;
@@ -160,7 +156,7 @@ impl WorldMesh {
             // On récupère les infos nécessaires pour le mesher
             let snapshot = chunk.snapshot.clone();
             let (cx, cy, cz) = chunk.coords;
-            let input = (snapshot, cx, cy, cz, self.texture_lookup.clone());
+            let input = (snapshot, cx, cy, cz, textures.clone());
 
             let result = self.mesh_worker.submit(input);
 

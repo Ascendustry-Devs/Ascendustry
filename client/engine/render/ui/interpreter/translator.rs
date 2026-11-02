@@ -1,9 +1,6 @@
 use crate::{
-    gpu::textures::{id::TextureID, manager::TextureManager},
-    render::{
-        modes::RenderMode,
-        ui::{geometry::ui_vertex::UiVertex, widgets::DrawCommand},
-    },
+    gpu::textures::manager::TextureManager,
+    render::ui::{geometry::ui_vertex::UiVertex, widgets::DrawCommand},
 };
 
 pub struct UiTranslator;
@@ -34,16 +31,24 @@ impl UiTranslator {
             }
             DrawCommand::TexturedPanel { transform, texture } => {
                 let (x, y, w, h) = transform.extract();
-                let id = TextureID::new(RenderMode::UI, texture);
-                let (u_min, u_max, v_min, v_max) = texture_manager.get_ui_uvs(&id).expect("UiTranslator: Texture not found");
                 let (x_min, x_max, y_min, y_max) = (x, x + w, y, y + h);
+                let Some((u_min, u_max, v_min, v_max)) = texture_manager.get_ui_uvs(&texture) else {
+                    panic!("UiTranslator: Texture not found: {:?}", texture);
+                };
+
+                let arg = if texture_manager.is_array_texture(&texture) {
+                    texture.id() // couche de l'array
+                } else {
+                    0xFFFFFFFF // teinte blanche pour l'atlas
+                };
+
                 vertices.extend([
-                    UiVertex::textured(x_min, y_min, u_min, v_min),
-                    UiVertex::textured(x_max, y_min, u_max, v_min),
-                    UiVertex::textured(x_min, y_max, u_min, v_max),
-                    UiVertex::textured(x_min, y_max, u_min, v_max),
-                    UiVertex::textured(x_max, y_min, u_max, v_min),
-                    UiVertex::textured(x_max, y_max, u_max, v_max),
+                    UiVertex::textured(x_min, y_min, u_min, v_min, arg),
+                    UiVertex::textured(x_max, y_min, u_max, v_min, arg),
+                    UiVertex::textured(x_min, y_max, u_min, v_max, arg),
+                    UiVertex::textured(x_min, y_max, u_min, v_max, arg),
+                    UiVertex::textured(x_max, y_min, u_max, v_min, arg),
+                    UiVertex::textured(x_max, y_max, u_max, v_max, arg),
                 ]);
             }
         }

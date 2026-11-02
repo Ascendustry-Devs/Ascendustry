@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::constants::DIRECT_NORMALS_3D;
-    use crate::world::data::block::{BlockInstance, BlockManager};
+    use crate::world::data::block::{BlockId, BlockInstance, BlockManager};
     use crate::world::data::chunk::{global_position_to_chunk_pos, Chunk, ChunkData, ChunkState, IntraChunkCoords};
     use crate::world::modified_chunk::{ModifiedChunk, ModifiedWorld};
     use crate::world::raycast::voxel_raycast;
@@ -12,10 +12,10 @@ mod tests {
         assert!(air.is_air());
         assert!(!air.is_solid());
 
-        let stone = BlockInstance::new(3);
+        let stone = BlockInstance::new(BlockId(3));
         assert!(!stone.is_air());
         assert!(stone.is_solid());
-        assert_eq!(stone.get_block_id(), 3);
+        assert_eq!(stone.get_block_id(), BlockId(3));
     }
 
     #[test]
@@ -30,7 +30,6 @@ mod tests {
                 solid: true,
                 hardness: 0.5,
                 texture_path: None,
-                texture_index: None,
                 render_mode: "opaque".to_string(),
                 drop: None,
                 has_item: true,
@@ -65,7 +64,7 @@ mod tests {
             z: 0,
         };
 
-        let stone = BlockInstance::new(3);
+        let stone = BlockInstance::new(BlockId(3));
         chunk.set_block_from_xyz(5, 10, 15, stone);
         assert_eq!(chunk.get_block_from_xyz(5, 10, 15), stone);
     }
@@ -96,7 +95,7 @@ mod tests {
     fn test_modified_chunk() {
         let mut mc = ModifiedChunk::new();
         let coords = IntraChunkCoords { x: 5, y: 10, z: 15 };
-        let stone = BlockInstance::new(3);
+        let stone = BlockInstance::new(BlockId(3));
 
         assert!(mc.get_block_at(&coords).is_none());
         mc.set_block_at(coords, stone);
@@ -106,7 +105,7 @@ mod tests {
     #[test]
     fn test_modified_world() {
         let mut mw = ModifiedWorld::new();
-        let stone = BlockInstance::new(3);
+        let stone = BlockInstance::new(BlockId(3));
 
         mw.set_block_at(5, 10, 15, stone);
         assert_eq!(mw.get_block_at(5, 10, 15), Some(&stone));
@@ -167,7 +166,7 @@ mod tests {
         };
 
         let checksum1 = chunk.compute_checksum();
-        chunk.set_block_from_xyz(0, 0, 0, BlockInstance::new(1));
+        chunk.set_block_from_xyz(0, 0, 0, BlockInstance::new(BlockId(1)));
         let checksum2 = chunk.compute_checksum();
         assert_ne!(checksum1, checksum2);
     }

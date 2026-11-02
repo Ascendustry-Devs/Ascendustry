@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use crate::inventory::item_manager::ItemInstance;
+    use crate::inventory::item_manager::{ItemId, ItemInstance};
     use crate::inventory::{Inventory, ItemData, ItemRules, ItemStack, ItemType};
 
-    const DIRT_ID: u32 = 0;
-    const SWORD_ID: u32 = 1;
+    const DIRT_ID: ItemId = ItemId(0);
+    const SWORD_ID: ItemId = ItemId(1);
 
     fn dirt_item() -> ItemData {
         ItemData::new(ItemInstance::new(DIRT_ID), None)

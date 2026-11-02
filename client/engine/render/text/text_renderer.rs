@@ -45,8 +45,8 @@ impl TextRenderer {
         }
 
         let text = Text::new(&self.current_text)
-            .with_scale(30.0)
-            .with_color([1.0, 0.0, 0.0, 1.0]);
+            .with_scale(24.0)
+            .with_color([0.0, 0.125, 0.125, 1.0]);
 
         let section = Section::default().with_text(vec![text]).with_screen_position((10.0, 10.0));
 

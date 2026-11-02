@@ -71,7 +71,6 @@ pub fn load_item_definitions<P: AsRef<Path>>(dir: P) -> Result<Vec<ItemDefinitio
             max_stack: raw.max_stack,
             item_type: raw.item_type,
             texture_path: raw.texture,
-            texture_index: None,
         };
         items.push(item);
     }

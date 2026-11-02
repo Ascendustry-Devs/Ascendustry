@@ -19,7 +19,7 @@ impl UiVertex {
         Self::new(x, y, -1.0, -1.0, color)
     }
 
-    pub const fn textured(x: u32, y: u32, u: f32, v: f32) -> Self {
-        Self::new(x, y, u, v, 0xFFFFFFFF)
+    pub const fn textured(x: u32, y: u32, u: f32, v: f32, id: u32) -> Self {
+        Self::new(x, y, u, v, id)
     }
 }

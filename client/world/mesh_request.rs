@@ -216,11 +216,11 @@ impl Default for MeshRequestMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use game::world::data::block::BlockInstance;
+    use game::world::data::block::{BlockId, BlockInstance};
 
     /// Construit un instantané identifiable : le premier bloc du chunk
     /// principal porte l'identifiant `marker`.
-    fn make_snapshot(marker: u32) -> MeshSnapshot {
+    fn make_snapshot(marker: BlockId) -> MeshSnapshot {
         let main = Arc::new(Chunk {
             blocks: vec![BlockInstance::new(marker); 32 * 32 * 32],
             x: 0,
@@ -239,16 +239,16 @@ mod tests {
     }
 
     /// Identifiant porté par le premier bloc de l'instantané.
-    fn marker_of(snapshot: &MeshSnapshot) -> u32 {
+    fn marker_of(snapshot: &MeshSnapshot) -> BlockId {
         snapshot.main.blocks[0].get_block_id()
     }
 
     #[test]
     fn test_queue_preserves_insertion_order() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((2, 0, 0), make_snapshot(1)));
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(2)));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(3)));
+        queue.insert(MeshRequestAdd::new((2, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(3))));
 
         let coords: Vec<_> = queue.drain().iter().map(|r| r.coords).collect();
         assert_eq!(coords, vec![(2, 0, 0), (0, 0, 0), (1, 0, 0)]);
@@ -257,11 +257,11 @@ mod tests {
     #[test]
     fn test_queue_upsert_replaces_snapshot_and_keeps_position() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(1)));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(2)));
+        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
 
         // Ré-insertion du premier chunk avec un instantané plus récent.
-        let inserted = queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(99)));
+        let inserted = queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(99))));
         assert!(!inserted, "le chunk était déjà présent");
         assert_eq!(queue.len(), 2, "aucun doublon ne doit être créé");
 
@@ -269,17 +269,17 @@ mod tests {
         assert_eq!(drained.len(), 2);
         assert_eq!(drained[0].coords, (0, 0, 0), "la position doit être conservée");
         // L'instantané doit avoir été remplacé.
-        assert_eq!(marker_of(&drained[0].snapshot), 99);
+        assert_eq!(marker_of(&drained[0].snapshot), BlockId(99));
     }
 
     #[test]
     fn test_queue_sort_by_priority() {
         let mut queue = MeshRequestQueue::new();
         // Insertion volontairement dans le désordre.
-        queue.insert(MeshRequestAdd::new((5, 0, 0), make_snapshot(1)));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(2)));
-        queue.insert(MeshRequestAdd::new((3, 0, 0), make_snapshot(3)));
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(4)));
+        queue.insert(MeshRequestAdd::new((5, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new((3, 0, 0), make_snapshot(BlockId(3))));
+        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(4))));
 
         queue.sort_by_priority((0, 0, 0));
 
@@ -290,8 +290,8 @@ mod tests {
     #[test]
     fn test_queue_sort_by_priority_keeps_vertical_discount() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 4, 0), make_snapshot(1)));
-        queue.insert(MeshRequestAdd::new((4, 0, 0), make_snapshot(2)));
+        queue.insert(MeshRequestAdd::new((0, 4, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new((4, 0, 0), make_snapshot(BlockId(2))));
 
         queue.sort_by_priority((0, 0, 0));
 
@@ -307,7 +307,7 @@ mod tests {
         // coordonnées (les distances sont signées, pas "unsigned").
         let mut queue = MeshRequestQueue::new();
         for coords in [(3, 0, 0), (-3, 0, 0), (1, 0, 0), (-1, 0, 0), (0, 0, 0)] {
-            queue.insert(MeshRequestAdd::new(coords, make_snapshot(1)));
+            queue.insert(MeshRequestAdd::new(coords, make_snapshot(BlockId(1))));
         }
 
         queue.sort_by_priority((0, 0, 0));
@@ -321,9 +321,9 @@ mod tests {
     #[test]
     fn test_queue_sort_is_stable() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(1)));
-        queue.insert(MeshRequestAdd::new((1, 0, 1), make_snapshot(2)));
-        queue.insert(MeshRequestAdd::new((-1, 0, 0), make_snapshot(3)));
+        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new((1, 0, 1), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new((-1, 0, 0), make_snapshot(BlockId(3))));
 
         queue.sort_by_priority((0, 0, 0));
 
@@ -336,8 +336,8 @@ mod tests {
     #[test]
     fn test_queue_remove_and_contains() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(1)));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(2)));
+        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
 
         assert!(queue.contains(&(0, 0, 0)));
         assert!(queue.remove(&(0, 0, 0)).is_some());
@@ -349,8 +349,8 @@ mod tests {
     #[test]
     fn test_queue_retain() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(1)));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(2)));
+        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
 
         queue.retain(|request| request.coords.0 == 1);
 
@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn test_queue_drain_empties_the_queue() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(1)));
+        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
         assert_eq!(queue.drain().len(), 1);
         assert!(queue.is_empty());
         assert_eq!(queue.drain().len(), 0);

@@ -15,13 +15,13 @@ use engine::{
         render::UiRenderer,
     },
 };
-use game::inventory::item_manager::ItemManager;
+use game::inventory::item_manager::{ItemId, ItemManager};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
-use crate::ui::{layers::DynUiLayer, stack::UiStack};
+use crate::ui::{context::UiContext, layers::DynUiLayer, stack::UiStack};
 
 pub struct ClientUI {
-    item_textures: FxHashMap<u32, u32>,
+    item_textures: FxHashMap<ItemId, u32>,
     screen_size: (u32, u32),
     stack: UiStack,
     vertices: Vec<u8>,
@@ -59,11 +59,11 @@ impl ClientUI {
     /// d'où l'utilisation de `register_atlas` plutôt que `register_array`.
     fn ensure_item_texture(
         &mut self,
-        item_id: u32,
+        item_id: &ItemId,
         item_manager: &ItemManager,
         texture_manager: &mut TextureManager,
     ) -> Option<u32> {
-        if let Some(&tex) = self.item_textures.get(&item_id) {
+        if let Some(&tex) = self.item_textures.get(item_id) {
             return Some(tex);
         }
 
@@ -76,13 +76,19 @@ impl ClientUI {
             match texture_manager.register_atlas(&rgba.into_raw(), w, h) {
                 Ok(id) => {
                     let tex_id = id.id();
-                    self.item_textures.insert(item_id, tex_id);
+                    self.item_textures.insert(*item_id, tex_id);
                     Some(tex_id)
                 }
                 Err(_e) => None,
             }
         } else {
             None
+        }
+    }
+
+    pub fn update(&mut self, ctx: &UiContext) {
+        for layer in self.stack.iter_mut() {
+            layer.update(ctx);
         }
     }
 
@@ -96,7 +102,7 @@ impl ClientUI {
 
         let mut commands = Vec::with_capacity(32);
 
-        for layer in self.stack.iter() {
+        for layer in self.stack.iter_mut() {
             let layout = layer.layout(&self.screen_size);
             commands.append(&mut layer.draw(layout.as_ref()));
         }

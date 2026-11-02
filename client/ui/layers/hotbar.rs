@@ -1,12 +1,14 @@
 use engine::render::ui::widgets::{DrawCommand, WidgetTransform};
 
 use crate::ui::{
+    adapters::{hotbar::HotbarAdapter, UiAdapter},
+    context::UiContext,
     layers::UiLayer,
     layouts::hotbar::{HotbarLayout, SlotLayout},
     views::hotbar::HotbarView,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HotbarLayer {
     pub cols: u32,
     pub spacing: u32,
@@ -26,24 +28,32 @@ impl HotbarLayer {
 impl UiLayer for HotbarLayer {
     type Layout = HotbarLayout;
 
+    fn update(&mut self, ctx: &UiContext) {
+        let input = (ctx.players.browse_local_inventory(), ctx.players.browse_selected_slot().0);
+        self.view = HotbarAdapter::adapt(input, ctx);
+    }
+
     fn layout(&self, available_space: &(u32, u32)) -> Self::Layout {
         let (mut w, mut h) = available_space;
-        w /= 2;
+        w = ((w as f32) * 3.0 / 4.0) as u32;
         h /= 8;
 
-        let hotbar_x = available_space.0 - 3 * (w >> 1);
-        let hotbar_y = available_space.1 - h - self.spacing;
-        let hotbar_width = w;
-        let hotbar_height = h;
+        w = w.saturating_sub(2 * self.spacing);
+        h = h.saturating_sub(2 * self.spacing);
+
+        // Hotbar en bas de l'écran, centré
+        let slot_count = self.cols;
+        let mut slot_size = (w.max(h).saturating_sub((slot_count - 1) * self.spacing)) / slot_count;
+        slot_size = slot_size.clamp(1, available_space.1 / 3);
+
+        let hotbar_x = (available_space.0 - w) >> 1;
+        let hotbar_y = available_space.1 - (slot_size + 2 * self.spacing);
+
+        let hotbar_width = w.saturating_sub(self.spacing);
+        let hotbar_height = slot_size + 2 * self.spacing;
 
         let transform = WidgetTransform::new(hotbar_x, hotbar_y, hotbar_width, hotbar_height);
 
-        w -= 2 * self.spacing;
-        h -= 2 * self.spacing;
-
-        // Hotbar en bas de l'écran, centré
-        let slot_count = self.cols.max(8);
-        let slot_size = (w.max(h).saturating_sub((slot_count - 1) * self.spacing)) / slot_count;
         let slot_start_x = hotbar_x + self.spacing;
         let slot_start_y = hotbar_y + self.spacing;
 
@@ -62,6 +72,10 @@ impl UiLayer for HotbarLayer {
     }
 
     fn draw(&self, layout: &Self::Layout) -> Vec<DrawCommand> {
+        const BACKGROUND_COLOR: u32 = 0x00000080;
+        const SLOT_COLOR: u32 = 0x333333AA;
+        const SELECTION_COLOR: u32 = 0x008080FF;
+
         let HotbarView {
             slots: ref slots_views,
             selected,
@@ -75,18 +89,18 @@ impl UiLayer for HotbarLayer {
 
         commands.push(DrawCommand::Panel {
             transform: *transform,
-            color: 0x800000FF,
+            color: BACKGROUND_COLOR,
         });
 
         for (i, (slot_layout, slot_view)) in slots_layouts.iter().zip(slots_views).enumerate() {
             commands.push(DrawCommand::Panel {
                 transform: slot_layout.transform,
-                color: if i == selected { 0xFF0000FF } else { 0xAA333333 },
+                color: if i == selected { SELECTION_COLOR } else { SLOT_COLOR },
             });
 
             if let Some(view) = slot_view {
                 let transform = slot_layout.icon;
-                let texture = view.icon;
+                let texture = view.texture.clone();
                 commands.push(DrawCommand::TexturedPanel { transform, texture });
             }
         }

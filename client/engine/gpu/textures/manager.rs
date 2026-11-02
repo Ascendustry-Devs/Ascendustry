@@ -10,7 +10,7 @@ use crate::{
             array::Texture2DArray,
             atlas::Texture2DAtlas,
             data::TextureData::{self, OfArray, OfAtlas},
-            id::TextureID,
+            id::TextureId,
         },
         tools::GpuTools,
     },
@@ -30,7 +30,7 @@ pub struct TextureManager {
     billboard: Texture2DArray,
     ui: Texture2DAtlas,
 
-    texture_ids: FxHashMap<TextureID, TextureData>,
+    texture_ids: FxHashMap<TextureId, TextureData>,
 
     next_ui_id: u32,
 }
@@ -92,22 +92,30 @@ impl TextureManager {
         &self.ui
     }
 
-    // TODO: à refaire dans le futur pour coller avec la nouvelle implémentation
-    pub fn get_ui_uvs(&self, id: &TextureID) -> Option<(f32, f32, f32, f32)> {
-        let atlas_width = self.ui.width() as f32;
-        let atlas_height = self.ui.height() as f32;
+    pub const ARRAY_UV_OFFSET: f32 = 2.0;
+
+    pub fn get_ui_uvs(&self, id: &TextureId) -> Option<(f32, f32, f32, f32)> {
         match self.texture_ids.get(id) {
-            Some(&TextureData::OfAtlas { x, y, width, height }) => Some((
-                x as f32 / atlas_width,
-                (x + width) as f32 / atlas_width,
-                y as f32 / atlas_height,
-                (y + height) as f32 / atlas_height,
-            )),
-            _ => None,
+            Some(&TextureData::OfAtlas { x, y, width, height }) => {
+                let atlas_width = self.ui.width() as f32;
+                let atlas_height = self.ui.height() as f32;
+                Some((
+                    x as f32 / atlas_width,
+                    (x + width) as f32 / atlas_width,
+                    y as f32 / atlas_height,
+                    (y + height) as f32 / atlas_height,
+                ))
+            }
+            Some(&TextureData::OfArray { .. }) => Some((Self::ARRAY_UV_OFFSET, Self::ARRAY_UV_OFFSET + 1.0, 0.0, 1.0)),
+            None => None,
         }
     }
 
-    pub fn register_array(&mut self, render_mode: RenderMode, texture: &[u8]) -> Result<TextureID, Error> {
+    pub fn is_array_texture(&self, id: &TextureId) -> bool {
+        matches!(self.texture_ids.get(id), Some(TextureData::OfArray { .. }))
+    }
+
+    pub fn register_array(&mut self, render_mode: RenderMode, texture: &[u8]) -> Result<TextureId, Error> {
         assert!(render_mode != RenderMode::UI);
 
         let array = self.get_array_mut(&render_mode);
@@ -129,18 +137,18 @@ impl TextureManager {
         Ok(id)
     }
 
-    pub fn register_atlas(&mut self, data: &[u8], width: u32, height: u32) -> Result<TextureID, Error> {
+    pub fn register_atlas(&mut self, data: &[u8], width: u32, height: u32) -> Result<TextureId, Error> {
         let (x, y) = self.ui.allocate(width, height).ok_or_else(|| Error::msg("Atlas plein"))?;
         let queue = self.gpu_resources.queue();
         self.ui.write_at(queue, x, y, width, height, data);
-        let id = TextureID::new(RenderMode::UI, self.next_ui_id);
+        let id = TextureId::new(RenderMode::UI, self.next_ui_id);
         self.texture_ids
             .insert(id.clone(), TextureData::OfAtlas { x, y, width, height });
         self.next_ui_id += 1;
         Ok(id)
     }
 
-    pub fn register_atlas_multiple(&mut self, textures: &[&[u8]], infos: &[Rect2]) -> Vec<Result<TextureID, Error>> {
+    pub fn register_atlas_multiple(&mut self, textures: &[&[u8]], infos: &[Rect2]) -> Vec<Result<TextureId, Error>> {
         let mut output = Vec::with_capacity(infos.len());
 
         let queue = self.gpu_resources.queue();
@@ -151,7 +159,7 @@ impl TextureManager {
             let new = match self.ui.allocate(width, height).ok_or_else(|| Error::msg("Atlas plein")) {
                 Ok((x, y)) => {
                     self.ui.write_at(queue, x, y, width, height, textures[index]);
-                    let id = TextureID::new(RenderMode::UI, self.next_ui_id);
+                    let id = TextureId::new(RenderMode::UI, self.next_ui_id);
                     self.texture_ids
                         .insert(id.clone(), TextureData::OfAtlas { x, y, width, height });
                     self.next_ui_id += 1;
@@ -165,7 +173,7 @@ impl TextureManager {
         output
     }
 
-    fn write(&mut self, texture: &[u8], id: &TextureID) {
+    fn write(&mut self, texture: &[u8], id: &TextureId) {
         let data = self.texture_ids.get(id).unwrap();
         match *data {
             OfAtlas { x, y, width, height } => {
@@ -177,7 +185,7 @@ impl TextureManager {
         }
     }
 
-    fn write_to_array(&mut self, texture: &[u8], id: &TextureID) {
+    fn write_to_array(&mut self, texture: &[u8], id: &TextureId) {
         let gpu = Arc::clone(&self.gpu_resources);
         let queue = gpu.queue();
         let array = self.get_array_mut(id.render_mode());
@@ -193,13 +201,13 @@ impl TextureManager {
         ui.write_at(queue, x, y, width, height, texture);
     }
 
-    fn find_place_array(&mut self, render_mode: &RenderMode) -> Result<TextureID, Error> {
+    fn find_place_array(&mut self, render_mode: &RenderMode) -> Result<TextureId, Error> {
         let depth = self.get_array_mut(render_mode).next_id();
 
         if depth > self.max_array_depth {
             Err(Error::msg(format!("No place found for {}.", render_mode)))
         } else {
-            Ok(TextureID::new((*render_mode).clone(), depth))
+            Ok(TextureId::new((*render_mode).clone(), depth))
         }
     }
 

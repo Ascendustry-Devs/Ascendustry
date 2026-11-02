@@ -1,6 +1,7 @@
 use game::inventory::{Inventory, SlotData};
 use game::player::{PlayerGameMode, PlayerTransformation};
 use game::types::{Position, Rotation};
+use game::world::data::block::BlockId;
 use serde::{Deserialize, Serialize};
 
 pub const CURRENT_VERSION: u8 = 1;
@@ -70,7 +71,7 @@ pub enum ContenuPaquet {
         x: i32,
         y: i32,
         z: i32,
-        block_id: u32,
+        block_id: BlockId,
     },
     GamemodeChange {
         player_id: u64,
@@ -170,7 +171,7 @@ pub const fn new_pong_paquet(timestamp: u64) -> Paquet {
     Paquet::new(TypePaquet::Pong, ContenuPaquet::Pong { timestamp })
 }
 
-pub const fn new_set_block_paquet(x: i32, y: i32, z: i32, block_id: u32) -> Paquet {
+pub const fn new_set_block_paquet(x: i32, y: i32, z: i32, block_id: BlockId) -> Paquet {
     Paquet::new(TypePaquet::SetBlock, ContenuPaquet::SetBlock { x, y, z, block_id })
 }
 

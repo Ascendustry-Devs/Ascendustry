@@ -6,32 +6,34 @@ use serde::{Deserialize, Serialize};
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ItemInstance {
-    pub id: u32,
+    pub id: ItemId,
 }
 
 impl ItemInstance {
-    pub const fn new(id: u32) -> Self {
+    pub const fn new(id: ItemId) -> Self {
         Self { id }
     }
 
-    pub const fn get_id(&self) -> u32 {
+    pub const fn get_id(&self) -> ItemId {
         self.id
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct ItemId(pub u32);
+
 #[derive(Debug, Clone)]
 pub struct ItemDefinition {
-    pub id: Option<u32>,
+    pub id: Option<ItemId>,
     pub id_str: String,
     pub name: String,
     pub max_stack: u32,
     pub item_type: String,
     pub texture_path: Option<String>,
-    pub texture_index: Option<u32>,
 }
 
 impl ItemDefinition {
-    pub fn get_id(&self) -> u32 {
+    pub fn get_id(&self) -> ItemId {
         self.id
             .unwrap_or_else(|| panic!("ItemDefinition with id_str \"{}\" was not registered.", self.id_str))
     }
@@ -39,7 +41,7 @@ impl ItemDefinition {
 
 pub struct ItemManager {
     items: Vec<ItemDefinition>,
-    mapped_items: FxHashMap<String, u32>,
+    mapped_items: FxHashMap<String, ItemId>,
 }
 
 impl Default for ItemManager {
@@ -57,7 +59,7 @@ impl ItemManager {
     }
 
     /// Enregistre un nouvel item dans le gestionnaire.
-    pub fn register(&mut self, mut item: ItemDefinition) {
+    pub fn register(&mut self, mut item: ItemDefinition) -> ItemId {
         if self.mapped_items.contains_key(&item.id_str) {
             panic!(
                 "ItemManager: trying to insert a new item but its id_str is already registered: \"{}\"",
@@ -65,24 +67,25 @@ impl ItemManager {
             );
         }
 
-        let id = self.items.len() as u32;
+        let id = ItemId(self.items.len() as u32);
         item.id = Some(id);
         self.mapped_items.insert(item.id_str.clone(), id);
         self.items.push(item);
+        id
     }
 
     /// Retourne l'item correspondant à l'identifiant donné, s'il existe.
-    pub fn get_by_id(&self, id: u32) -> Option<&ItemDefinition> {
-        self.items.get(id as usize)
+    pub fn get_by_id(&self, id: &ItemId) -> Option<&ItemDefinition> {
+        self.items.get(id.0 as usize)
     }
 
     /// Retourne l'item correspondant à l'identifiant donné, s'il existe.
     pub fn get_by_string(&self, id_str: &str) -> Option<&ItemDefinition> {
-        self.mapped_items.get(id_str).and_then(|id| self.get_by_id(*id))
+        self.mapped_items.get(id_str).and_then(|id| self.get_by_id(id))
     }
 
     /// Retourne l'item correspondant à l'identifiant donné, s'il existe.
-    pub fn get_id_by_string(&self, id_str: &str) -> Option<u32> {
+    pub fn get_id_by_string(&self, id_str: &str) -> Option<ItemId> {
         self.mapped_items.get(id_str).copied()
     }
 

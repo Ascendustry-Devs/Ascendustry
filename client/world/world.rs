@@ -1,6 +1,10 @@
 use engine::gpu::allocator::gpu_allocator::GpuAllocator;
 use engine::render::modes::RenderMode;
+use game::assets::block_loader::load_block_definitions;
+use game::assets::item_loader::load_item_definitions;
+use game::assets::resolve_asset_path;
 use num_cpus::get;
+use project_core::{log_client, log_err_client};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 
 use crate::api::texture_loader::TextureLoader;
@@ -9,9 +13,9 @@ use game::constants::{
     DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE,
     SIMULATION_DISTANCE_CHUNK_COUNT,
 };
-use game::inventory::item_manager::ItemManager;
+use game::inventory::item_manager::{ItemId, ItemManager};
 use game::inventory::ItemInstance;
-use game::world::data::block::{BlockInstance, BlockManager};
+use game::world::data::block::{BlockId, BlockInstance, BlockManager};
 use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_BLOCK_NUMBER, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
 use game::world::generation::chunk_generator::ChunkGenerator;
 use game::world::scheduling::compute_missing_chunks_sorted;
@@ -88,15 +92,21 @@ impl World {
     pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut MeshRequestMessage {
         {
             let mut item_manager = self.item_manager.write().unwrap();
-            let items = game::assets::item_loader::load_item_definitions(game::assets::resolve_asset_path("items/"))
-                .expect("Failed to load item definitions");
-            for mut item in items {
+            let items = load_item_definitions(resolve_asset_path("items/")).expect("Failed to load item definitions");
+            for item in items {
+                let id = item_manager.register(item.clone());
                 if let Some(tex_path) = &item.texture_path {
-                    if let Ok(tex_id) = texture_loader.register(tex_path.clone(), RenderMode::Opaque) {
-                        item.texture_index = Some(tex_id.id());
+                    match texture_loader.register_item(&id, tex_path.clone(), RenderMode::Opaque) {
+                        Ok(texture_id) => log_client!(
+                            "Successfully added item {} to the texture registry with id {:?}.",
+                            item.name,
+                            texture_id
+                        ),
+                        Err(err) => {
+                            log_err_client!("Failed to add item {} to the texture registry. Error: {:?}", item.name, err)
+                        }
                     }
                 }
-                item_manager.register(item);
             }
         }
 
@@ -104,24 +114,29 @@ impl World {
             let mut block_manager = self.block_manager.write().unwrap();
             let item_manager = self.item_manager.read().unwrap();
 
-            let mut defs = game::assets::block_loader::load_block_definitions(game::assets::resolve_asset_path("blocks/"))
-                .expect("Failed to load block definitions");
+            let defs = load_block_definitions(resolve_asset_path("blocks/")).expect("Failed to load block definitions");
 
-            for def in &mut defs {
+            for def in defs {
+                let id = block_manager.register(def.clone());
                 if let Some(tex_path) = &def.texture_path {
                     let render_mode = match def.render_mode.to_lowercase().as_str() {
                         "opaque" => RenderMode::Opaque,
                         _ => RenderMode::Opaque,
                     };
-                    if let Ok(tex_id) = texture_loader.register(tex_path.clone(), render_mode) {
-                        def.texture_index = Some(tex_id.id());
+                    match texture_loader.register_block(&id, tex_path.clone(), render_mode) {
+                        Ok(texture_id) => log_client!(
+                            "Successfully added block {} to the texture registry with id {:?}.",
+                            def.name,
+                            texture_id
+                        ),
+                        Err(err) => {
+                            log_err_client!("Failed to add block {} to the texture registry. Error: {:?}", def.name, err)
+                        }
                     }
                 }
-                block_manager.register(def.clone());
             }
 
             block_manager.resolve_item_mappings(&item_manager);
-            block_manager.build_texture_lookup();
         }
 
         self.refresh_missing_chunks(player);
@@ -166,18 +181,13 @@ impl World {
         self.chunks.is_empty()
     }
 
-    pub fn get_texture_lookup(&self) -> Arc<Vec<u32>> {
-        let bm = self.block_manager.read().unwrap();
-        Arc::new(bm.get_texture_lookup().to_vec())
-    }
-
-    pub fn block_to_item(&self, block_id: u32) -> Option<ItemInstance> {
+    pub fn block_to_item(&self, block_id: &BlockId) -> Option<ItemInstance> {
         let bm = self.block_manager.read().unwrap();
         let im = self.item_manager.read().unwrap();
         bm.block_to_item(block_id, &im)
     }
 
-    pub fn item_to_block(&self, item_id: u32) -> Option<u32> {
+    pub fn item_to_block(&self, item_id: &ItemId) -> Option<BlockId> {
         self.block_manager.read().unwrap().item_to_block_id(item_id)
     }
 

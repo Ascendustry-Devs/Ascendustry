@@ -155,7 +155,7 @@ impl Chunk {
 
         for block in &self.blocks {
             let rep = block.get_block_id();
-            sum1 = sum1.wrapping_add(rep as u16);
+            sum1 = sum1.wrapping_add(Into::<u32>::into(rep) as u16);
             sum2 = sum2.wrapping_add(sum1);
         }
 

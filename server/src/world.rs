@@ -1,6 +1,6 @@
 use cgmath::Point3;
 use game::inventory::item_manager::ItemManager;
-use game::world::data::block::{BlockInstance, BlockManager};
+use game::world::data::block::{BlockId, BlockInstance, BlockManager};
 use game::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE, CHUNK_SIZE_SQR_USIZE, CHUNK_SIZE_USIZE};
 use game::world::generation::chunk::ChunkWithChecksum;
 use game::world::generation::chunk_generator::{generate_chunks_parallel_blocking, generate_chunks_sequential};
@@ -69,7 +69,7 @@ impl WorldState {
         self.seed
     }
 
-    pub fn set_block(&mut self, x: i32, y: i32, z: i32, block_id: u32) {
+    pub fn set_block(&mut self, x: i32, y: i32, z: i32, block_id: BlockId) {
         let cx = x.div_euclid(CHUNK_SIZE);
         let cy = y.div_euclid(CHUNK_SIZE);
         let cz = z.div_euclid(CHUNK_SIZE);

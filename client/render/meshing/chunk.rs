@@ -268,7 +268,7 @@ impl ChunkMesh {
                         // We mark the mask as unvisited so the mesher will know we need to make a face out of this
                         // -1 because v is the index for PADDED_CHUNK, but mask contains indices for a basic CHUNK
                         mask_row[(v - 1) as usize] =
-                            FaceMask::from(false, texture_lookup[current.id as usize], FACES[1], packed_ao);
+                            FaceMask::from(false, texture_lookup[Into::<usize>::into(current.id)], FACES[1], packed_ao);
                     } else {
                         let previous = padded_chunk.get_block_from_i(previous_i);
 
@@ -282,7 +282,7 @@ impl ChunkMesh {
                         // We mark the mask as unvisited so the mesher will know we need to make a face out of this
                         // -1 because v is the index for PADDED_CHUNK, but mask contains indices for a basic CHUNK
                         mask_row[(v - 1) as usize] =
-                            FaceMask::from(false, texture_lookup[previous.id as usize], FACES[0], packed_ao);
+                            FaceMask::from(false, texture_lookup[Into::<usize>::into(previous.id)], FACES[0], packed_ao);
                     }
                 }
             }
@@ -492,7 +492,7 @@ impl ChunkMesh {
 
                         // mask[Z][X] — on retire le padding : u-1 et v-1
                         mask_row[(v - 1) as usize] =
-                            FaceMask::from(false, texture_lookup[current.id as usize], FACES[1], packed_ao);
+                            FaceMask::from(false, texture_lookup[Into::<usize>::into(current.id)], FACES[1], packed_ao);
                     } else {
                         // previous block est à (X=v, Y=d, Z=u) en coords paddées
                         let previous_pos = [v, d, u];
@@ -505,7 +505,7 @@ impl ChunkMesh {
                         let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         mask_row[(v - 1) as usize] =
-                            FaceMask::from(false, texture_lookup[previous.id as usize], FACES[0], packed_ao);
+                            FaceMask::from(false, texture_lookup[Into::<usize>::into(previous.id)], FACES[0], packed_ao);
                     }
                 }
             }
@@ -675,7 +675,7 @@ impl ChunkMesh {
 
                         // mask[Y][Z] — on retire le padding : u-1 et v-1
                         mask_row[(v - 1) as usize] =
-                            FaceMask::from(false, texture_lookup[current.id as usize], FACES[1], packed_ao);
+                            FaceMask::from(false, texture_lookup[Into::<usize>::into(current.id)], FACES[1], packed_ao);
                     } else {
                         // previous block est à (X=u, Y=v, Z=d) en coords paddées
                         let previous_pos = [u, v, d];
@@ -688,7 +688,7 @@ impl ChunkMesh {
                         let packed_ao = (v0_ao << 6) | (v1_ao << 4) | (v2_ao << 2) | v3_ao;
 
                         mask_row[(v - 1) as usize] =
-                            FaceMask::from(false, texture_lookup[previous.id as usize], FACES[0], packed_ao);
+                            FaceMask::from(false, texture_lookup[Into::<usize>::into(previous.id)], FACES[0], packed_ao);
                     }
                 }
             }

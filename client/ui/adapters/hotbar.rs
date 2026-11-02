@@ -22,12 +22,9 @@ impl<'a> UiAdapter for HotbarAdapter<'a> {
             .map(|i| {
                 inventory.get_slot(i).map(|stack| {
                     let item_id = stack.item().get_item().get_id();
-                    let icon = ctx.assets.get_item_texture(item_id);
+                    let texture = ctx.assets.get_item_texture(&item_id);
                     let quantity = stack.quantity();
-                    SlotView {
-                        icon: icon,
-                        quantity: quantity,
-                    }
+                    SlotView { texture, quantity }
                 })
             })
             .collect();

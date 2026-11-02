@@ -1,10 +1,11 @@
-use project_core::general_types::data_manager::Id;
-
-use crate::render::ui::widgets::{DrawCommand, Widget, WidgetTransform, WidgetType};
+use crate::{
+    gpu::textures::id::TextureId,
+    render::ui::widgets::{DrawCommand, Widget, WidgetTransform, WidgetType},
+};
 
 pub struct TexturedPanel {
     transform: WidgetTransform,
-    texture: Id,
+    texture: TextureId,
     child: Option<Box<WidgetType>>,
 }
 
@@ -16,7 +17,7 @@ impl Widget for TexturedPanel {
     fn draw(&self, commands: &mut Vec<DrawCommand>) {
         commands.push(DrawCommand::TexturedPanel {
             transform: self.transform.clone(),
-            texture: self.texture,
+            texture: self.texture.clone(),
         });
         if let Some(child) = self.child.as_ref() {
             child.draw(commands);
@@ -25,7 +26,7 @@ impl Widget for TexturedPanel {
 }
 
 impl TexturedPanel {
-    pub const fn new(transform: WidgetTransform, texture: u32, child: Option<Box<WidgetType>>) -> Self {
+    pub const fn new(transform: WidgetTransform, texture: TextureId, child: Option<Box<WidgetType>>) -> Self {
         Self {
             transform,
             texture,

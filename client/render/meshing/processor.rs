@@ -7,6 +7,7 @@ use project_core::parallel::{buffer_pool::BufferPool, Parallelizable};
 use crate::{
     game::{CHUNKS_MESHED, TIME_SPENT_MESHING_NANOS},
     render::meshing::chunk_new::make_greedy_chunk,
+    systems::texture_registry::TextureRegistry,
     world::mesh_request::MeshSnapshot,
 };
 
@@ -14,12 +15,12 @@ pub struct GreedyMeshingProcessor;
 
 impl Parallelizable for GreedyMeshingProcessor {
     type Context = Arc<BufferPool<Vertex>>;
-    type Input = (MeshSnapshot, i32, i32, i32, Arc<Vec<u32>>);
+    type Input = (MeshSnapshot, i32, i32, i32, Arc<TextureRegistry>);
     type Output = Option<Vec<Vertex>>;
 
     /// Makes greedy
     fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output {
-        let (snapshot, cx, cy, cz, texture_lookup) = input;
+        let (snapshot, cx, cy, cz, textures) = input;
 
         let start = Instant::now();
 
@@ -29,7 +30,7 @@ impl Parallelizable for GreedyMeshingProcessor {
         // superposent à l'origine).
         let origin = [(cx * CHUNK_SIZE) as f32, (cy * CHUNK_SIZE) as f32, (cz * CHUNK_SIZE) as f32];
 
-        make_greedy_chunk(&snapshot, &mut vertices, origin, &texture_lookup);
+        make_greedy_chunk(&snapshot, &mut vertices, origin, textures);
 
         // let padded = PaddedChunk::from_snapshot(&snapshot.main, &snapshot);
 

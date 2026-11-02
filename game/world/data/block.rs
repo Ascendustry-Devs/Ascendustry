@@ -3,54 +3,76 @@ use std::path::Path;
 
 use bytemuck::{Pod, Zeroable};
 use rustc_hash::{FxBuildHasher, FxHashMap};
+use serde::{Deserialize, Serialize};
 
 use crate::assets::block_loader::load_block_definitions;
-use crate::inventory::item_manager::{ItemInstance, ItemManager};
+use crate::inventory::item_manager::{ItemId, ItemInstance, ItemManager};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable, serde::Serialize, serde::Deserialize)]
 pub struct BlockInstance {
-    pub id: u32,
+    pub id: BlockId,
 }
 
 impl BlockInstance {
-    pub const fn new(id: u32) -> Self {
+    pub const fn new(id: BlockId) -> Self {
         Self { id }
     }
 
     pub const fn air() -> Self {
-        Self { id: 0 }
+        Self { id: BlockId(0) }
     }
 
     pub const fn is_air(&self) -> bool {
-        self.id == Self::air().id
+        self.id.0 == Self::air().id.0
     }
 
     pub const fn is_solid(&self) -> bool {
-        self.id != Self::air().id
+        self.id.0 != Self::air().id.0
     }
 
-    pub const fn get_block_id(&self) -> u32 {
+    pub const fn get_block_id(&self) -> BlockId {
         self.id
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable, Hash, Serialize, Deserialize)]
+pub struct BlockId(pub u32);
+
+impl From<BlockId> for u32 {
+    fn from(value: BlockId) -> Self {
+        value.0
+    }
+}
+
+impl From<BlockId> for u16 {
+    fn from(value: BlockId) -> Self {
+        value.0 as u16
+    }
+}
+
+impl From<BlockId> for usize {
+    fn from(value: BlockId) -> Self {
+        value.0 as usize
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct BlockData {
-    pub id: Option<u32>,
+    pub id: Option<BlockId>,
     pub id_str: String,
     pub name: String,
     pub solid: bool,
     pub hardness: f32,
     pub texture_path: Option<String>,
-    pub texture_index: Option<u32>,
     pub render_mode: String,
     pub drop: Option<String>,
     pub has_item: bool,
 }
 
 impl BlockData {
-    pub fn get_id(&self) -> u32 {
+    pub fn get_id(&self) -> BlockId {
         self.id
             .unwrap_or_else(|| panic!("BlockData with id_str \"{}\" was not registered.", self.id_str))
     }
@@ -60,11 +82,11 @@ impl BlockData {
     }
 }
 
+#[derive(Debug)]
 pub struct BlockManager {
     blocks: Vec<BlockData>,
-    mapped_blocks: FxHashMap<String, u32>,
-    texture_lookup: Vec<u32>,
-    item_to_block: FxHashMap<u32, u32>,
+    mapped_blocks: FxHashMap<String, BlockId>,
+    item_to_block: FxHashMap<ItemId, BlockId>,
 }
 
 impl Default for BlockManager {
@@ -77,12 +99,10 @@ impl BlockManager {
     pub fn new() -> Self {
         let blocks = Vec::with_capacity(256);
         let mapped_blocks = HashMap::with_capacity_and_hasher(256, FxBuildHasher);
-        let texture_lookup = Vec::new();
         let item_to_block = HashMap::with_hasher(FxBuildHasher);
         Self {
             blocks,
             mapped_blocks,
-            texture_lookup,
             item_to_block,
         }
     }
@@ -92,7 +112,6 @@ impl BlockManager {
         for def in defs {
             self.register(def);
         }
-        self.build_texture_lookup();
         Ok(())
     }
 
@@ -100,18 +119,18 @@ impl BlockManager {
         self.blocks.len()
     }
 
-    pub fn get_block_by_id(&self, id: u32) -> Option<&BlockData> {
-        self.blocks.get(id as usize)
+    pub fn get_block_by_id(&self, id: &BlockId) -> Option<&BlockData> {
+        self.blocks.get(id.0 as usize)
     }
 
     pub fn get_block_by_string(&self, id_str: String) -> Option<&BlockData> {
         if let Some(id) = self.mapped_blocks.get(&id_str) {
-            return self.get_block_by_id(*id);
+            return self.get_block_by_id(id);
         }
         None
     }
 
-    pub fn register(&mut self, mut block: BlockData) {
+    pub fn register(&mut self, mut block: BlockData) -> BlockId {
         if self.mapped_blocks.contains_key(&block.id_str) {
             panic!(
                 "BlockManager: trying to insert a new block but its id_str is already registered: \"{}\"",
@@ -119,10 +138,11 @@ impl BlockManager {
             );
         }
 
-        let id = self.block_count() as u32;
+        let id = BlockId(self.block_count() as u32);
         block.id = Some(id);
         self.mapped_blocks.insert(block.id_str.clone(), id);
         self.blocks.push(block);
+        id
     }
 
     pub fn resolve_item_mappings(&mut self, item_manager: &ItemManager) {
@@ -140,7 +160,7 @@ impl BlockManager {
         }
     }
 
-    pub fn block_to_item(&self, block_id: u32, item_manager: &ItemManager) -> Option<ItemInstance> {
+    pub fn block_to_item(&self, block_id: &BlockId, item_manager: &ItemManager) -> Option<ItemInstance> {
         let block = self.get_block_by_id(block_id)?;
         let item_str = block
             .drop
@@ -149,18 +169,9 @@ impl BlockManager {
         item_manager.get_id_by_string(item_str).map(ItemInstance::new)
     }
 
-    pub fn item_to_block_id(&self, item_id: u32) -> Option<u32> {
-        self.item_to_block.get(&item_id).copied()
-    }
-
-    pub fn build_texture_lookup(&mut self) {
-        self.texture_lookup = (0..self.block_count())
-            .map(|id| self.get_block_by_id(id as u32).and_then(|b| b.texture_index).unwrap_or(0))
-            .collect();
-    }
-
-    pub fn get_texture_lookup(&self) -> &[u32] {
-        &self.texture_lookup
+    pub fn item_to_block_id(&self, item_id: &ItemId) -> Option<BlockId> {
+        println!("{:?}", self.item_to_block);
+        self.item_to_block.get(item_id).copied()
     }
 
     pub fn dispose(&mut self) {

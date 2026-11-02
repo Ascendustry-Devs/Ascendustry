@@ -1,12 +1,14 @@
+use engine::gpu::textures::id::TextureId;
+
 use crate::ui::adapters::UiView;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SlotView {
-    pub icon: u32,
+    pub texture: TextureId,
     pub quantity: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HotbarView {
     pub slots: Vec<Option<SlotView>>,
     pub selected: usize,

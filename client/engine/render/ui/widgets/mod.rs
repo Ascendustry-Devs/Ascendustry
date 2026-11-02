@@ -1,6 +1,7 @@
-use project_core::general_types::data_manager::Id;
-
-use crate::render::ui::widgets::{list::List, panel::Panel, textured_panel::TexturedPanel};
+use crate::{
+    gpu::textures::id::TextureId,
+    render::ui::widgets::{list::List, panel::Panel, textured_panel::TexturedPanel},
+};
 
 pub mod list;
 pub mod panel;
@@ -105,5 +106,5 @@ impl WidgetType {
 #[derive(Debug)]
 pub enum DrawCommand {
     Panel { transform: WidgetTransform, color: u32 },
-    TexturedPanel { transform: WidgetTransform, texture: Id },
+    TexturedPanel { transform: WidgetTransform, texture: TextureId },
 }

@@ -7,10 +7,10 @@ use crate::{
         remote_players::RemotePlayersManager,
     },
     render::{meshing::world::WorldMesh, renderer::GameRenderer},
-    systems::inputs::InputState,
+    systems::{inputs::InputState, texture_registry::TextureRegistry},
     ui::{
         adapters::{hotbar::HotbarAdapter, UiAdapter},
-        context::{AssetBrowser, PlayerBrowser, TechnicalBrowser, UiContext, WorldBrowser},
+        context::UiContext,
         layers::hotbar::HotbarLayer,
         ClientUI,
     },
@@ -22,7 +22,7 @@ use engine::{
         application::AppState,
         frame::{EngineFrameData, GameFrameData},
     },
-    gpu::{allocator::gpu_allocator::GpuAllocator, textures::manager::TextureManager},
+    gpu::{allocator::gpu_allocator::GpuAllocator, textures::id::TextureId},
     render::{
         render::Renderer,
         ui::{
@@ -141,6 +141,7 @@ pub struct GameState {
     pub delay_s: f32,
     pub network: Option<NetworkManager>,
     pub ui: ClientUI,
+    textures_registry: Option<Arc<TextureRegistry>>,
     inputs: InputState,
     last_save_request: Instant,
 }
@@ -169,16 +170,8 @@ impl GameState {
             delay_s: 0.0,
             network: Some(network),
             ui: Default::default(),
+            textures_registry: None,
             last_save_request: Instant::now(),
-        }
-    }
-
-    fn get_context<'a>(&'a self, textures: &'a TextureManager, frame: &'a EngineFrameData) -> UiContext<'a> {
-        UiContext {
-            world: WorldBrowser::new(&self.world),
-            players: PlayerBrowser::new(&self.player, &self.remote_players),
-            assets: AssetBrowser::new(textures),
-            system: TechnicalBrowser::new(frame),
         }
     }
 
@@ -561,17 +554,25 @@ impl GameState {
 
 impl AppState for GameState {
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>) {
-        let mut tex_loader = TextureLoader::new(&mut renderer.texture_manager);
         self.apply_received_packets();
         println!("player initial pos: {:?} {:?}", self.player.get_pos(), self.player.get_cpos());
+        let mut textures_registry = TextureRegistry::default();
+        let mut tex_loader = TextureLoader::new(&mut renderer.texture_manager, &mut textures_registry);
         let meshin = self.world.init(&mut tex_loader, &self.player);
+        self.textures_registry = Some(Arc::new(textures_registry));
         let alloc = Arc::clone(&renderer.render_manager.world_buffer);
         self.world_mesh.init(alloc, meshin);
-        let tex_lookup = self.world.get_texture_lookup();
-        self.world_mesh.set_texture_lookup(tex_lookup);
 
         let frame = EngineFrameData::default();
-        let ctx = self.get_context(&renderer.texture_manager, &frame);
+
+        let ctx = UiContext::new(
+            &self.world,
+            &self.player,
+            &self.remote_players,
+            self.textures_registry.as_ref().unwrap().as_ref(),
+            &frame,
+        );
+
         let hotbar = HotbarLayer {
             cols: 8,
             spacing: 2,
@@ -619,8 +620,16 @@ impl AppState for GameState {
         self.update_network(network_commands);
 
         // let item_manager = self.world.get_item_manager();
-        let _ctx = self.get_context(&renderer.texture_manager, frame);
-        // self.ui.update();
+
+        let ctx = UiContext::new(
+            &self.world,
+            &self.player,
+            &self.remote_players,
+            self.textures_registry.as_ref().unwrap().as_ref(),
+            &frame,
+        );
+
+        self.ui.update(&ctx);
 
         let surface_config = &renderer.gpu_context.config;
         let available_space = (surface_config.width, surface_config.height);
@@ -628,7 +637,8 @@ impl AppState for GameState {
             .submit(&available_space, &mut renderer.ui_renderer, &renderer.texture_manager);
         let mesh_manager = &mut renderer.render_manager.world_buffer;
 
-        let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request);
+        let textures_registry = Arc::clone(self.textures_registry.as_ref().unwrap());
+        let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request, textures_registry);
         self.world.listen(&mut responses);
 
         self.update_rendering(data, renderer);
@@ -676,7 +686,7 @@ fn ui_test(renderer: &mut Renderer) {
     // };
     let test_panel: TexturedPanel = {
         let transform = WidgetTransform::new(8, 8, 160, 130);
-        let texture = 0;
+        let texture = TextureId::default();
         let child = None;
         TexturedPanel::new(transform, texture, child)
     };

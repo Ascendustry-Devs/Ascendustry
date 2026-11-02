@@ -7,6 +7,7 @@ use game::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use game::inventory::{Inventory, SlotData};
 use game::player::{PlayerGameMode, PlayerTransformation};
 use game::types::{Position, Rotation};
+use game::world::data::block::BlockId;
 use network::messages::{BroadcastMessage, ChunkData, ContenuPaquet, Paquet, TypePaquet};
 use physics::position::{find_safe_spawn_point, is_position_free};
 use physics::validator::is_movement_plausible;
@@ -97,7 +98,7 @@ impl AppState {
         a.map(|p| p.rotation)
     }
 
-    pub async fn set_block(&self, x: i32, y: i32, z: i32, block_id: u32) {
+    pub async fn set_block(&self, x: i32, y: i32, z: i32, block_id: BlockId) {
         self.world.write().await.set_block(x, y, z, block_id);
     }
 
