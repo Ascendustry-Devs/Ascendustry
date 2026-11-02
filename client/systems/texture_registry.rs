@@ -41,7 +41,7 @@ impl TextureRegistry {
         render_mode: RenderMode,
     ) -> Result<TextureId, Error> {
         self.register(texture_manager, path, render_mode).inspect(|texture_id| {
-            self.items.add_entry(*item_id, texture_id.clone());
+            self.items.add_entry(*item_id, *texture_id);
         })
     }
 
@@ -53,7 +53,7 @@ impl TextureRegistry {
         render_mode: RenderMode,
     ) -> Result<TextureId, Error> {
         self.register(texture_manager, path, render_mode).inspect(|texture_id| {
-            self.blocks.add_entry(*block_id, texture_id.clone());
+            self.blocks.add_entry(*block_id, *texture_id);
         })
     }
 }

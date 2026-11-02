@@ -131,7 +131,7 @@ impl TextureManager {
         let id = self.find_place_array(&render_mode)?;
         let texture_data = TextureData::for_array(id.id());
 
-        self.texture_ids.insert(id.clone(), texture_data);
+        self.texture_ids.insert(id, texture_data);
         self.write(texture, &id);
 
         Ok(id)
@@ -142,8 +142,7 @@ impl TextureManager {
         let queue = self.gpu_resources.queue();
         self.ui.write_at(queue, x, y, width, height, data);
         let id = TextureId::new(RenderMode::UI, self.next_ui_id);
-        self.texture_ids
-            .insert(id.clone(), TextureData::OfAtlas { x, y, width, height });
+        self.texture_ids.insert(id, TextureData::OfAtlas { x, y, width, height });
         self.next_ui_id += 1;
         Ok(id)
     }
@@ -160,8 +159,7 @@ impl TextureManager {
                 Ok((x, y)) => {
                     self.ui.write_at(queue, x, y, width, height, textures[index]);
                     let id = TextureId::new(RenderMode::UI, self.next_ui_id);
-                    self.texture_ids
-                        .insert(id.clone(), TextureData::OfAtlas { x, y, width, height });
+                    self.texture_ids.insert(id, TextureData::OfAtlas { x, y, width, height });
                     self.next_ui_id += 1;
                     Ok(id)
                 }
@@ -207,7 +205,7 @@ impl TextureManager {
         if depth > self.max_array_depth {
             Err(Error::msg(format!("No place found for {}.", render_mode)))
         } else {
-            Ok(TextureId::new((*render_mode).clone(), depth))
+            Ok(TextureId::new(*render_mode, depth))
         }
     }
 

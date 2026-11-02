@@ -50,13 +50,14 @@ impl ClientUI {
     /// Récupère ou charge la texture d'un item pour l'UI.
     ///
     /// Le cache `item_textures` évite de re-charger une texture déjà inscrite dans l'atlas UI.
+    ///
     /// Si la texture n'est pas dans le cache :
     ///   1. On récupère la définition de l'item via `item_manager`,
     ///   2. On charge l'image depuis le disque (chemin dans `texture_path`),
     ///   3. On l'enregistre dans l'atlas UI via `register_atlas`,
     ///   4. On stocke l'ID retourné dans le cache pour les appels suivants.
-    /// L'atlas UI est séparé des tableaux de textures 3D
-    /// d'où l'utilisation de `register_atlas` plutôt que `register_array`.
+    ///
+    /// L'atlas UI est séparé des tableaux de textures 3D d'où l'utilisation de `register_atlas` plutôt que `register_array`.
     fn ensure_item_texture(
         &mut self,
         item_id: &ItemId,

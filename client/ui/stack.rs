@@ -8,8 +8,8 @@ pub struct UiStack {
 }
 
 impl UiStack {
-    pub fn peek(&self) -> Option<&Box<dyn DynUiLayer>> {
-        self.internal.last()
+    pub fn peek(&self) -> Option<&dyn DynUiLayer> {
+        self.internal.last().map(|layer| layer.as_ref())
     }
 
     pub fn push(&mut self, layout: Box<dyn DynUiLayer>) {

@@ -9,7 +9,7 @@ use crate::ui::{context::UiContext, layouts::UiLayout};
 pub trait UiLayer: Debug + Clone {
     type Layout: UiLayout;
 
-    fn update(&mut self, ctx: &UiContext) {}
+    fn update(&mut self, _ctx: &UiContext) {}
     fn layout(&self, available_space: &(u32, u32)) -> Self::Layout;
     fn draw(&self, layout: &Self::Layout) -> Vec<DrawCommand>;
 }

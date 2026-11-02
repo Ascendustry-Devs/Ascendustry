@@ -12,7 +12,7 @@ use crate::audio::GameAudioManager;
 use crate::core::frame::{EngineFrameData, GameFrameData};
 use crate::core::state::State;
 use crate::gpu::allocator::gpu_allocator::GpuAllocator;
-use crate::render::render::Renderer;
+use crate::render::Renderer;
 use winit::event::{DeviceEvent, DeviceId, KeyEvent, MouseButton, WindowEvent};
 use winit::window::{CursorGrabMode, Window};
 

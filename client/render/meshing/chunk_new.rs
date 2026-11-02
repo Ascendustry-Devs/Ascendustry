@@ -129,13 +129,16 @@ impl Axis {
     }
 }
 
+type UvNormal3D = (i32, i32, i32);
+type DirectionUvNormal3D = (UvNormal3D, UvNormal3D, UvNormal3D);
+
 /// Les 3 voisins AO d'un coin de face, en coordonnées 3D.
 ///
 /// Copié à l'identique de l'implémentation de référence : la géométrie de l'AO
 /// doit rester rigoureusement la même, y compris l'inversion (u, v) appliquée
 /// aux faces autres que Front/Back.
 const fn ao_neighbors(face: Direction, corner: SquareCorner) -> [(i32, i32, i32); 3] {
-    const UVNORMAL_TABLE: [((i32, i32, i32), (i32, i32, i32), (i32, i32, i32)); 6] = [
+    const UVNORMAL_TABLE: [DirectionUvNormal3D; 6] = [
         ((0, 1, 0), (0, 0, 1), (-1, 0, 0)), // -X
         ((1, 0, 0), (0, 0, 1), (0, -1, 0)), // -Y
         ((1, 0, 0), (0, 1, 0), (0, 0, -1)), // -Z
@@ -245,10 +248,9 @@ impl BitMatrix {
 fn transpose32(rows: &mut [u32; CHUNK]) {
     let mut out = [0u32; CHUNK];
 
-    for i in 0..CHUNK {
-        let row = rows[i];
-        for j in 0..CHUNK {
-            out[j] |= ((row >> j) & 1) << i;
+    for (i, row) in rows.iter().enumerate().take(CHUNK) {
+        for (j, col) in out.iter_mut().enumerate().take(CHUNK) {
+            *col |= ((row >> j) & 1) << i;
         }
     }
 
@@ -258,10 +260,9 @@ fn transpose32(rows: &mut [u32; CHUNK]) {
 #[inline]
 fn transpose32_into(src: &[u32; CHUNK], dst: &mut [u32; CHUNK]) {
     let mut out = [0u32; CHUNK];
-    for i in 0..CHUNK {
-        let row = src[i];
-        for j in 0..CHUNK {
-            out[j] |= ((row >> j) & 1) << i;
+    for (i, row) in src.iter().enumerate().take(CHUNK) {
+        for (j, element) in out.iter_mut().enumerate().take(CHUNK) {
+            *element |= ((row >> j) & 1) << i;
         }
     }
     *dst = out;
@@ -291,7 +292,6 @@ fn build_core(blocks: &[u32], out: &mut [u32; CHUNK * CHUNK]) {
         // SSE2 est acquis sur x86_64.
         // SAFETY: SSE2 est disponible sur toute cible x86_64.
         unsafe { build_core_sse2(blocks, out) };
-        return;
     }
 
     #[cfg(not(target_arch = "x86_64"))]
@@ -826,12 +826,10 @@ unsafe fn match_row_avx2(row: usize, keys: &[u64; CHUNK * CHUNK], _present: u32,
 fn face_ao(offsets: &[[(i32, i32); 3]; 4], plane: &PaddedPlane, u: usize, v: usize) -> u8 {
     let mut packed = 0u8;
 
-    for corner in 0..4 {
-        let o = &offsets[corner];
-
-        let corner_bit = ((plane.rows[(u as i32 + o[0].0) as usize] >> (v as i32 + o[0].1)) & 1) as u8;
-        let side1_bit = ((plane.rows[(u as i32 + o[1].0) as usize] >> (v as i32 + o[1].1)) & 1) as u8;
-        let side2_bit = ((plane.rows[(u as i32 + o[2].0) as usize] >> (v as i32 + o[2].1)) & 1) as u8;
+    for (corner, offset) in offsets.iter().enumerate().take(4) {
+        let corner_bit = ((plane.rows[(u as i32 + offset[0].0) as usize] >> (v as i32 + offset[0].1)) & 1) as u8;
+        let side1_bit = ((plane.rows[(u as i32 + offset[1].0) as usize] >> (v as i32 + offset[1].1)) & 1) as u8;
+        let side2_bit = ((plane.rows[(u as i32 + offset[2].0) as usize] >> (v as i32 + offset[2].1)) & 1) as u8;
 
         let idx = ((corner_bit << 2) | (side1_bit << 1) | side2_bit) as usize;
         packed |= AO_TABLE[idx] << (6 - 2 * corner);
@@ -878,8 +876,8 @@ fn mesh_axis(solidity: &ChunkSolidity, axis: Axis, vertices: &mut Vec<Vertex>, o
             }
         }
         if !has_faces {
-            for r in 0..CHUNK {
-                present[r] = 0;
+            for r in present.iter_mut().take(CHUNK) {
+                *r = 0;
             }
             std::mem::swap(&mut lo, &mut hi);
             continue;
@@ -1018,8 +1016,8 @@ fn mesh_axis(solidity: &ChunkSolidity, axis: Axis, vertices: &mut Vec<Vertex>, o
 
                 // Les cellules du rectangle sont visitées.
                 let cleared = !(((1u64 << height) - 1) << v) as u32;
-                for rr in u..u + width {
-                    present[rr] &= cleared;
+                for rr in present.iter_mut().skip(u).take(width) {
+                    *rr &= cleared;
                 }
 
                 v += height;
@@ -1088,8 +1086,8 @@ pub fn make_greedy_chunk(
                 }
             }
             if !has_faces {
-                for r in 0..CHUNK {
-                    present_arr[r] = 0;
+                for r in present_arr.iter_mut().take(CHUNK) {
+                    *r = 0;
                 }
                 std::mem::swap(&mut lo, &mut hi);
                 continue;
@@ -1210,8 +1208,8 @@ pub fn make_greedy_chunk(
                     }
                     t_emit += t_e0.elapsed().as_nanos();
                     let cleared = !(((1u64 << height) - 1) << v) as u32;
-                    for rrc in u..u + width {
-                        present_arr[rrc] &= cleared;
+                    for rrc in present_arr.iter_mut().skip(u).take(width) {
+                        *rrc &= cleared;
                     }
                     v += height;
                 }
@@ -1238,7 +1236,7 @@ pub fn make_greedy_chunk(
         };
         MESH_HIST_IDX = (idx + 1) % MESH_HIST_LEN;
         // update stats total
-        let mut s = &mut MESH_STAT_TOTAL;
+        let s = &mut MESH_STAT_TOTAL;
         s.count += 1;
         s.sum_nanos += total_n;
         s.last_nanos = total_n;
@@ -1248,7 +1246,7 @@ pub fn make_greedy_chunk(
         if total_n > s.max_nanos {
             s.max_nanos = total_n;
         }
-        let mut sp = &mut MESH_STAT_PREP;
+        let sp = &mut MESH_STAT_PREP;
         sp.count += 1;
         sp.sum_nanos += t_prep;
         sp.last_nanos = t_prep;
@@ -1258,7 +1256,7 @@ pub fn make_greedy_chunk(
         if t_prep > sp.max_nanos {
             sp.max_nanos = t_prep;
         }
-        let mut sm = &mut MESH_STAT_MASK;
+        let sm = &mut MESH_STAT_MASK;
         sm.count += 1;
         sm.sum_nanos += t_mask;
         sm.last_nanos = t_mask;
@@ -1268,7 +1266,7 @@ pub fn make_greedy_chunk(
         if t_mask > sm.max_nanos {
             sm.max_nanos = t_mask;
         }
-        let mut sa = &mut MESH_STAT_AO;
+        let sa = &mut MESH_STAT_AO;
         sa.count += 1;
         sa.sum_nanos += t_ao;
         sa.last_nanos = t_ao;
@@ -1278,7 +1276,7 @@ pub fn make_greedy_chunk(
         if t_ao > sa.max_nanos {
             sa.max_nanos = t_ao;
         }
-        let mut sr = &mut MESH_STAT_RECT;
+        let sr = &mut MESH_STAT_RECT;
         sr.count += 1;
         sr.sum_nanos += t_rect;
         sr.last_nanos = t_rect;
@@ -1288,7 +1286,7 @@ pub fn make_greedy_chunk(
         if t_rect > sr.max_nanos {
             sr.max_nanos = t_rect;
         }
-        let mut se = &mut MESH_STAT_EMIT;
+        let se = &mut MESH_STAT_EMIT;
         se.count += 1;
         se.sum_nanos += t_emit;
         se.last_nanos = t_emit;
@@ -1298,7 +1296,7 @@ pub fn make_greedy_chunk(
         if t_emit > se.max_nanos {
             se.max_nanos = t_emit;
         }
-        let mut so = &mut MESH_STAT_OTHER;
+        let so = &mut MESH_STAT_OTHER;
         so.count += 1;
         so.sum_nanos += MESH_HIST_OTHER[(idx + MESH_HIST_LEN - 1) % MESH_HIST_LEN];
         so.last_nanos = so.sum_nanos;

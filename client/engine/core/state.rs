@@ -15,9 +15,9 @@ use crate::{
         debug::DebugRenderResources,
         manager::RenderManager,
         options::RenderOptions,
-        render::Renderer,
         text::{text_renderer::FPS_UPDATE_DELAY, TextRenderer},
         ui::render::UiRenderer,
+        Renderer,
     },
 };
 use game::world::data::chunk::CHUNK_SIZE_F;
@@ -205,7 +205,6 @@ impl State {
         ui_renderer.update_proj(size.width, size.height);
 
         let renderer = Renderer::new(
-            false,
             render_options,
             render_manager,
             texture_manager,

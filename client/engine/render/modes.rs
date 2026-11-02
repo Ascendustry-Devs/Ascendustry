@@ -2,8 +2,9 @@ use std::fmt::{Display, Formatter, Result};
 
 #[repr(C)]
 #[allow(unused)]
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum RenderMode {
+    #[default]
     Opaque = 0,
     AlphaCutout = 1,
     Translucent = 2,
@@ -26,11 +27,5 @@ impl Display for RenderMode {
             Self::Billboard => "RenderMode::Billboard",
             Self::UI => "RenderMode::UI",
         })
-    }
-}
-
-impl Default for RenderMode {
-    fn default() -> Self {
-        Self::Opaque
     }
 }

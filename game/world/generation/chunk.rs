@@ -51,9 +51,9 @@ impl Chunk {
 
         let ore_count = ctx.get_ore_count().min(32);
         let mut ore_ids: [Option<BlockId>; 32] = [None; 32];
-        for i in 0..ore_count {
+        for (i, ore_id) in ore_ids.iter_mut().enumerate().take(ore_count) {
             if let Some(config) = ctx.get_ore_config(i) {
-                ore_ids[i] = blocks.get_block_by_string(config.block_id.clone()).map(|b| b.get_id());
+                *ore_id = blocks.get_block_by_string(config.block_id.clone()).map(|b| b.get_id());
             }
         }
 
@@ -172,8 +172,8 @@ impl Chunk {
                 let y1 = (config.depth_max - cwy).min(CHUNK_SIZE - 1);
                 if y0 <= y1 {
                     let bit = 1u32 << i;
-                    for y in (y0 as usize)..=(y1 as usize) {
-                        active_ores_by_y[y] |= bit;
+                    for active_ore_by_y in active_ores_by_y.iter_mut().take(y1 as usize + 1).skip(y0 as usize) {
+                        *active_ore_by_y |= bit;
                     }
                 }
             }

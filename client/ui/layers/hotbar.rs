@@ -68,7 +68,7 @@ impl UiLayer for HotbarLayer {
             slots.push(slot);
         }
 
-        HotbarLayout { transform, slots: slots }
+        HotbarLayout { transform, slots }
     }
 
     fn draw(&self, layout: &Self::Layout) -> Vec<DrawCommand> {
@@ -100,7 +100,7 @@ impl UiLayer for HotbarLayer {
 
             if let Some(view) = slot_view {
                 let transform = slot_layout.icon;
-                let texture = view.texture.clone();
+                let texture = view.texture;
                 commands.push(DrawCommand::TexturedPanel { transform, texture });
             }
         }

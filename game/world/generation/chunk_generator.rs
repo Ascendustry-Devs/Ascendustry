@@ -282,16 +282,18 @@ impl ChunkGenContext {
             }
 
             // 1. Échantillonner la grille pour le minerai i — uniquement les couches utiles
+            let scale = config.noise_scale;
+            let cell = ORE_CELL_SIZE as i32;
+            let sample_grid = &mut sample_grids[i];
             for gx in 0..ORE_GRID_POINTS {
-                let wx = (cwx + (gx as i32) * ORE_CELL_SIZE as i32) as f64;
-                let nx = wx * config.noise_scale;
+                let nx = ((cwx + gx as i32 * cell) as f64) * scale;
+                let grid_x = &mut sample_grid[gx];
                 for gz in 0..ORE_GRID_POINTS {
-                    let wz = (cwz + (gz as i32) * ORE_CELL_SIZE as i32) as f64;
-                    let nz = wz * config.noise_scale;
+                    let nz = ((cwz + gz as i32 * cell) as f64) * scale;
+                    let grid_xz = &mut grid_x[gz];
                     for gy in ore_gy_min..=gy_top {
-                        let wy = (cwy + (gy as i32) * ORE_CELL_SIZE as i32) as f64;
-                        let ny = wy * config.noise_scale;
-                        sample_grids[i][gx][gz][gy] = noise.get([nx, ny, nz]) as f32;
+                        let ny = ((cwy + gy as i32 * cell) as f64) * scale;
+                        grid_xz[gy] = noise.get([nx, ny, nz]) as f32;
                     }
                 }
             }

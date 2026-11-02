@@ -13,7 +13,7 @@ impl Widget for Panel {
 
     fn draw(&self, commands: &mut Vec<DrawCommand>) {
         commands.push(DrawCommand::Panel {
-            transform: self.transform.clone(),
+            transform: self.transform,
             color: self.color,
         });
         if let Some(child) = self.child.as_ref() {

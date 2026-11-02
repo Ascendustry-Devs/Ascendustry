@@ -16,8 +16,8 @@ impl Widget for TexturedPanel {
 
     fn draw(&self, commands: &mut Vec<DrawCommand>) {
         commands.push(DrawCommand::TexturedPanel {
-            transform: self.transform.clone(),
-            texture: self.texture.clone(),
+            transform: self.transform,
+            texture: self.texture,
         });
         if let Some(child) = self.child.as_ref() {
             child.draw(commands);

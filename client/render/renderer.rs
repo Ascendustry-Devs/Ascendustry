@@ -2,7 +2,7 @@ use std::{collections::HashSet, ops::ControlFlow};
 
 use bytemuck::cast_slice;
 use cgmath::{Matrix4, Vector3};
-use engine::{core::frame::GameFrameData, geometry::vertex::generate_cube, render::render::Renderer};
+use engine::{core::frame::GameFrameData, geometry::vertex::generate_cube, render::Renderer};
 use game::{constants::CHUNK_VECTOR, world::data::chunk::CHUNK_SIZE_F};
 use physics::aabb::AABB;
 use project_core::math::geometry::plane::Plane;

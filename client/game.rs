@@ -3,8 +3,8 @@ use crate::{
     network::NetworkManager,
     player::{
         controllers::{spectator::FreeCameraController, walk::WalkPlayerController},
-        player::Player,
         remote_players::RemotePlayersManager,
+        Player,
     },
     render::{meshing::world::WorldMesh, renderer::GameRenderer},
     systems::{inputs::InputState, texture_registry::TextureRegistry},
@@ -14,7 +14,7 @@ use crate::{
         layers::hotbar::HotbarLayer,
         ClientUI,
     },
-    world::{mesh_request::MeshRequestMessage, world::World},
+    world::{mesh_request::MeshRequestMessage, World},
 };
 use engine::{
     audio::GameAudioManager,
@@ -24,11 +24,11 @@ use engine::{
     },
     gpu::{allocator::gpu_allocator::GpuAllocator, textures::id::TextureId},
     render::{
-        render::Renderer,
         ui::{
             interpreter::{compiler::UiCompiler, translator::UiTranslator},
             widgets::{textured_panel::TexturedPanel, Widget, WidgetTransform},
         },
+        Renderer,
     },
 };
 use game::world::{
@@ -41,7 +41,7 @@ use game::world::{
 };
 use network::messages::{new_save_request_paquet, ContenuPaquet};
 use std::{
-    mem,
+    mem::take,
     process::exit,
     sync::{Arc, RwLock},
     time::Duration,
@@ -269,24 +269,22 @@ impl GameState {
                 let c_usize = count as usize;
                 let n = if c_usize < MESH_HIST_LEN { c_usize } else { MESH_HIST_LEN };
                 let mut tmp = [0u128; MESH_HIST_LEN];
-                for i in 0..n {
-                    tmp[i] = hist[i];
-                }
+                tmp[..n].copy_from_slice(&hist[..n]);
                 let slice = &mut tmp[0..n];
-                slice.sort_unstable_by(|a, b| a.cmp(b));
+                slice.sort_unstable();
                 let med = slice[n / 2];
                 // mean
                 let mut sum: u128 = 0;
-                for i in 0..n {
-                    sum += slice[i];
+                for element in slice.iter().take(n) {
+                    sum += element;
                 }
                 let mean = (sum as f64) / (n as f64);
                 let mut var: f64 = 0.0;
-                for i in 0..n {
-                    let d = (slice[i] as f64) - mean;
+                for element in slice.iter().take(n) {
+                    let d = (*element as f64) - mean;
                     var += d * d;
                 }
-                var = var / (n as f64);
+                var /= n as f64;
                 (med, var.sqrt())
             }
             unsafe fn print_stat(name: &str, s: &MeshTimeStats, hist: &[u128; MESH_HIST_LEN]) {
@@ -310,9 +308,9 @@ impl GameState {
                 );
             }
             unsafe {
-                let time_spent_preparing_nanos = TIME_SPENT_PREPARING_NANOS.clone();
-                let time_spent_meshing_nanos = TIME_SPENT_MESHING_NANOS.clone();
-                let chunks_meshed = CHUNKS_MESHED.clone();
+                let time_spent_preparing_nanos = TIME_SPENT_PREPARING_NANOS;
+                let time_spent_meshing_nanos = TIME_SPENT_MESHING_NANOS;
+                let chunks_meshed = CHUNKS_MESHED;
                 println!("==== MESH PROFILER (touche O) ====");
                 println!(
                     "Global: preparing={}ns meshing={}ns chunks={}",
@@ -353,23 +351,21 @@ impl GameState {
                 let c_usize = count as usize;
                 let n = if c_usize < GEN_HIST_LEN { c_usize } else { GEN_HIST_LEN };
                 let mut tmp = [0u128; GEN_HIST_LEN];
-                for i in 0..n {
-                    tmp[i] = hist[i];
-                }
+                tmp[..n].copy_from_slice(&hist[..n]);
                 let slice = &mut tmp[0..n];
-                slice.sort_unstable_by(|a, b| a.cmp(b));
+                slice.sort_unstable();
                 let med = slice[n / 2];
                 let mut sum: u128 = 0;
-                for i in 0..n {
-                    sum += slice[i];
+                for element in slice.iter().take(n) {
+                    sum += element;
                 }
                 let mean = (sum as f64) / (n as f64);
                 let mut var: f64 = 0.0;
-                for i in 0..n {
-                    let d = (slice[i] as f64) - mean;
+                for element in slice.iter().take(n) {
+                    let d = (*element as f64) - mean;
                     var += d * d;
                 }
-                var = var / (n as f64);
+                var /= n as f64;
                 (med, var.sqrt())
             }
             unsafe fn print_stat(name: &str, s: &game::world::generation::profiler::GenTimeStats, hist: &[u128; GEN_HIST_LEN]) {
@@ -434,7 +430,7 @@ impl GameState {
     ) -> (Vec<network::messages::Paquet>, MeshRequestMessage) {
         let network_commands = self.player.update(frame.dt, &mut self.world, &mut self.inputs);
         let mesh_request = self.world.update(mesh_manager, &mut self.world_mesh, &self.player);
-        let mesh_request = mem::replace(mesh_request, MeshRequestMessage::empty());
+        let mesh_request = take(mesh_request);
         (network_commands, mesh_request)
     }
 
@@ -607,7 +603,7 @@ impl AppState for GameState {
 
         self.delay_s -= DT_CAP;
 
-        self.update_debug_commands(&mut renderer.render_manager.world_buffer);
+        self.update_debug_commands(&renderer.render_manager.world_buffer);
 
         self.update_physics(frame);
 
@@ -626,7 +622,7 @@ impl AppState for GameState {
             &self.player,
             &self.remote_players,
             self.textures_registry.as_ref().unwrap().as_ref(),
-            &frame,
+            frame,
         );
 
         self.ui.update(&ctx);

@@ -150,7 +150,7 @@ impl BlockManager {
             let item_str = block
                 .drop
                 .as_ref()
-                .or_else(|| if block.has_item { Some(&block.id_str) } else { None });
+                .or(if block.has_item { Some(&block.id_str) } else { None });
 
             if let Some(item_str) = item_str {
                 if let Some(item_id) = item_manager.get_id_by_string(item_str) {
@@ -165,7 +165,7 @@ impl BlockManager {
         let item_str = block
             .drop
             .as_ref()
-            .or_else(|| if block.has_item { Some(&block.id_str) } else { None })?;
+            .or(if block.has_item { Some(&block.id_str) } else { None })?;
         item_manager.get_id_by_string(item_str).map(ItemInstance::new)
     }
 

@@ -5,9 +5,9 @@ use game::{
 };
 
 use crate::{
-    player::{player::Player, remote_players::RemotePlayersManager},
+    player::{remote_players::RemotePlayersManager, Player},
     systems::texture_registry::TextureRegistry,
-    world::world::World,
+    world::World,
 };
 
 pub struct WorldBrowser<'a> {
@@ -93,7 +93,7 @@ impl<'a> AssetBrowser<'a> {
     pub fn get_item_texture(&self, item_id: &ItemId) -> TextureId {
         self.textures
             .get_item_texture(item_id)
-            .map_or_default(|texture_id| texture_id.clone())
+            .map_or_default(|texture_id| *texture_id)
         // return 0;
         // todo!("Implémenter un Index des textures GPUs sur le TextureManager puis le connecter ici")
     }

@@ -1,6 +1,6 @@
 use crate::render::modes::RenderMode;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Default, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct TextureId {
     render_mode: RenderMode,
     id: u32,
@@ -17,14 +17,5 @@ impl TextureId {
 
     pub const fn id(&self) -> u32 {
         self.id
-    }
-}
-
-impl Default for TextureId {
-    fn default() -> Self {
-        Self {
-            render_mode: Default::default(),
-            id: Default::default(),
-        }
     }
 }

@@ -9,7 +9,7 @@ use crate::ui::{
 };
 
 pub struct HotbarAdapter<'a> {
-    phantom: &'a PhantomData<u32>,
+    phantom: PhantomData<&'a ()>,
 }
 
 impl<'a> UiAdapter for HotbarAdapter<'a> {

@@ -52,6 +52,12 @@ where
         self.forward.len()
     }
 
+    #[must_use]
+    /// Checks if there is no `entry`.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns whether or not `key` is present.
     pub fn contains_key(&self, key: &A) -> bool {
         self.forward.contains_key(key)
