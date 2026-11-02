@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use game::inventory::Inventory;
 
 use crate::ui::{
@@ -6,16 +8,19 @@ use crate::ui::{
     views::hotbar::{HotbarView, SlotView},
 };
 
-pub struct HotbarAdapter;
+pub struct HotbarAdapter<'a> {
+    phantom: &'a PhantomData<u32>,
+}
 
-impl UiAdapter for HotbarAdapter {
-    type Input = Inventory;
+impl<'a> UiAdapter for HotbarAdapter<'a> {
+    type Input = (&'a Inventory, usize);
     type Output = HotbarView;
 
     fn adapt(input: Self::Input, ctx: &UiContext) -> Self::Output {
+        let (inventory, selected) = input;
         let slots = (0..8)
             .map(|i| {
-                input.get_slot(i).map(|stack| {
+                inventory.get_slot(i).map(|stack| {
                     let item_id = stack.item().get_item().get_id();
                     let icon = ctx.assets.get_item_texture(item_id);
                     let quantity = stack.quantity();
@@ -27,6 +32,6 @@ impl UiAdapter for HotbarAdapter {
             })
             .collect();
 
-        HotbarView { slots: slots }
+        HotbarView { slots, selected }
     }
 }

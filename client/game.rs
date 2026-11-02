@@ -8,7 +8,12 @@ use crate::{
     },
     render::{meshing::world::WorldMesh, renderer::GameRenderer},
     systems::inputs::InputState,
-    ui::ClientUI,
+    ui::{
+        adapters::{hotbar::HotbarAdapter, UiAdapter},
+        context::{AssetBrowser, PlayerBrowser, TechnicalBrowser, UiContext, WorldBrowser},
+        layers::hotbar::HotbarLayer,
+        ClientUI,
+    },
     world::{mesh_request::MeshRequestMessage, world::World},
 };
 use engine::{
@@ -17,7 +22,7 @@ use engine::{
         application::AppState,
         frame::{EngineFrameData, GameFrameData},
     },
-    gpu::allocator::gpu_allocator::GpuAllocator,
+    gpu::{allocator::gpu_allocator::GpuAllocator, textures::manager::TextureManager},
     render::{
         render::Renderer,
         ui::{
@@ -165,6 +170,15 @@ impl GameState {
             network: Some(network),
             ui: Default::default(),
             last_save_request: Instant::now(),
+        }
+    }
+
+    fn get_context<'a>(&'a self, textures: &'a TextureManager, frame: &'a EngineFrameData) -> UiContext<'a> {
+        UiContext {
+            world: WorldBrowser::new(&self.world),
+            players: PlayerBrowser::new(&self.player, &self.remote_players),
+            assets: AssetBrowser::new(textures),
+            system: TechnicalBrowser::new(frame),
         }
     }
 
@@ -556,7 +570,16 @@ impl AppState for GameState {
         let tex_lookup = self.world.get_texture_lookup();
         self.world_mesh.set_texture_lookup(tex_lookup);
 
+        let frame = EngineFrameData::default();
+        let ctx = self.get_context(&renderer.texture_manager, &frame);
+        let hotbar = HotbarLayer {
+            cols: 8,
+            spacing: 2,
+            view: HotbarAdapter::adapt((&self.player.state.inventory, self.player.state.selected_slot), &ctx),
+        };
+
         self.ui = ClientUI::new();
+        self.ui.add_layer(Box::new(hotbar));
 
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {
@@ -595,13 +618,14 @@ impl AppState for GameState {
 
         self.update_network(network_commands);
 
-        let item_manager = self.world.get_item_manager();
-        self.ui.update(
-            &self.player.state.inventory,
-            self.player.state.selected_slot,
-            renderer,
-            &item_manager.read().unwrap(),
-        );
+        // let item_manager = self.world.get_item_manager();
+        let _ctx = self.get_context(&renderer.texture_manager, frame);
+        // self.ui.update();
+
+        let surface_config = &renderer.gpu_context.config;
+        let available_space = (surface_config.width, surface_config.height);
+        self.ui
+            .submit(&available_space, &mut renderer.ui_renderer, &renderer.texture_manager);
         let mesh_manager = &mut renderer.render_manager.world_buffer;
 
         let mut responses = self.world_mesh.update(mesh_manager, &mut mesh_request);

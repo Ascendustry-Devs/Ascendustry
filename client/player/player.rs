@@ -38,7 +38,7 @@ pub struct PlayerState {
     pub camera_controller: Box<dyn CameraController>,
     pub player_controller: Box<dyn PlayerController>,
     pub camera: Camera,
-    pub selected_slot: u32,
+    pub selected_slot: usize,
 }
 
 impl PlayerState {
@@ -77,9 +77,9 @@ impl PlayerState {
         if scroll != 0.0 {
             const SLOT_COUNT: u32 = 8;
             if scroll > 0.0 {
-                self.selected_slot = (self.selected_slot + SLOT_COUNT - 1) % SLOT_COUNT;
+                self.selected_slot = ((self.selected_slot as u32 + SLOT_COUNT - 1) % SLOT_COUNT) as usize;
             } else {
-                self.selected_slot = (self.selected_slot + 1) % SLOT_COUNT;
+                self.selected_slot = ((self.selected_slot as u32 + 1) % SLOT_COUNT) as usize;
             }
         }
 

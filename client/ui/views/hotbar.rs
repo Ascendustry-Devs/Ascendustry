@@ -9,6 +9,7 @@ pub struct SlotView {
 #[derive(Debug)]
 pub struct HotbarView {
     pub slots: Vec<Option<SlotView>>,
+    pub selected: usize,
 }
 
 impl UiView for HotbarView {}

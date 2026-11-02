@@ -480,6 +480,11 @@ impl World {
         // TODO: faire fonctionner -> self.block_manager.dispose();
         self.chunk_generator.dispose();
     }
+
+    pub fn get_block_registry<'a>(&self) -> &'a BlockManager {
+        // &self.block_manager
+        todo!()
+    }
 }
 
 impl CollisionWorld for World {

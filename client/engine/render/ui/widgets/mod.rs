@@ -7,7 +7,7 @@ pub mod panel;
 pub mod textured_panel;
 // pub mod window;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct WidgetTransform {
     x: u32,
     y: u32,
