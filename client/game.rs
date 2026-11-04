@@ -9,9 +9,9 @@ use crate::{
     render::{meshing::world::WorldMesh, renderer::GameRenderer},
     systems::{inputs::InputState, texture_registry::TextureRegistry},
     ui::{
-        adapters::{hotbar::HotbarAdapter, UiAdapter},
+        adapters::{hotbar::HotbarAdapter, inventory::InventoryAdapter, UiAdapter},
         context::UiContext,
-        layers::hotbar::HotbarLayer,
+        layers::{hotbar::HotbarLayer, inventory::InventoryLayer},
         ClientUI,
     },
     world::{mesh_request::MeshRequestMessage, World},
@@ -575,8 +575,16 @@ impl AppState for GameState {
             view: HotbarAdapter::adapt((&self.player.state.inventory, self.player.state.selected_slot), &ctx),
         };
 
+        let inventory = InventoryLayer {
+            cols: 8,
+            rows: 4,
+            spacing: 4,
+            view: InventoryAdapter::adapt((&self.player.state.inventory, self.player.state.selected_slot), &ctx),
+        };
+
         self.ui = ClientUI::new();
-        self.ui.add_layer(Box::new(hotbar));
+        self.ui.push_layer(Box::new(hotbar));
+        self.ui.push_layer(Box::new(inventory));
 
         if let Some(ref mut audio) = audio_manager {
             if let Err(e) = audio.play_main_theme() {

@@ -1,6 +1,8 @@
 use crate::ui::context::UiContext;
 
 pub mod hotbar;
+pub mod inventory;
+pub mod slot;
 
 pub trait UiView {}
 

@@ -1,4 +1,5 @@
 pub mod hotbar;
+pub mod inventory;
 
 use std::{any::Any, fmt::Debug};
 
@@ -6,7 +7,7 @@ use engine::render::ui::widgets::DrawCommand;
 
 use crate::ui::{context::UiContext, layouts::UiLayout};
 
-pub trait UiLayer: Debug + Clone {
+pub trait UiLayer: Debug {
     type Layout: UiLayout;
 
     fn update(&mut self, _ctx: &UiContext) {}

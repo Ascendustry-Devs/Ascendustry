@@ -195,12 +195,16 @@ impl Inventory {
     }
 
     /// Supprime un item de l'inventaire à partir d'un slot spécifié.
-    pub fn remove_item(&mut self, _item: ItemData, quantity: u32, selected_slot: usize) {
+    pub fn remove_item(&mut self, _item: ItemData, quantity: u32, selected_slot: usize) -> Option<ItemStack> {
         if let Some(slot) = self.slot_data.get_mut(selected_slot) {
             slot.remove(quantity);
+            let updated_slot = slot.clone();
             if slot.quantity == 0 {
                 self.slot_data.remove(selected_slot);
             }
+            Some(updated_slot)
+        } else {
+            None
         }
     }
 
@@ -226,7 +230,11 @@ impl Inventory {
                 while slot.index >= self.slot_data.len() {
                     self.slot_data.push(ItemStack::empty());
                 }
-                self.slot_data[slot.index] = slot.item;
+                if slot.item.quantity == 0 {
+                    self.slot_data.remove(slot.index);
+                } else {
+                    self.slot_data[slot.index] = slot.item;
+                }
             }
         }
     }

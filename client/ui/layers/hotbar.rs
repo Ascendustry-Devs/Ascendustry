@@ -4,7 +4,7 @@ use crate::ui::{
     adapters::{hotbar::HotbarAdapter, UiAdapter},
     context::UiContext,
     layers::UiLayer,
-    layouts::hotbar::{HotbarLayout, SlotLayout},
+    layouts::{hotbar::HotbarLayout, slot::SlotLayout},
     views::hotbar::HotbarView,
 };
 

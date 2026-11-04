@@ -15,7 +15,7 @@ use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     SPECTATOR_FLY_SPEED, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use game::inventory::{Inventory, ItemData, ItemRules, DEFAULT_INVENTORY_SIZE};
+use game::inventory::{Inventory, ItemData, ItemRules, SlotData, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
 use game::world::data::block::BlockInstance;
@@ -143,8 +143,15 @@ impl PlayerState {
             let item = world.block_to_item(&block.get_block_id());
             if let Some(item) = item {
                 log_client!("Retrait de l'item id n°{:?} de l'inventaire", item.id);
-                self.inventory.remove_item(ItemData::new(item, None), 1, self.selected_slot);
-                // commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
+                if let Some(updated_stack) = self.inventory.remove_item(ItemData::new(item, None), 1, self.selected_slot) {
+                    commands.push(new_inventory_update_paquet(
+                        self.player_id,
+                        vec![SlotData {
+                            index: self.selected_slot,
+                            item: updated_stack,
+                        }],
+                    ));
+                }
             }
 
             let success = world.set_block(dx, uy, vz, block);
