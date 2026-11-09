@@ -15,3 +15,9 @@ impl<T> From<Rot3<T>> for Pos3<T> {
         Self(value.0)
     }
 }
+
+impl From<&Pos3<f32>> for (f32, f32, f32) {
+    fn from(value: &Pos3<f32>) -> Self {
+        (*value.x(), *value.y(), *value.z())
+    }
+}

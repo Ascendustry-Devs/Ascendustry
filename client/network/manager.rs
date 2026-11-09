@@ -22,6 +22,7 @@
 //! Cela évite de saturer le réseau avec des mises à jour trop fréquentes.
 
 use crate::network::protocol::GameProtocol;
+use game::types::{Position, Rotation};
 use game::{inventory::SlotData, player::PlayerGameMode};
 use log::{error, info};
 use network::messages::Paquet;
@@ -131,14 +132,14 @@ impl NetworkManager {
     ///
     /// * `x, y, z` - Position du joueur
     /// * `rx, ry` - Rotation du joueur
-    pub fn send_position(&mut self, x: f32, y: f32, z: f32, rx: f32, ry: f32) -> Result<(), String> {
+    pub fn send_position(&mut self, position: Position, rotation: Rotation) -> Result<(), String> {
         let now = Instant::now();
 
         // Vérifier si assez de temps s'est écoulé
         if now.duration_since(self.last_send) >= POSITION_UPDATE_INTERVAL {
             if let Some(protocol) = &self.protocol {
                 // Créer le paquet de position
-                let packet = protocol.create_position_update(x, y, z, rx, ry);
+                let packet = protocol.create_position_update(position, rotation);
 
                 // Envoyer via la connexion
                 self.connection.send_packet(packet)?;

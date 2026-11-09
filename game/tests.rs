@@ -1,10 +1,16 @@
 #[cfg(test)]
 mod tests {
+    use project_core::general_types::vec3::Vec3;
+
     use crate::constants::DIRECT_NORMALS_3D;
+    use crate::types::Position;
+    use crate::world::chunk_position::ChunkPosition;
     use crate::world::data::block::{BlockId, BlockInstance, BlockManager};
-    use crate::world::data::chunk::{global_position_to_chunk_pos, Chunk, ChunkData, ChunkState, IntraChunkCoords};
+    use crate::world::data::chunk::{global_position_to_chunk_pos, Chunk, ChunkData, ChunkState};
+    use crate::world::local_position::LocalPosition;
     use crate::world::modified_chunk::{ModifiedChunk, ModifiedWorld};
     use crate::world::raycast::voxel_raycast;
+    use crate::world::world_position::WorldPosition;
 
     #[test]
     fn test_block_instance() {
@@ -71,7 +77,7 @@ mod tests {
 
     #[test]
     fn test_chunk_range() {
-        let range = Chunk::get_cube_chunk_range((0, 0, 0), 5, 3);
+        let range = Chunk::get_cube_chunk_range(&ChunkPosition::new(0, 0, 0), 5, 3);
         assert_eq!(range, [-2, 2, -1, 1, -2, 2]);
     }
 
@@ -94,11 +100,11 @@ mod tests {
     #[test]
     fn test_modified_chunk() {
         let mut mc = ModifiedChunk::new();
-        let coords = IntraChunkCoords { x: 5, y: 10, z: 15 };
+        let coords = LocalPosition::new(5, 10, 15);
         let stone = BlockInstance::new(BlockId(3));
 
         assert!(mc.get_block_at(&coords).is_none());
-        mc.set_block_at(coords, stone);
+        mc.set_block_at(&coords, stone);
         assert_eq!(mc.get_block_at(&coords), Some(&stone));
     }
 
@@ -107,31 +113,27 @@ mod tests {
         let mut mw = ModifiedWorld::new();
         let stone = BlockInstance::new(BlockId(3));
 
-        mw.set_block_at(5, 10, 15, stone);
-        assert_eq!(mw.get_block_at(5, 10, 15), Some(&stone));
-        assert!(mw.get_block_at(0, 0, 0).is_none());
+        mw.set_block_at(&WorldPosition::new(5, 10, 15), stone);
+        assert_eq!(mw.get_block_at(&WorldPosition::new(5, 10, 15)), Some(&stone));
+        assert!(mw.get_block_at(&WorldPosition::new(0, 0, 0)).is_none());
     }
 
     #[test]
     fn test_voxel_raycast_no_hit() {
-        use cgmath::{Point3, Vector3};
-
-        let origin = Point3::new(0.0, 0.0, 0.0);
-        let direction = Vector3::new(0.0, 1.0, 0.0);
-        let result = voxel_raycast(&origin, &direction, 10.0, |_, _, _| false);
+        let origin = Position::new(0.0, 0.0, 0.0);
+        let direction = Vec3::new(0.0, 1.0, 0.0);
+        let result = voxel_raycast(&origin, &direction, 10.0, |_| false);
         assert!(result.is_none());
     }
 
     #[test]
     fn test_voxel_raycast_hit() {
-        use cgmath::{Point3, Vector3};
-
-        let origin = Point3::new(0.5, 0.5, 0.5);
-        let direction = Vector3::new(1.0, 0.0, 0.0);
-        let result = voxel_raycast(&origin, &direction, 10.0, |x, _, _| x > 2);
+        let origin = Position::new(0.5, 0.5, 0.5);
+        let direction = Vec3::new(1.0, 0.0, 0.0);
+        let result = voxel_raycast(&origin, &direction, 10.0, |position| position.x() > 2);
         assert!(result.is_some());
         let hit = result.unwrap();
-        assert!(hit.block_pos.0 >= 3);
+        assert!(hit.block_pos.x() >= 3);
     }
 
     #[test]
@@ -150,8 +152,9 @@ mod tests {
             bm.register(block);
         }
         let bm = Arc::new(RwLock::new(bm));
-        let chunk1 = Chunk::generate(Arc::clone(&bm), 0, 2, 0, 42);
-        let chunk2 = Chunk::generate(Arc::clone(&bm), 0, 2, 0, 42);
+        let position = ChunkPosition::new(0, 2, 0);
+        let chunk1 = Chunk::generate(Arc::clone(&bm), &position, 42);
+        let chunk2 = Chunk::generate(Arc::clone(&bm), &position, 42);
         assert_eq!(chunk1.blocks, chunk2.blocks);
     }
 
@@ -220,7 +223,11 @@ mod tests {
 
         // Les constantes d'axe doivent refléter exactement la taille du cube
         // réellement produit par `get_cube_chunk_range`.
-        let render = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE);
+        let render = Chunk::get_cube_chunk_range(
+            &ChunkPosition::new(0, 0, 0),
+            HORIZONTAL_RENDER_DISTANCE,
+            VERTICAL_RENDER_DISTANCE,
+        );
         assert_eq!(
             render[1] - render[0] + 1,
             horizontal_chunk_axis_count(HORIZONTAL_RENDER_DISTANCE) as i32
@@ -234,7 +241,11 @@ mod tests {
             horizontal_chunk_axis_count(HORIZONTAL_RENDER_DISTANCE) as i32
         );
 
-        let simulation = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_SIMULATION_DISTANCE, VERTICAL_SIMULATION_DISTANCE);
+        let simulation = Chunk::get_cube_chunk_range(
+            &ChunkPosition::new(0, 0, 0),
+            HORIZONTAL_SIMULATION_DISTANCE,
+            VERTICAL_SIMULATION_DISTANCE,
+        );
         assert_eq!(
             simulation[1] - simulation[0] + 1,
             horizontal_chunk_axis_count(HORIZONTAL_SIMULATION_DISTANCE) as i32
@@ -261,8 +272,16 @@ mod tests {
 
         // Le cube de simulation doit contenir le cube de rendu, ainsi que la
         // coquille de voisins nécessaire au maillage (1 chunk de marge).
-        let render = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_RENDER_DISTANCE, VERTICAL_RENDER_DISTANCE);
-        let simulation = Chunk::get_cube_chunk_range((0, 0, 0), HORIZONTAL_SIMULATION_DISTANCE, VERTICAL_SIMULATION_DISTANCE);
+        let render = Chunk::get_cube_chunk_range(
+            &ChunkPosition::new(0, 0, 0),
+            HORIZONTAL_RENDER_DISTANCE,
+            VERTICAL_RENDER_DISTANCE,
+        );
+        let simulation = Chunk::get_cube_chunk_range(
+            &ChunkPosition::new(0, 0, 0),
+            HORIZONTAL_SIMULATION_DISTANCE,
+            VERTICAL_SIMULATION_DISTANCE,
+        );
 
         assert!(simulation[0] < render[0]);
         assert!(simulation[1] > render[1]);

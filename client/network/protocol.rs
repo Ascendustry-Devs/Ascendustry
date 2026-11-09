@@ -8,6 +8,7 @@
 use game::player::{PlayerGameMode, PlayerTransformation};
 use game::types::{Position, Rotation};
 use game::world::data::block::BlockInstance;
+use game::world::world_position::WorldPosition;
 use network;
 use network::messages;
 use network::messages::{ContenuPaquet, Paquet, TypePaquet};
@@ -49,14 +50,14 @@ impl GameProtocol {
     /// # Returns
     ///
     /// Un `Paquet` prêt à être envoyé
-    pub const fn create_position_update(&self, x: f32, y: f32, z: f32, rx: f32, ry: f32) -> Paquet {
+    pub const fn create_position_update(&self, position: Position, rotation: Rotation) -> Paquet {
         Paquet::new(
             TypePaquet::PlayerTransformation,
             ContenuPaquet::PlayerTransformation {
                 data: PlayerTransformation {
                     player_id: self.player_id,
-                    position: Position { x, y, z },
-                    rotation: Rotation { x: rx, y: ry },
+                    position,
+                    rotation,
                 },
             },
         )
@@ -80,15 +81,7 @@ impl GameProtocol {
         )
     }
 
-    pub const fn create_block_modification(x: i32, y: i32, z: i32, block: BlockInstance) -> Paquet {
-        Paquet::new(
-            TypePaquet::SetBlock,
-            ContenuPaquet::SetBlock {
-                x,
-                y,
-                z,
-                block_id: block.id,
-            },
-        )
+    pub const fn create_block_modification(position: WorldPosition, block: BlockInstance) -> Paquet {
+        Paquet::new(TypePaquet::SetBlock, ContenuPaquet::SetBlock { position, block })
     }
 }

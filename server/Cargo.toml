@@ -17,7 +17,6 @@ server = []
 tui = ["ratatui", "crossterm"]
 
 [dependencies]
-cgmath = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 clap = { workspace = true }

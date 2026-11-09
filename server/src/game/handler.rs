@@ -48,16 +48,14 @@ impl PacketHandler for ProductionHandler {
                 Some(packet)
             }
 
-            ContenuPaquet::SetBlock { x, y, z, block_id } => {
-                ctx.state.set_block(*x, *y, *z, *block_id).await;
+            ContenuPaquet::SetBlock { position, block } => {
+                ctx.state.set_block(position, *block).await;
 
                 let broadcast_packet = Paquet::new(
                     TypePaquet::SetBlock,
                     ContenuPaquet::SetBlock {
-                        x: *x,
-                        y: *y,
-                        z: *z,
-                        block_id: *block_id,
+                        position: *position,
+                        block: *block,
                     },
                 );
                 let _ = ctx.broadcaster.send(BroadcastMessage::AllExcept {

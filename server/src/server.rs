@@ -1,3 +1,4 @@
+use crate::broadcast::channel;
 use crate::client::ClientSession;
 use crate::config::ServerConfig;
 use crate::game::ProductionHandler;
@@ -37,16 +38,18 @@ pub struct Server {
 impl Server {
     pub async fn new(address: &str, save_path: &str, bridge: BridgeOption, config: ServerConfig) -> Result<Self> {
         let listener = TcpListener::bind(address).await?;
-        let state = Arc::new(AppState::new());
         let persistence = Arc::new(PersistenceService::new(save_path));
-        if let Ok(Some(data)) = persistence.load().await {
-            log_server!("Sauvegarde trouvée, restauration du monde.");
-            state.import_save(data).await;
-        } else {
-            log_server!("Aucune sauvegarde trouvée, création d'un nouveau monde.");
-            state.init_random_seed().await;
-        }
-        let (broadcaster, _) = crate::broadcast::channel();
+        let state = Arc::new(match persistence.load().await.ok().flatten() {
+            Some(save) => {
+                log_server!("Sauvegarde trouvée, restauration du monde.");
+                AppState::from_save(save)
+            }
+            None => {
+                log_server!("Aucune sauvegarde trouvée, création d'un nouveau monde.");
+                AppState::new(AppState::get_random_seed())
+            }
+        });
+        let (broadcaster, _) = channel();
         Ok(Self {
             listener,
             state,
@@ -74,6 +77,7 @@ impl Server {
 
         let state = Arc::clone(&self.state);
         let bc = self.broadcaster.clone();
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(GUARD_CYCLE_INTERVAL_MS));
             loop {

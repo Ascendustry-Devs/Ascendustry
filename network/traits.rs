@@ -35,7 +35,7 @@ pub trait PacketCodec: Clone + Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `stream` - Flux asyncrhone (typiquement un `TcpStream`)
+    /// * `stream` - Flux asynchrone (typiquement un `TcpStream`)
     /// * `packet` - Référence vers le paquet à envoyer
     ///
     /// # Returns

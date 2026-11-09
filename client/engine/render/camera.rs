@@ -1,13 +1,14 @@
-use cgmath::{Matrix4, SquareMatrix, Vector4};
 use game::world::data::chunk::{CHUNK_SIZE, CHUNK_SIZE_F};
-use project_core::general_types::updatable::Updatable;
+use project_core::general_types::{mat4::Mat4, updatable::Updatable};
 
 #[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::from_cols(
-    Vector4::new(1.0, 0.0, 0.0, 0.0),
-    Vector4::new(0.0, 1.0, 0.0, 0.0),
-    Vector4::new(0.0, 0.0, 0.5, 0.0),
-    Vector4::new(0.0, 0.0, 0.5, 1.0),
+pub const OPENGL_TO_WGPU_MATRIX: Mat4<f32> = Mat4::new(
+    [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 0.5, 0.0,
+        0.0, 0.0, 0.5, 1.0
+    ]
 );
 
 pub struct RenderCamera {
@@ -38,7 +39,7 @@ impl RenderCamera {
             cy: 0,
             cz: 0,
             cw: Updatable::new([0.0, 0.0, 0.0]),
-            view_proj: Updatable::new(Matrix4::identity().into()),
+            view_proj: Updatable::new(Mat4::zero().into()),
         }
     }
 

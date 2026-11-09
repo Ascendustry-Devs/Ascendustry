@@ -27,7 +27,7 @@ mod tests {
             ContenuPaquet::PlayerTransformation {
                 data: PlayerTransformation {
                     player_id: 42,
-                    position: Position { x: 1.0, y: 2.0, z: 3.0 },
+                    position: Position::new(1.0, 2.0, 3.0),
                     rotation: Rotation { x: 0.5, y: 0.1 },
                 },
             },
@@ -40,7 +40,7 @@ mod tests {
         match decoded.contenu {
             ContenuPaquet::PlayerTransformation { data } => {
                 assert_eq!(data.player_id, 42);
-                assert!((data.position.x - 1.0).abs() < 1e-6);
+                assert!((data.position.x() - 1.0).abs() < 1e-6);
             }
             _ => panic!("Wrong variant"),
         }

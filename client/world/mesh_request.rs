@@ -7,6 +7,7 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+use game::world::chunk_position::ChunkPosition;
 use game::world::data::chunk::Chunk;
 use game::world::scheduling::chunk_priority_sq;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
@@ -30,20 +31,20 @@ pub struct MeshSnapshot {
 }
 
 /// Réponse du monde de maillage : les coordonnées du chunk désormais maillé.
-pub type MeshResponse = (i32, i32, i32);
+pub type MeshResponse = ChunkPosition;
 
 /// Identifiant d'un chunk à supprimer du monde de maillage.
-pub type MeshRequestDelete = (i32, i32, i32);
+pub type MeshRequestDelete = ChunkPosition;
 
 /// Demande de maillage d'un chunk, accompagnée de l'instantané nécessaire.
 #[derive(Clone)]
 pub struct MeshRequestAdd {
-    pub coords: (i32, i32, i32),
+    pub coords: ChunkPosition,
     pub snapshot: MeshSnapshot,
 }
 
 impl MeshRequestAdd {
-    pub const fn new(coords: (i32, i32, i32), snapshot: MeshSnapshot) -> Self {
+    pub const fn new(coords: ChunkPosition, snapshot: MeshSnapshot) -> Self {
         Self { coords, snapshot }
     }
 }
@@ -76,9 +77,9 @@ impl Hash for MeshRequestAdd {
 #[derive(Default)]
 pub struct MeshRequestQueue {
     /// Coordonnées des chunks en attente, dans l'ordre de la file.
-    order: Vec<(i32, i32, i32)>,
+    order: Vec<ChunkPosition>,
     /// Instantané courant associé à chaque chunk en attente.
-    requests: FxHashMap<(i32, i32, i32), MeshRequestAdd>,
+    requests: FxHashMap<ChunkPosition, MeshRequestAdd>,
 }
 
 impl MeshRequestQueue {
@@ -139,12 +140,12 @@ impl MeshRequestQueue {
         self.order.is_empty()
     }
 
-    pub fn contains(&self, coords: &(i32, i32, i32)) -> bool {
+    pub fn contains(&self, coords: &ChunkPosition) -> bool {
         self.requests.contains_key(coords)
     }
 
     /// Retire une requête de la file. Renvoie la requête retirée, si elle existait.
-    pub fn remove(&mut self, coords: &(i32, i32, i32)) -> Option<MeshRequestAdd> {
+    pub fn remove(&mut self, coords: &ChunkPosition) -> Option<MeshRequestAdd> {
         let request = self.requests.remove(coords)?;
         self.order.retain(|c| c != coords);
         Some(request)
@@ -180,8 +181,8 @@ impl MeshRequestQueue {
     ///
     /// Le tri est **stable**, donc deux chunks de même priorité conservent
     /// leur ordre d'insertion : le comportement reste déterministe.
-    pub fn sort_by_priority(&mut self, player_chunk: (i32, i32, i32)) {
-        self.order.sort_by_key(|coords| chunk_priority_sq(*coords, player_chunk));
+    pub fn sort_by_priority(&mut self, player_chunk: &ChunkPosition) {
+        self.order.sort_by_key(|coords| chunk_priority_sq(coords, player_chunk));
     }
 
     pub fn clear(&mut self) {
@@ -246,28 +247,37 @@ mod tests {
     #[test]
     fn test_queue_preserves_insertion_order() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((2, 0, 0), make_snapshot(BlockId(1))));
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(2))));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(3))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(2, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(1, 0, 0), make_snapshot(BlockId(3))));
 
         let coords: Vec<_> = queue.drain().iter().map(|r| r.coords).collect();
-        assert_eq!(coords, vec![(2, 0, 0), (0, 0, 0), (1, 0, 0)]);
+        assert_eq!(
+            coords,
+            [(2, 0, 0), (0, 0, 0), (1, 0, 0)]
+                .map(|(x, y, z)| ChunkPosition::new(x, y, z))
+                .to_vec()
+        );
     }
 
     #[test]
     fn test_queue_upsert_replaces_snapshot_and_keeps_position() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(1, 0, 0), make_snapshot(BlockId(2))));
 
         // Ré-insertion du premier chunk avec un instantané plus récent.
-        let inserted = queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(99))));
+        let inserted = queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 0, 0), make_snapshot(BlockId(99))));
         assert!(!inserted, "le chunk était déjà présent");
         assert_eq!(queue.len(), 2, "aucun doublon ne doit être créé");
 
         let drained = queue.drain();
         assert_eq!(drained.len(), 2);
-        assert_eq!(drained[0].coords, (0, 0, 0), "la position doit être conservée");
+        assert_eq!(
+            &drained[0].coords,
+            &ChunkPosition::new(0, 0, 0),
+            "la position doit être conservée"
+        );
         // L'instantané doit avoir été remplacé.
         assert_eq!(marker_of(&drained[0].snapshot), BlockId(99));
     }
@@ -276,28 +286,36 @@ mod tests {
     fn test_queue_sort_by_priority() {
         let mut queue = MeshRequestQueue::new();
         // Insertion volontairement dans le désordre.
-        queue.insert(MeshRequestAdd::new((5, 0, 0), make_snapshot(BlockId(1))));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
-        queue.insert(MeshRequestAdd::new((3, 0, 0), make_snapshot(BlockId(3))));
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(4))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(5, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(1, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(3, 0, 0), make_snapshot(BlockId(3))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 0, 0), make_snapshot(BlockId(4))));
 
-        queue.sort_by_priority((0, 0, 0));
+        queue.sort_by_priority(&ChunkPosition::new(0, 0, 0));
 
         let coords: Vec<_> = queue.drain().iter().map(|r| r.coords).collect();
-        assert_eq!(coords, vec![(0, 0, 0), (1, 0, 0), (3, 0, 0), (5, 0, 0)]);
+        assert_eq!(
+            coords,
+            [(0, 0, 0), (1, 0, 0), (3, 0, 0), (5, 0, 0)]
+                .map(|(x, y, z)| ChunkPosition::new(x, y, z))
+                .to_vec()
+        );
     }
 
     #[test]
     fn test_queue_sort_by_priority_keeps_vertical_discount() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 4, 0), make_snapshot(BlockId(1))));
-        queue.insert(MeshRequestAdd::new((4, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 4, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(4, 0, 0), make_snapshot(BlockId(2))));
 
-        queue.sort_by_priority((0, 0, 0));
+        queue.sort_by_priority(&ChunkPosition::new(0, 0, 0));
 
         let coords: Vec<_> = queue.drain().iter().map(|r| r.coords).collect();
         // 4 chunks en vertical (priorité 8) < 4 chunks à l'horizontale (16).
-        assert_eq!(coords, vec![(0, 4, 0), (4, 0, 0)]);
+        assert_eq!(
+            coords,
+            [(0, 4, 0), (4, 0, 0)].map(|(x, y, z)| ChunkPosition::new(x, y, z)).to_vec()
+        );
     }
 
     #[test]
@@ -306,63 +324,76 @@ mod tests {
         // d'autre. L'ordre doit être correct, quel que soit le signe des
         // coordonnées (les distances sont signées, pas "unsigned").
         let mut queue = MeshRequestQueue::new();
-        for coords in [(3, 0, 0), (-3, 0, 0), (1, 0, 0), (-1, 0, 0), (0, 0, 0)] {
+        for coords in [(3, 0, 0), (-3, 0, 0), (1, 0, 0), (-1, 0, 0), (0, 0, 0)]
+            .map(|(x, y, z)| ChunkPosition::new(x, y, z))
+            .to_vec()
+        {
             queue.insert(MeshRequestAdd::new(coords, make_snapshot(BlockId(1))));
         }
 
-        queue.sort_by_priority((0, 0, 0));
+        queue.sort_by_priority(&ChunkPosition::new(0, 0, 0));
 
         let coords: Vec<_> = queue.drain().iter().map(|r| r.coords).collect();
         // Distances : 0, puis 1 (1 et -1), puis 9 (3 et -3).
         // Le tri est stable : à distance égale, l'ordre d'insertion est gardé.
-        assert_eq!(coords, vec![(0, 0, 0), (1, 0, 0), (-1, 0, 0), (3, 0, 0), (-3, 0, 0)]);
+        assert_eq!(
+            coords,
+            [(0, 0, 0), (1, 0, 0), (-1, 0, 0), (3, 0, 0), (-3, 0, 0)]
+                .map(|(x, y, z)| ChunkPosition::new(x, y, z))
+                .to_vec()
+        );
     }
 
     #[test]
     fn test_queue_sort_is_stable() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(1))));
-        queue.insert(MeshRequestAdd::new((1, 0, 1), make_snapshot(BlockId(2))));
-        queue.insert(MeshRequestAdd::new((-1, 0, 0), make_snapshot(BlockId(3))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(1, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(1, 0, 1), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(-1, 0, 0), make_snapshot(BlockId(3))));
 
-        queue.sort_by_priority((0, 0, 0));
+        queue.sort_by_priority(&ChunkPosition::new(0, 0, 0));
 
         let coords: Vec<_> = queue.drain().iter().map(|r| r.coords).collect();
         // (1, 0, 0) et (-1, 0, 0) sont à distance 1 : le tri étant stable,
         // leur ordre d'insertion est conservé. (1, 0, 1) est à distance 2.
-        assert_eq!(coords, vec![(1, 0, 0), (-1, 0, 0), (1, 0, 1)]);
+        assert_eq!(
+            coords,
+            [(1, 0, 0), (-1, 0, 0), (1, 0, 1)]
+                .map(|(x, y, z)| ChunkPosition::new(x, y, z))
+                .to_vec()
+        );
     }
 
     #[test]
     fn test_queue_remove_and_contains() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(1, 0, 0), make_snapshot(BlockId(2))));
 
-        assert!(queue.contains(&(0, 0, 0)));
-        assert!(queue.remove(&(0, 0, 0)).is_some());
-        assert!(!queue.contains(&(0, 0, 0)));
+        assert!(queue.contains(&ChunkPosition::new(0, 0, 0)));
+        assert!(queue.remove(&ChunkPosition::new(0, 0, 0)).is_some());
+        assert!(!queue.contains(&ChunkPosition::new(0, 0, 0)));
         assert_eq!(queue.len(), 1);
-        assert!(queue.remove(&(9, 9, 9)).is_none());
+        assert!(queue.remove(&ChunkPosition::new(9, 9, 9)).is_none());
     }
 
     #[test]
     fn test_queue_retain() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
-        queue.insert(MeshRequestAdd::new((1, 0, 0), make_snapshot(BlockId(2))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(1, 0, 0), make_snapshot(BlockId(2))));
 
-        queue.retain(|request| request.coords.0 == 1);
+        queue.retain(|request| request.coords.x() == 1);
 
         assert_eq!(queue.len(), 1);
-        assert!(queue.contains(&(1, 0, 0)));
-        assert!(!queue.contains(&(0, 0, 0)));
+        assert!(queue.contains(&ChunkPosition::new(1, 0, 0)));
+        assert!(!queue.contains(&ChunkPosition::new(0, 0, 0)));
     }
 
     #[test]
     fn test_queue_drain_empties_the_queue() {
         let mut queue = MeshRequestQueue::new();
-        queue.insert(MeshRequestAdd::new((0, 0, 0), make_snapshot(BlockId(1))));
+        queue.insert(MeshRequestAdd::new(ChunkPosition::new(0, 0, 0), make_snapshot(BlockId(1))));
         assert_eq!(queue.drain().len(), 1);
         assert!(queue.is_empty());
         assert_eq!(queue.drain().len(), 0);

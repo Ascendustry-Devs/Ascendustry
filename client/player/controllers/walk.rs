@@ -1,9 +1,9 @@
 use crate::player::camera::Camera;
 use crate::player::controllers::PlayerController;
 use crate::systems::inputs::InputState;
-use cgmath::{InnerSpace, Vector3};
 use game::constants::DECEL_COEF;
 use physics::body::PhysicsBody;
+use project_core::general_types::vec3::Vec3;
 use winit::keyboard::KeyCode;
 
 /// Contrôleur de déplacement au sol avec physique (gravité, collision, saut).
@@ -20,10 +20,10 @@ impl PlayerController for WalkPlayerController {
         let forward = camera.forward();
         let right = camera.right();
 
-        let forward_xz = Vector3::new(forward.x, 0.0, forward.z).normalize();
-        let right_xz = Vector3::new(right.x, 0.0, right.z).normalize();
+        let forward_xz = Vec3::new(*forward.x(), 0.0, *forward.z()).normalize();
+        let right_xz = Vec3::new(*right.x(), 0.0, *right.z()).normalize();
 
-        let mut direction = Vector3::new(0.0, 0.0, 0.0);
+        let mut direction = Vec3::new(0.0, 0.0, 0.0);
 
         if inputs.is_key_pressed(KeyCode::KeyW) {
             direction += forward_xz;
@@ -40,20 +40,20 @@ impl PlayerController for WalkPlayerController {
 
         // Appliquer la vélocité horizontale (walk_speed)
         let mut v = *body.velocity.current();
-        if direction.magnitude2() > 0.0 {
+        if direction.sqr_magnitude() > 0.0 {
             let dir = direction.normalize();
-            v.x = dir.x * body.walk_speed;
-            v.z = dir.z * body.walk_speed;
+            *v.x_mut() = dir.x() * body.walk_speed;
+            *v.z_mut() = dir.z() * body.walk_speed;
         } else {
             // La vitesse du joueur s'estompe au lieu de se réinitialiser nette (impression réaliste de s'arrêter)
             let decel = DECEL_COEF.powf(dt);
-            v.x *= decel;
-            v.z *= decel;
+            *v.x_mut() *= decel;
+            *v.z_mut() *= decel;
         }
 
         // Saut : seulement si au sol
         if inputs.is_key_pressed(KeyCode::Space) && body.on_ground {
-            v.y = body.jump_speed;
+            *v.y_mut() = body.jump_speed;
             body.on_ground = false;
         }
 

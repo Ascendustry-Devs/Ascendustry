@@ -14,7 +14,7 @@ use crate::{
         layers::{hotbar::HotbarLayer, inventory::InventoryLayer},
         ClientUI,
     },
-    world::{mesh_request::MeshRequestMessage, World},
+    world::{mesh_request::MeshRequestMessage, ClientWorld},
 };
 use engine::{
     audio::GameAudioManager,
@@ -32,14 +32,15 @@ use engine::{
     },
 };
 use game::world::{
-    data::block::BlockInstance,
     generation::profiler::{
         CHUNKS_GENERATED, GEN_HIST_CAVE, GEN_HIST_LEN, GEN_HIST_NOISE, GEN_HIST_ORE, GEN_HIST_OTHER, GEN_HIST_SURFACE,
         GEN_HIST_TERRAIN, GEN_HIST_TOTAL, GEN_HIST_VEGETATION, GEN_STAT_CAVE, GEN_STAT_NOISE, GEN_STAT_ORE, GEN_STAT_OTHER,
         GEN_STAT_SURFACE, GEN_STAT_TERRAIN, GEN_STAT_TOTAL, GEN_STAT_VEGETATION, TIME_SPENT_GENERATING_NANOS,
     },
+    World,
 };
-use network::messages::{new_save_request_paquet, ContenuPaquet};
+use network::messages::{new_save_request_paquet, ChunkData, ContenuPaquet};
+use project_core::log_err_client;
 use std::{
     mem::take,
     process::exit,
@@ -48,6 +49,9 @@ use std::{
 };
 use tokio::time::Instant;
 use winit::{event::MouseButton, keyboard::KeyCode};
+
+// TODO: bug de flickering/scintillements dans certains angles de caméra : voir le calcul des meshs à rendre pour la frame
+// TODO: hotbar bugguée : lorsqu'on prend 2 items, puis qu'on fini le stack du premier, on perd aussi le deuxième
 
 const FPS_CAP: u32 = 60; // u32::MAX;
 const DT_CAP: f32 = {
@@ -134,7 +138,7 @@ pub static mut MESH_HIST_OTHER: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
 pub static mut MESH_HIST_IDX: usize = 0;
 
 pub struct GameState {
-    pub world: World,
+    pub world: ClientWorld,
     pub world_mesh: WorldMesh,
     pub player: Player,
     pub remote_players: RemotePlayersManager,
@@ -163,7 +167,7 @@ impl GameState {
                 Box::new(FreeCameraController::new(0.00390625)),
                 Box::new(WalkPlayerController),
             ),
-            world: World::new(server_seed),
+            world: ClientWorld::new(server_seed),
             world_mesh: WorldMesh::new(),
             remote_players: RemotePlayersManager::new(),
             inputs: InputState::new(),
@@ -215,15 +219,14 @@ impl GameState {
         // CURRENT CHUNK DEBUG
         if self.inputs.take_key_pressed(KeyCode::KeyC) {
             let cpos = self.player.state.cpos.current();
-            let key = (cpos[0], cpos[1], cpos[2]);
-            println!("==== Chunk {:?} ====", key);
-            if let Some((state, dirty)) = self.world.chunk_infos_at(&key) {
+            println!("==== Chunk {:?} ====", cpos);
+            if let Some((state, dirty)) = self.world.chunk_infos_at(cpos) {
                 println!("- Data (CPU):\n  └─ {}", state);
                 if dirty {
                     println!("  └─ Dirty")
                 }
             }
-            if let Some((id, dirty)) = self.world_mesh.mesh_infos_at(&key) {
+            if let Some((id, dirty)) = self.world_mesh.mesh_infos_at(cpos) {
                 let id = id.map_or_else(|| "None".to_string(), |id| id.to_string());
                 println!("- Mesh (GPU):\n  └─ Id: {}", id);
                 if dirty {
@@ -462,9 +465,9 @@ impl GameState {
 
         // Envoi la position et rotation du joueur au serveur si elles ont changés
         if self.player.has_moved() {
-            let pos = self.player.get_pos();
-            let (rx, ry) = self.player.state.camera.get_rotation();
-            if let Err(e) = net.send_position(pos.x, pos.y, pos.z, rx, ry) {
+            let position = self.player.get_pos();
+            let rotation = self.player.state.camera.get_rotation();
+            if let Err(e) = net.send_position(*position, *rotation) {
                 project_core::log_err_client!("Échec de l'envoi de la position.\nErreur : {}", e);
             }
             self.player.state.reset_moved();
@@ -516,13 +519,14 @@ impl GameState {
                 }
                 ContenuPaquet::DonneesMonde { chunks } => {
                     project_core::log_client!("Paquet ContenuPaquet::DonneesMonde reçu !");
-                    for c in chunks {
-                        self.world.apply_remote_chunk(c.x, c.y, c.z, &c.data);
+                    for ChunkData { position, data } in chunks {
+                        self.world.apply_remote_chunk(&position, &data);
                     }
                 }
-                ContenuPaquet::SetBlock { x, y, z, block_id } => {
-                    let block = BlockInstance::new(block_id);
-                    self.world.set_block(x, y, z, block);
+                ContenuPaquet::SetBlock { position, block } => {
+                    if let Some(chunk) = self.world.set_block(&position, block).err() {
+                        log_err_client!("Couldn't place block {:?} at {:?}, in chunk {:?}", block, position, chunk);
+                    }
                 }
                 ContenuPaquet::Kick { reason } => {
                     project_core::log_client!("Kicked by server: {}", reason);
@@ -617,7 +621,7 @@ impl AppState for GameState {
 
         // Mettre à jour la position du joueur pour le tri des maillages AVANT
         // world.update / world_mesh.update afin d'avoir la bonne priorité dès cette frame.
-        self.world_mesh.set_player_chunk(self.player.get_cpos().into());
+        self.world_mesh.set_player_chunk(self.player.get_cpos());
 
         let (network_commands, mut mesh_request) = self.update_logic(frame, &mut renderer.render_manager.world_buffer);
 

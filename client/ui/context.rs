@@ -1,17 +1,17 @@
 use engine::{core::frame::EngineFrameData, gpu::textures::id::TextureId};
 use game::{
     inventory::{item_manager::ItemId, Inventory, ItemStack},
-    world::data::block::BlockData,
+    world::{data::block::BlockData, world_position::WorldPosition, World},
 };
 
 use crate::{
     player::{remote_players::RemotePlayersManager, Player},
     systems::texture_registry::TextureRegistry,
-    world::World,
+    world::ClientWorld,
 };
 
 pub struct WorldBrowser<'a> {
-    world: &'a World,
+    world: &'a ClientWorld,
 }
 
 pub struct PlayerBrowser<'a> {
@@ -36,7 +36,7 @@ pub struct UiContext<'a> {
 
 impl<'a> UiContext<'a> {
     pub fn new(
-        world: &'a World,
+        world: &'a ClientWorld,
         me: &'a Player,
         them: &'a RemotePlayersManager,
         textures: &'a TextureRegistry,
@@ -52,14 +52,16 @@ impl<'a> UiContext<'a> {
 }
 
 impl<'a> WorldBrowser<'a> {
-    pub fn new(world: &'a World) -> Self {
+    pub fn new(world: &'a ClientWorld) -> Self {
         Self { world }
     }
 
-    pub fn browse_block_at(&self, x: i32, y: i32, z: i32) -> Option<&BlockData> {
-        let id = self.world.get_block_from_xyz(x, y, z).get_block_id();
-        let registry = self.world.get_block_registry();
-        registry.get_block_by_id(&id)
+    pub fn browse_block_at(&self, position: &WorldPosition) -> Option<BlockData> {
+        let Some(id) = self.world.get_block(position).map(|block| block.get_block_id()) else {
+            return None;
+        };
+        let registry = self.world.block_manager().try_read().ok()?;
+        return registry.get_block_by_id(&id).cloned();
     }
 }
 

@@ -3,13 +3,14 @@ mod tests {
     use crate::state::AppState;
     use game::player::PlayerGameMode;
     use game::types::{Position, Rotation};
-    use game::world::data::block::BlockId;
+    use game::world::data::block::{BlockId, BlockInstance};
+    use game::world::world_position::WorldPosition;
 
     const BLOCKS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/blocks/");
     const ITEMS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../assets/items/");
 
     fn test_state() -> AppState {
-        AppState::with_blocks_path(BLOCKS_PATH, ITEMS_PATH)
+        AppState::with_blocks_path(0, BLOCKS_PATH, ITEMS_PATH)
     }
 
     #[tokio::test]
@@ -46,17 +47,13 @@ mod tests {
         let pos = state.get_player_position(1).await;
         assert!(pos.is_some());
 
-        let new_pos = Position {
-            x: 10.0,
-            y: 20.0,
-            z: 30.0,
-        };
-        let new_rot = Rotation { x: 1.0, y: 0.5 };
+        let new_pos = Position::new(10.0, 20.0, 30.0);
+        let new_rot = Rotation::new(1.0, 0.5);
         state.update_player_position(1, new_pos.clone(), new_rot.clone()).await;
 
         let updated = state.get_player_position(1).await.unwrap();
-        assert!((updated.x - 10.0).abs() < 1e-6);
-        assert!((updated.y - 20.0).abs() < 1e-6);
+        assert!((*updated.x() - 10.0).abs() < 1e-6);
+        assert!((*updated.y() - 20.0).abs() < 1e-6);
     }
 
     #[tokio::test]
@@ -83,7 +80,9 @@ mod tests {
     async fn test_app_state_set_block() {
         let state = test_state();
         state.init_seed(42).await;
-        state.set_block(0, 64, 0, BlockId(1)).await;
+        state
+            .set_block(&WorldPosition::new(0, 64, 0), BlockInstance::new(BlockId(1)))
+            .await;
         // Should not panic even without generated chunks
     }
 

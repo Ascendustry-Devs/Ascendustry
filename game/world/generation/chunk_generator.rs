@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
+use crate::world::chunk_position::ChunkPosition;
 use crate::world::data::block::BlockManager;
 use crate::world::data::chunk::{Chunk, ChunkData, CHUNK_SIZE};
 use crate::world::generation::biome::BiomeRegistry;
@@ -379,20 +380,19 @@ impl ChunkGenContext {
 pub struct ChunkGen;
 
 impl Parallelizable for ChunkGen {
-    type Input = (i32, i32, i32);
-    type Output = (i32, i32, i32, ChunkWithChecksum);
+    type Input = ChunkPosition;
+    type Output = (ChunkPosition, ChunkWithChecksum);
     type Context = ChunkGenContext;
 
     fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output {
         let start = Instant::now();
-        let (cx, cy, cz) = input;
-        let chunk = Chunk::generate_with_context(cx, cy, cz, ctx);
+        let chunk = Chunk::generate_with_context(&input, ctx);
 
         let checksum = chunk.compute_checksum();
         let chunk_data = ChunkData::new(chunk);
         let nanos = start.elapsed().as_nanos();
         gen_record_total(nanos);
-        (cx, cy, cz, ChunkWithChecksum { chunk_data, checksum })
+        (input, ChunkWithChecksum { chunk_data, checksum })
     }
 }
 
@@ -421,11 +421,11 @@ impl ChunkGenerator {
         }
     }
 
-    pub fn request(&self, cx: i32, cy: i32, cz: i32) -> Result<usize, QueueFull> {
-        self.inner.submit((cx, cy, cz))
+    pub fn request(&self, position: &ChunkPosition) -> Result<usize, QueueFull> {
+        self.inner.submit(*position)
     }
 
-    pub fn try_recv(&self) -> Option<WorkResult<(i32, i32, i32, ChunkWithChecksum)>> {
+    pub fn try_recv(&mut self) -> Option<WorkResult<(ChunkPosition, ChunkWithChecksum)>> {
         self.inner.try_recv()
     }
 
@@ -439,16 +439,16 @@ impl ChunkGenerator {
 pub fn generate_chunks_sequential(
     block_manager: Arc<RwLock<BlockManager>>,
     seed: u32,
-    coords: Vec<(i32, i32, i32)>,
-) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
+    coords: Vec<ChunkPosition>,
+) -> FxHashMap<ChunkPosition, ChunkWithChecksum> {
     let mut result_map = HashMap::with_hasher(FxBuildHasher);
     let ctx = ChunkGenContext::new(seed, block_manager);
 
-    for (cx, cy, cz) in coords {
-        let chunk = Chunk::generate_with_context(cx, cy, cz, &ctx);
+    for chunk_position in coords {
+        let chunk = Chunk::generate_with_context(&chunk_position, &ctx);
         let checksum = chunk.compute_checksum();
         let chunk_data = ChunkData::new(chunk);
-        result_map.insert((cx, cy, cz), ChunkWithChecksum { chunk_data, checksum });
+        result_map.insert(chunk_position, ChunkWithChecksum { chunk_data, checksum });
     }
 
     result_map
@@ -457,17 +457,17 @@ pub fn generate_chunks_sequential(
 pub fn generate_chunks_parallel_blocking(
     block_manager: Arc<RwLock<BlockManager>>,
     seed: u32,
-    coords: Vec<(i32, i32, i32)>,
-) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
+    coords: Vec<ChunkPosition>,
+) -> FxHashMap<ChunkPosition, ChunkWithChecksum> {
     let ctx = ChunkGenContext::new(seed, block_manager);
 
     coords
         .par_iter()
-        .map(|(cx, cy, cz)| {
-            let chunk = Chunk::generate_with_context(*cx, *cy, *cz, &ctx);
+        .map(|chunk_position| {
+            let chunk = Chunk::generate_with_context(chunk_position, &ctx);
             let checksum = chunk.compute_checksum();
             let chunk_data = ChunkData::new(chunk);
-            ((*cx, *cy, *cz), ChunkWithChecksum { chunk_data, checksum })
+            (*chunk_position, ChunkWithChecksum { chunk_data, checksum })
         })
         .collect()
 }

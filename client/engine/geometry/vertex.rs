@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use game::types::Position;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -68,7 +69,8 @@ impl Vertex {
     }
 }
 
-pub fn generate_cube(x: f32, y: f32, z: f32) -> Vec<Vertex> {
+pub fn generate_cube(position: &Position) -> Vec<Vertex> {
+    let (x, y, z) = position.into();
     let h = 0.5;
 
     let p0 = (x - h, y - h, z - h);

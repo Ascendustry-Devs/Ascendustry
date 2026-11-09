@@ -1,5 +1,6 @@
 use crate::general_types::unique_queue::UniqueQueue;
 use crate::general_types::updatable::Updatable;
+use crate::general_types::vec3::Vec3;
 use crate::math::geometry::corner::SquareCorner;
 use crate::math::geometry::direction::Direction;
 use crate::math::geometry::plane::Plane;
@@ -29,26 +30,22 @@ fn test_square_corner() {
 
 #[test]
 fn test_plane_normalize() {
-    use cgmath::Vector3;
-
     let p = Plane {
-        normal: Vector3::new(2.0, 0.0, 0.0),
+        normal: Vec3::new(2.0, 0.0, 0.0),
         d: 4.0,
     };
     let normalized = p.normalize();
-    assert!((normalized.normal.x - 1.0).abs() < 1e-6);
+    assert!((normalized.normal.x() - 1.0).abs() < 1e-6);
     assert!((normalized.d - 2.0).abs() < 1e-6);
 }
 
 #[test]
 fn test_plane_distance() {
-    use cgmath::Vector3;
-
     let p = Plane {
-        normal: Vector3::new(0.0, 1.0, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
         d: 0.0,
     };
-    let dist = p.distance(Vector3::new(0.0, 5.0, 0.0));
+    let dist = p.distance(&Vec3::new(0.0, 5.0, 0.0));
     assert!((dist - 5.0).abs() < 1e-6);
 }
 
@@ -124,7 +121,7 @@ fn test_worker_pool_basic() {
         }
     }
 
-    let pool = WorkerPool::<Double>::new(2, ());
+    let mut pool = WorkerPool::<Double>::new(2, ());
     pool.submit(21).unwrap();
 
     std::thread::sleep(std::time::Duration::from_millis(100));

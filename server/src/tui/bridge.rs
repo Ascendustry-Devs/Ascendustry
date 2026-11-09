@@ -1,3 +1,4 @@
+use game::types::Position;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -8,7 +9,7 @@ use game::constants::GUARD_CYCLE_INTERVAL_MS;
 pub struct PlayerInfo {
     pub id: u64,
     pub username: String,
-    pub position: (f32, f32, f32),
+    pub position: Position,
     pub gamemode: String,
 }
 
@@ -112,7 +113,7 @@ impl TuiBridge {
             .map(|p| PlayerInfo {
                 id: p.id,
                 username: p.username.clone(),
-                position: (p.position.x, p.position.y, p.position.z),
+                position: p.position,
                 gamemode: format!("{:?}", p.gamemode),
             })
             .collect();

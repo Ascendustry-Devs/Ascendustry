@@ -5,64 +5,67 @@ use engine::render::modes::RenderMode;
 use game::assets::block_loader::load_block_definitions;
 use game::assets::item_loader::load_item_definitions;
 use game::assets::resolve_asset_path;
-use num_cpus::get;
-use project_core::{log_client, log_err_client};
-use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
-
-use crate::api::texture_loader::TextureLoader;
-use cgmath::Point3;
 use game::constants::{
     DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE,
     SIMULATION_DISTANCE_CHUNK_COUNT,
 };
-use game::inventory::item_manager::{ItemId, ItemManager};
-use game::inventory::ItemInstance;
+use game::inventory::item_manager::ItemId;
+use game::inventory::{ItemInstance, ItemManager};
+use game::world::chunk_position::ChunkPosition;
 use game::world::data::block::{BlockId, BlockInstance, BlockManager};
-use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_BLOCK_NUMBER, CHUNK_SIZE, CHUNK_SIZE_HALFED_VEC3_F};
+use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_BLOCK_NUMBER, CHUNK_SIZE_HALFED_VEC3_F};
 use game::world::generation::chunk_generator::ChunkGenerator;
+use game::world::local_position::LocalPosition;
 use game::world::scheduling::compute_missing_chunks_sorted;
+use game::world::world_position::WorldPosition;
+use game::world::{ChunkModification, ChunkStorage, World};
+// use engine::gpu::allocator::gpu_allocator::GpuAllocator;
+// use engine::render::modes::RenderMode;
+use num_cpus::get;
 use physics::aabb::AABB;
 use physics::collision_world::CollisionWorld;
-use project_core::general_types::unique_queue::{FxUniqueQueue, UniqueQueue};
-use std::cmp::min;
-use std::collections::HashSet;
-use std::{
-    cmp::max,
-    collections::{HashMap, VecDeque},
-    mem,
-    sync::{Arc, RwLock},
-};
+use project_core::{log_client, log_err_client, log_warn_server};
 
+// use crate::api::texture_loader::TextureLoader;
+use project_core::general_types::unique_queue::{FxUniqueQueue, UniqueQueue};
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
+use std::cmp::min;
+use std::collections::hash_map::Keys;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, RwLock};
+use std::{cmp::max, collections::VecDeque, mem};
+
+use crate::api::texture_loader::TextureLoader;
 use crate::{
     player::Player,
     render::meshing::world::WorldMesh,
     world::mesh_request::{MeshRequestAdd, MeshRequestMessage, MeshResponse, MeshSnapshot},
 };
 
-pub struct World {
+pub struct ClientWorld {
     seed: u32,
-    chunks: FxHashMap<(i32, i32, i32), ChunkData>,
+    chunks: ClientChunks,
     chunk_generator: ChunkGenerator,
     block_manager: Arc<RwLock<BlockManager>>,
     item_manager: Arc<RwLock<ItemManager>>,
     /// Chunks déjà générés mais pas encore maillés (il manque des voisins).
-    waiting_to_mesh: FxUniqueQueue<(i32, i32, i32)>,
+    waiting_to_mesh: FxUniqueQueue<ChunkPosition>,
     /// Chunks restant à générer, triés par priorité (distance au joueur).
     ///
     /// Cette liste est **persistante** : les chunks qui n'ont pas pu être
     /// demandés au générateur (file pleine) y restent et seront servis dès
     /// que de la place se libère, au lieu d'être perdus.
-    missing_chunks: VecDeque<(i32, i32, i32)>,
+    missing_chunks: VecDeque<ChunkPosition>,
     /// Chunks demandés au générateur mais pas encore reçus.
     ///
     /// Sert à ne pas demander deux fois le même chunk (le générateur étant
     /// asynchrone, un chunk en cours de génération n'est pas encore présent
     /// dans `chunks`).
-    in_flight: FxHashSet<(i32, i32, i32)>,
+    in_flight: FxHashSet<ChunkPosition>,
     mesh_request: MeshRequestMessage,
 }
 
-impl World {
+impl ClientWorld {
     pub fn new(seed: u32) -> Self {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
         let item_manager = Arc::new(RwLock::new(ItemManager::new()));
@@ -80,7 +83,7 @@ impl World {
 
         Self {
             seed,
-            chunks: HashMap::with_hasher(FxBuildHasher),
+            chunks: ClientChunks::new(),
             chunk_generator,
             block_manager,
             item_manager,
@@ -168,19 +171,14 @@ impl World {
 
     pub fn listen(&mut self, mesh_responses: &mut Vec<MeshResponse>) {
         for response in mesh_responses.drain(..) {
-            let (cx, cy, cz) = response;
-            if let Some(chunk) = self.get_chunk_data_mut(cx, cy, cz) {
+            if let Some(chunk) = self.chunks.get_mut(&response) {
                 chunk.state = ChunkState::Ready;
             }
         }
     }
 
-    pub fn chunk_infos_at(&self, cpos: &(i32, i32, i32)) -> Option<(ChunkState, bool)> {
-        self.chunks.get(cpos).map(|chunk| chunk.get_debug_infos())
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.chunks.is_empty()
+    pub fn chunk_infos_at(&self, position: &ChunkPosition) -> Option<(ChunkState, bool)> {
+        self.chunks.get(position).map(|chunk| chunk.get_debug_infos())
     }
 
     pub fn block_to_item(&self, block_id: &BlockId) -> Option<ItemInstance> {
@@ -193,24 +191,15 @@ impl World {
         self.block_manager.read().unwrap().item_to_block_id(item_id)
     }
 
-    pub const fn seed(&self) -> u32 {
-        self.seed
-    }
-
-    pub fn get_item_manager(&self) -> Arc<RwLock<ItemManager>> {
-        Arc::clone(&self.item_manager)
-    }
-
     fn clean_chunks(&mut self, mesh_manager: &Arc<RwLock<GpuAllocator>>, world_mesh: &mut WorldMesh, player: &Player) {
         let alloc = &mut mesh_manager.write().unwrap();
 
         // Coordonnées du chunk en blocks où se trouve le joueur
-        let chunk_pos_in_blocks = player.get_cpos().map(|coord| (coord * CHUNK_SIZE) as f32);
+        let chunk_pos_in_blocks = player.get_cpos().into();
         let player_simulation_aabb = AABB::new_sized(chunk_pos_in_blocks, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F);
 
         self.chunks.retain(|key, _| {
-            let (cx, cy, cz) = *key;
-            let key_vec_f = Point3::new(cx, cy, cz).map(|coord| (coord * CHUNK_SIZE) as f32);
+            let key_vec_f = key.into();
             let chunk_aabb = AABB::new_sized(key_vec_f, CHUNK_SIZE_HALFED_VEC3_F);
 
             // On garde les chunks qui sont à portée du joueur
@@ -254,13 +243,13 @@ impl World {
     /// depuis zéro, ce qui a pour effet de **re-prioriser** les chunks encore
     /// manquants par rapport à la nouvelle position.
     fn refresh_missing_chunks(&mut self, player: &Player) {
-        let player_chunk: (i32, i32, i32) = player.get_cpos().into();
+        let player_chunk = player.get_cpos();
 
         let missing = compute_missing_chunks_sorted(
-            player.get_simulation_chunk_keys(),
+            &mut player.get_simulation_chunk_keys().iter(),
             &self.chunks.keys().copied().collect(),
             &self.in_flight,
-            player_chunk,
+            &player_chunk,
         );
 
         self.missing_chunks = missing.into();
@@ -283,8 +272,7 @@ impl World {
                 continue;
             }
 
-            let (cx, cy, cz) = coords;
-            match self.chunk_generator.request(cx, cy, cz) {
+            match self.chunk_generator.request(&coords) {
                 Ok(_) => {
                     self.in_flight.insert(coords);
                 }
@@ -299,48 +287,63 @@ impl World {
     }
 
     /// Reçoit un chunk complet depuis le serveur et remplace le chunk local.
-    pub fn apply_remote_chunk(&mut self, cx: i32, cy: i32, cz: i32, data: &[u8]) {
+    pub fn apply_remote_chunk(&mut self, position: &ChunkPosition, data: &[u8]) {
         let blocks: Vec<BlockInstance> = bincode::deserialize(data).expect("Échec de désérialisation du chunk reçu");
         let chunk = Chunk {
             blocks,
-            x: cx,
-            y: cy,
-            z: cz,
+            x: position.x(),
+            y: position.y(),
+            z: position.z(),
         };
         let chunk_data = ChunkData::new(chunk);
-        self.chunks.insert((cx, cy, cz), chunk_data);
+        self.chunks.insert(*position, chunk_data);
         // Le chunk vient du serveur : il n'est plus à générer.
-        self.in_flight.remove(&(cx, cy, cz));
-        self.missing_chunks.retain(|coords| *coords != (cx, cy, cz));
+        self.in_flight.remove(&position);
+        self.missing_chunks.retain(|p| p != position);
 
-        let data = MeshRequestAdd::new((cx, cy, cz), self.get_mesh_snapshot(cx, cy, cz));
-        self.mesh_request.add.insert(data);
-        for (dx, dy, dz) in DIRECT_NORMALS_3D {
-            let (cx, cy, cz) = (cx + dx, cy + dy, cz + dz);
-            let coords = (cx, cy, cz);
-            if self.chunks.contains_key(&coords) {
-                let data = MeshRequestAdd::new(coords, self.get_mesh_snapshot(cx, cy, cz));
-                self.mesh_request.add.insert(data);
-            }
+        if self.are_all_neighbors_ready(position) {
+            let data = MeshRequestAdd::new(*position, self.get_mesh_snapshot(position));
+            self.mesh_request.add.insert(data);
+        } else {
+            self.waiting_to_mesh.push_back(*position);
         }
+
+        for (nx, ny, nz) in Chunk::neighbors_from_block_pos(position.x(), position.y(), position.z()) {
+            self.mark_for_remesh(ChunkPosition::new(nx, ny, nz));
+        }
+
+        // for (dx, dy, dz) in DIRECT_NORMALS_3D {
+        //     let (cx, cy, cz) = (cx + dx, cy + dy, cz + dz);
+        //     let coords = (cx, cy, cz);
+        //     if self.chunks.contains_key(&coords) {
+        //         let data = MeshRequestAdd::new(*position, self.get_mesh_snapshot(position));
+        //         self.mesh_request.add.insert(data);
+        //     }
+        // }
     }
 
     fn compute_generated_chunks(&mut self) {
         while let Some(result) = self.chunk_generator.try_recv() {
-            let (cx, cy, cz, chunk_with_checksum) = result.output;
-            let key = (cx, cy, cz);
+            let (chunk_position, chunk_with_checksum) = result.output;
 
             // Le chunk a été généré : il n'est plus en vol.
-            self.in_flight.remove(&key);
+            self.in_flight.remove(&chunk_position);
 
-            if self.chunks.contains_key(&key) {
+            if self.chunks.contains_key(&chunk_position) {
                 continue;
             }
 
             let mut chunk = chunk_with_checksum.chunk_data;
             chunk.is_dirty = false;
-            self.chunks.insert(key, chunk);
-            self.waiting_to_mesh.push_back(key);
+            self.chunks.insert(chunk_position, chunk);
+            self.waiting_to_mesh.push_back(chunk_position);
+        }
+    }
+
+    fn mark_for_remesh(&mut self, position: ChunkPosition) {
+        if let Some(chunk) = self.chunks.get_mut(&position) {
+            chunk.set_dirty();
+            self.waiting_to_mesh.push_back(position);
         }
     }
 
@@ -352,20 +355,20 @@ impl World {
         let mut waiting = mem::replace(&mut self.waiting_to_mesh, UniqueQueue::new());
 
         waiting.retain(|chunk| {
-            let chunk = *chunk;
-            let (cx, cy, cz) = chunk;
-
             // Le chunk a pu être nettoyé (sorti de la zone du joueur) depuis
             // sa génération : il n'existe plus, il n'a plus lieu d'être
             // dans la file. Sans cette purge, la file grossirait
             // indéfiniment au fil des déplacements du joueur.
-            if !self.chunks.contains_key(&chunk) {
+            if !self.chunks.contains_key(chunk) {
                 return false;
             }
 
-            if self.are_all_neighbors_ready(cx, cy, cz) {
-                let data = MeshRequestAdd::new(chunk, self.get_mesh_snapshot(cx, cy, cz));
+            if self.are_all_neighbors_ready(chunk) {
+                let data = MeshRequestAdd::new(*chunk, self.get_mesh_snapshot(chunk));
                 self.mesh_request.add.insert(data);
+                if let Some(chunk) = self.chunks.get_mut(chunk) {
+                    chunk.is_dirty = false;
+                }
                 false
             } else {
                 true
@@ -375,65 +378,44 @@ impl World {
         self.waiting_to_mesh = waiting;
     }
 
-    pub fn get_mesh_snapshot(&self, cx: i32, cy: i32, cz: i32) -> MeshSnapshot {
+    pub fn get_mesh_snapshot(&self, chunk_position: &ChunkPosition) -> MeshSnapshot {
+        let (cx, cy, cz) = chunk_position.into();
         MeshSnapshot {
-            main: Arc::clone(&self.chunks.get(&(cx, cy, cz)).unwrap().chunk),
-            neg_x: self.chunks.get(&(cx - 1, cy, cz)).map(|d| Arc::clone(&d.chunk)),
-            neg_y: self.chunks.get(&(cx, cy - 1, cz)).map(|d| Arc::clone(&d.chunk)),
-            neg_z: self.chunks.get(&(cx, cy, cz - 1)).map(|d| Arc::clone(&d.chunk)),
-            pos_x: self.chunks.get(&(cx + 1, cy, cz)).map(|d| Arc::clone(&d.chunk)),
-            pos_y: self.chunks.get(&(cx, cy + 1, cz)).map(|d| Arc::clone(&d.chunk)),
-            pos_z: self.chunks.get(&(cx, cy, cz + 1)).map(|d| Arc::clone(&d.chunk)),
+            main: Arc::clone(&self.chunks.get(&chunk_position).unwrap().chunk),
+            neg_x: self
+                .chunks
+                .get(&ChunkPosition::new(cx - 1, cy, cz))
+                .map(|d| Arc::clone(&d.chunk)),
+            neg_y: self
+                .chunks
+                .get(&ChunkPosition::new(cx, cy - 1, cz))
+                .map(|d| Arc::clone(&d.chunk)),
+            neg_z: self
+                .chunks
+                .get(&ChunkPosition::new(cx, cy, cz - 1))
+                .map(|d| Arc::clone(&d.chunk)),
+            pos_x: self
+                .chunks
+                .get(&ChunkPosition::new(cx + 1, cy, cz))
+                .map(|d| Arc::clone(&d.chunk)),
+            pos_y: self
+                .chunks
+                .get(&ChunkPosition::new(cx, cy + 1, cz))
+                .map(|d| Arc::clone(&d.chunk)),
+            pos_z: self
+                .chunks
+                .get(&ChunkPosition::new(cx, cy, cz + 1))
+                .map(|d| Arc::clone(&d.chunk)),
         }
     }
 
-    #[inline(always)]
-    pub fn get_chunk_data(&self, cx: i32, cy: i32, cz: i32) -> Option<&ChunkData> {
-        self.chunks.get(&(cx, cy, cz))
-    }
+    pub fn are_all_neighbors_ready(&self, chunk_position: &ChunkPosition) -> bool {
+        let (cx, cy, cz) = chunk_position.into();
 
-    #[inline(always)]
-    pub fn get_chunk_data_mut(&mut self, cx: i32, cy: i32, cz: i32) -> Option<&mut ChunkData> {
-        self.chunks.get_mut(&(cx, cy, cz))
-    }
-
-    pub fn set_block(&mut self, x: i32, y: i32, z: i32, block: BlockInstance) -> bool {
-        let (cx, cy, cz) = Chunk::chunk_coords_from_world(x, y, z);
-        let (lx, ly, lz) = Chunk::local_coords_from_world(x, y, z);
-        let Some(chunk) = self.get_chunk_data_mut(cx, cy, cz) else {
-            return false;
-        };
-        let current_block = chunk.chunk.get_block_from_xyz(lx, ly, lz);
-        if current_block == block {
-            false
-        } else {
-            Arc::make_mut(&mut chunk.chunk).set_block_from_xyz(lx, ly, lz, block);
-
-            let data = MeshRequestAdd::new((cx, cy, cz), self.get_mesh_snapshot(cx, cy, cz));
-            self.mesh_request.add.insert(data);
-            for (ncx, ncy, ncz) in Chunk::neighbors_from_block_pos(x, y, z) {
-                if self.get_chunk_data(ncx, ncy, ncz).is_some() {
-                    let data = MeshRequestAdd::new((ncx, ncy, ncz), self.get_mesh_snapshot(ncx, ncy, ncz));
-                    self.mesh_request.add.insert(data);
-                }
-            }
-            true
-        }
-    }
-
-    pub fn get_block_from_xyz(&self, x: i32, y: i32, z: i32) -> BlockInstance {
-        let (cx, cy, cz) = Chunk::chunk_coords_from_world(x, y, z);
-        let (lx, ly, lz) = Chunk::local_coords_from_world(x, y, z);
-
-        self.get_chunk_data(cx, cy, cz)
-            .map_or_else(BlockInstance::air, |data| data.chunk.get_block_from_xyz(lx, ly, lz))
-    }
-
-    pub fn are_all_neighbors_ready(&self, cx: i32, cy: i32, cz: i32) -> bool {
         // Requires that every direct chunk neighbor's state is Ready.
         // If a neighbor chunk is missing, it is considered blocking to avoid inter-chunks faces.
         for (dx, dy, dz) in DIRECT_NORMALS_3D {
-            if let Some(neighbor) = self.chunks.get(&(cx + dx, cy + dy, cz + dz)) {
+            if let Some(neighbor) = self.chunks.get(&ChunkPosition::new(cx + dx, cy + dy, cz + dz)) {
                 if neighbor.state != ChunkState::Ready {
                     return false;
                 }
@@ -493,22 +475,132 @@ impl World {
         self.chunk_generator.dispose();
     }
 
-    pub fn get_block_registry<'a>(&self) -> &'a BlockManager {
-        // &self.block_manager
-        todo!()
+    pub fn set_item_manager(&mut self, item_manager: Arc<RwLock<ItemManager>>) {
+        self.item_manager = item_manager;
     }
 }
 
-impl CollisionWorld for World {
+impl CollisionWorld for ClientWorld {
     fn is_empty(&self) -> bool {
         self.chunks.is_empty()
     }
 
-    fn is_block_solid(&self, x: i32, y: i32, z: i32) -> bool {
-        let (cx, cy, cz) = Chunk::chunk_coords_from_world(x, y, z);
-        if !self.chunks.contains_key(&(cx, cy, cz)) {
+    fn is_block_solid(&self, position: &WorldPosition) -> bool {
+        let chunk = position.into();
+        if !self.chunks.contains_key(&chunk) {
             return true;
         }
-        self.get_block_from_xyz(x, y, z).is_solid()
+        self.get_block(position).map_or(false, |block| block.is_solid())
+    }
+}
+
+#[derive(Debug)]
+pub struct ClientChunks {
+    inner: FxHashMap<ChunkPosition, ChunkData>,
+}
+
+impl ClientChunks {
+    pub const fn new() -> Self {
+        Self {
+            inner: HashMap::with_hasher(FxBuildHasher),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    fn keys(&self) -> Keys<'_, ChunkPosition, ChunkData> {
+        self.inner.keys()
+    }
+
+    fn insert(&mut self, position: ChunkPosition, chunk_data: ChunkData) -> Option<ChunkData> {
+        self.inner.insert(position, chunk_data)
+    }
+}
+
+impl ChunkStorage for ClientChunks {
+    type Value = ChunkData;
+
+    fn get(&self, position: &ChunkPosition) -> Option<&ChunkData> {
+        self.inner.get(position)
+    }
+
+    fn get_mut(&mut self, position: &ChunkPosition) -> Option<&mut ChunkData> {
+        self.inner.get_mut(position)
+    }
+
+    fn contains_key(&self, coords: &ChunkPosition) -> bool {
+        self.inner.contains_key(coords)
+    }
+
+    fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    fn extend<T: Iterator<Item = (ChunkPosition, ChunkData)>>(&mut self, iter: T) {
+        self.inner.extend(iter);
+    }
+
+    fn retain<F: FnMut(&ChunkPosition, &mut ChunkData) -> bool>(&mut self, f: F) {
+        self.inner.retain(f);
+    }
+}
+
+impl World for ClientWorld {
+    type Storage = ClientChunks;
+
+    fn seed(&self) -> u32 {
+        self.seed
+    }
+
+    fn chunks(&self) -> &Self::Storage {
+        &self.chunks
+    }
+
+    fn chunks_mut(&mut self) -> &mut Self::Storage {
+        &mut self.chunks
+    }
+
+    fn chunk_generator(&self) -> &ChunkGenerator {
+        &self.chunk_generator
+    }
+
+    fn block_manager(&self) -> &Arc<RwLock<BlockManager>> {
+        &self.block_manager
+    }
+
+    fn item_manager(&self) -> &Arc<RwLock<ItemManager>> {
+        &self.item_manager
+    }
+
+    fn set_block(&mut self, position: &WorldPosition, block: BlockInstance) -> Result<(), ChunkPosition> {
+        let (chunk_position, local_position): (ChunkPosition, LocalPosition) = position.into();
+
+        let Some(chunk) = self.chunks.get_mut(&chunk_position) else {
+            log_warn_server!("Tentative de modification d'un chunk non chargé : {:?}", chunk_position);
+            return Err(chunk_position);
+        };
+
+        if chunk.set_block(&local_position, block).is_none() {
+            return Ok(());
+        }
+
+        self.mark_for_remesh(chunk_position);
+
+        let (x, y, z) = position.into();
+        for (nx, ny, nz) in Chunk::neighbors_from_block_pos(x, y, z) {
+            self.mark_for_remesh(ChunkPosition::new(nx, ny, nz));
+        }
+
+        Ok(())
     }
 }

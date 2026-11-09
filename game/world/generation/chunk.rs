@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use noise::NoiseFn;
 
+use crate::world::chunk_position::ChunkPosition;
 use crate::world::data::block::{BlockId, BlockInstance, BlockManager};
 use crate::world::data::chunk::{Chunk, CHUNK_BLOCK_NUMBER, CHUNK_SIZE};
 use crate::world::generation::chunk_generator::ChunkGenContext;
@@ -13,6 +14,7 @@ use crate::world::generation::profiler::{
     GEN_STAT_VEGETATION,
 };
 
+#[derive(Debug)]
 pub struct ChunkWithChecksum {
     pub chunk_data: crate::world::data::chunk::ChunkData,
     pub checksum: [u8; 2],
@@ -20,14 +22,15 @@ pub struct ChunkWithChecksum {
 
 impl Chunk {
     #[inline]
-    pub fn generate(block_manager: Arc<RwLock<BlockManager>>, cx: i32, cy: i32, cz: i32, seed: u32) -> Self {
+    pub fn generate(block_manager: Arc<RwLock<BlockManager>>, position: &ChunkPosition, seed: u32) -> Self {
         let ctx = ChunkGenContext::new(seed, block_manager);
-        Self::generate_with_context(cx, cy, cz, &ctx)
+        Self::generate_with_context(position, &ctx)
     }
 
     #[inline]
-    pub fn generate_with_context(cx: i32, cy: i32, cz: i32, ctx: &ChunkGenContext) -> Self {
+    pub fn generate_with_context(chunk_position: &ChunkPosition, ctx: &ChunkGenContext) -> Self {
         let t0 = Instant::now();
+        let (cx, cy, cz) = chunk_position.into();
         let cwx = cx * CHUNK_SIZE;
         let cwy = cy * CHUNK_SIZE;
         let cwz = cz * CHUNK_SIZE;
@@ -335,7 +338,7 @@ mod tests {
         }
         let bm = Arc::new(RwLock::new(bm));
         // cy = 100 est très au-dessus de tout relief terrestre
-        let chunk = Chunk::generate(bm, 0, 100, 0, 42);
+        let chunk = Chunk::generate(bm, &ChunkPosition::new(0, 100, 0), 42);
         for b in chunk.blocks {
             assert!(b.is_air(), "Un chunk à cy=100 doit être entièrement composé d'air");
         }
@@ -351,7 +354,7 @@ mod tests {
         }
         let bm = Arc::new(RwLock::new(bm));
         // cy = 0 est un chunk sous-terrain / niveau du sol avec surface, roche, grottes
-        let chunk = Chunk::generate(bm, 0, 0, 0, 42);
+        let chunk = Chunk::generate(bm, &ChunkPosition::new(0, 0, 0), 42);
         let solid_count = chunk.blocks.iter().filter(|b| b.is_solid()).count();
         assert!(solid_count > 0, "Le chunk terrestre doit contenir des blocs solides");
 
@@ -376,8 +379,9 @@ mod tests {
         let bm = Arc::new(RwLock::new(bm));
 
         // Génère le même chunk deux fois et vérifie le déterminisme absolu
-        let chunk1 = Chunk::generate(Arc::clone(&bm), 1, -1, 1, 999);
-        let chunk2 = Chunk::generate(Arc::clone(&bm), 1, -1, 1, 999);
+        let position = ChunkPosition::new(1, -1, 1);
+        let chunk1 = Chunk::generate(Arc::clone(&bm), &position, 999);
+        let chunk2 = Chunk::generate(Arc::clone(&bm), &position, 999);
         assert_eq!(chunk1.blocks, chunk2.blocks);
     }
 
@@ -394,7 +398,7 @@ mod tests {
         let bm = Arc::new(RwLock::new(bm));
 
         // cy = -1 est un chunk profondément enfoui, il doit avoir des minerais
-        let _chunk = Chunk::generate(bm, 0, -1, 0, 42);
+        let _chunk = Chunk::generate(bm, &ChunkPosition::new(0, -1, 0), 42);
 
         unsafe {
             assert!(GEN_STAT_ORE.count > 0, "ORE doit avoir été mesuré");

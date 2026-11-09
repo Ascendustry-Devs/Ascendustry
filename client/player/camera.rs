@@ -1,126 +1,131 @@
-use cgmath::{perspective, Deg, InnerSpace, Matrix4, Point3, Vector3, Vector4};
+use std::f32::consts::PI;
+
 use engine::render::camera::OPENGL_TO_WGPU_MATRIX;
-use game::constants::UP;
+use game::{
+    constants::UP,
+    types::{Position, Rotation},
+};
 use physics::aabb::AABB;
-use project_core::{general_types::updatable::Updatable, math::geometry::plane::Plane};
+use project_core::{
+    general_types::{
+        mat4::{look_to_rh, perspective, Mat4},
+        updatable::Updatable,
+        vec3::Vec3,
+    },
+    math::geometry::plane::Plane,
+};
 
 #[derive(Clone)]
 pub struct Camera {
-    pub eye: Updatable<Point3<f32>>,
-    pub yaw: Updatable<f32>,
-    pub pitch: Updatable<f32>,
+    pub eye: Updatable<Position>,
+    pub rotation: Updatable<Rotation>,
     pub fovy: Updatable<f32>,
     pub aspect: Updatable<f32>,
     znear: f32,
     zfar: f32,
-    view_proj: Updatable<Matrix4<f32>>,
+    view_proj: Updatable<Mat4<f32>>,
     frustum_planes: Updatable<[Plane; 6]>,
 }
 
 impl Camera {
-    pub fn new(eye: Point3<f32>, aspect: f32) -> Self {
+    pub fn new(eye: Position, aspect: f32) -> Self {
         Self {
             eye: Updatable::new(eye),
-            yaw: Updatable::new(0.0),
-            pitch: Updatable::new(0.0),
+            rotation: Updatable::new(Rotation::new(0.0, 0.0)),
             fovy: Updatable::new(70.0),
             aspect: Updatable::new(aspect),
             znear: 0.125,
             zfar: 500.0,
-            view_proj: Updatable::new(Matrix4 {
-                x: Vector4::new(0.0, 0.0, 0.0, 0.0),
-                y: Vector4::new(0.0, 0.0, 0.0, 0.0),
-                z: Vector4::new(0.0, 0.0, 0.0, 0.0),
-                w: Vector4::new(0.0, 0.0, 0.0, 0.0),
-            }),
+            view_proj: Updatable::new(Mat4::zero()),
             frustum_planes: Updatable::new([Plane::zero(); 6]),
         }
     }
 
-    pub const fn eye(&self) -> &Point3<f32> {
+    pub const fn eye(&self) -> &Position {
         self.eye.current()
     }
 
     pub const fn yaw(&self) -> f32 {
-        *self.yaw.current()
+        self.rotation.current().x
     }
 
     pub const fn pitch(&self) -> f32 {
-        *self.pitch.current()
+        self.rotation.current().y
     }
 
-    pub fn forward(&self) -> Vector3<f32> {
-        let (sy, cy) = self.yaw.current().sin_cos();
-        let (sp, cp) = self.pitch.current().sin_cos();
+    pub fn forward(&self) -> Vec3<f32> {
+        let (yaw, pitch) = self.rotation.current().into();
+        let (sy, cy) = yaw.sin_cos();
+        let (sp, cp) = pitch.sin_cos();
 
-        Vector3::new(cy * cp, sp, sy * cp).normalize()
+        Vec3::new(cy * cp, sp, sy * cp).normalize()
     }
 
-    pub fn right(&self) -> Vector3<f32> {
-        self.forward().cross(UP).normalize()
+    pub fn right(&self) -> Vec3<f32> {
+        self.forward().cross(&UP).normalize()
     }
 
-    pub fn target(&self) -> Point3<f32> {
+    pub fn target(&self) -> Position {
         *self.eye.current() + self.forward()
     }
 
     pub fn needs_new_view_proj(&self) -> bool {
-        self.eye.has_changed() || self.yaw.has_changed() || self.pitch.has_changed() || self.aspect.has_changed()
+        self.eye.has_changed() || self.rotation.has_changed() || self.aspect.has_changed() || self.fovy.has_changed()
     }
 
     pub fn set_view_proj(&mut self) {
-        let view = Matrix4::look_at_rh(*self.eye.current(), self.target(), UP);
-        let proj = perspective(Deg(*self.fovy.current()), *self.aspect.current(), self.znear, self.zfar);
+        let eye = self.eye.current();
+        let view = look_to_rh(eye, &self.forward(), &UP);
+        let proj = perspective(
+            (*self.fovy.current()) * PI / 180.0,
+            *self.aspect.current(),
+            self.znear,
+            self.zfar,
+        );
         self.view_proj.update(OPENGL_TO_WGPU_MATRIX * proj * view);
     }
 
-    pub const fn view_proj(&self) -> &Updatable<Matrix4<f32>> {
+    pub const fn view_proj(&self) -> &Updatable<Mat4<f32>> {
         &self.view_proj
     }
 
-    pub fn set_position(&mut self, position: Point3<f32>) {
+    pub fn set_position(&mut self, position: Position) {
         self.eye.update(position);
     }
 
-    pub fn set_rotation(&mut self, rotation: (f32, f32)) {
-        self.yaw.update(rotation.0);
-        self.pitch.update(rotation.1);
+    pub fn set_rotation(&mut self, rotation: Rotation) {
+        self.rotation.update(rotation);
     }
 
-    pub const fn get_rotation(&self) -> (f32, f32) {
-        (*self.yaw.current(), *self.pitch.current())
+    pub const fn get_rotation(&self) -> &Rotation {
+        self.rotation.current()
     }
 
     // utiliser dans Camera update si view proj a changé
     pub fn set_frustum_planes(&mut self) {
         let m = *self.view_proj.current();
+
+        let (r0, r1, r2, r3) = (m.row(0), m.row(1), m.row(2), m.row(3));
+
+        // Extraction Gribb-Hartmann : plan = ligne 3 ± ligne i.
+        let extract = |r: [f32; 4], sign: f32| Plane {
+            normal: Vec3::new(r3[0] + sign * r[0], r3[1] + sign * r[1], r3[2] + sign * r[2]),
+            d: r3[3] + sign * r[3],
+        };
+
         let new = [
+            extract(r0, 1.0),  // left
+            extract(r0, -1.0), // right
+            extract(r1, 1.0),  // bottom
+            extract(r1, -1.0), // top
+            // Clip-space WebGPU : z ∈ [0, w], donc near = ligne 2 seule.
             Plane {
-                normal: Vector3::new(m[0][3] + m[0][0], m[1][3] + m[1][0], m[2][3] + m[2][0]),
-                d: m[3][3] + m[3][0],
-            }, // left
-            Plane {
-                normal: Vector3::new(m[0][3] - m[0][0], m[1][3] - m[1][0], m[2][3] - m[2][0]),
-                d: m[3][3] - m[3][0],
-            }, // right
-            Plane {
-                normal: Vector3::new(m[0][3] + m[0][1], m[1][3] + m[1][1], m[2][3] + m[2][1]),
-                d: m[3][3] + m[3][1],
-            }, // bottom
-            Plane {
-                normal: Vector3::new(m[0][3] - m[0][1], m[1][3] - m[1][1], m[2][3] - m[2][1]),
-                d: m[3][3] - m[3][1],
-            }, // top
-            Plane {
-                normal: Vector3::new(m[0][3] + m[0][2], m[1][3] + m[1][2], m[2][3] + m[2][2]),
-                d: m[3][3] + m[3][2],
+                normal: Vec3::new(r2[0], r2[1], r2[2]),
+                d: r2[3],
             }, // near
-            Plane {
-                normal: Vector3::new(m[0][3] - m[0][2], m[1][3] - m[1][2], m[2][3] - m[2][2]),
-                d: m[3][3] - m[3][2],
-            }, // far
+            extract(r2, -1.0), // far
         ]
-        .map(|p| p.normalize());
+        .map(Plane::normalize);
         self.frustum_planes.update(new);
     }
 
@@ -138,7 +143,7 @@ impl Camera {
         let eye = *self.eye.current();
         let forward = self.forward();
         let right = self.right();
-        let up = right.cross(forward);
+        let up = right.cross(&forward);
 
         let tan_half_fov = (fov / 2.0_f32).to_radians().tan();
         let nh = tan_half_fov * znear;
@@ -155,21 +160,21 @@ impl Camera {
         let un = up * nh;
         let un2 = up * fh;
 
-        let mut min = Vector3::new(f32::MAX, f32::MAX, f32::MAX);
-        let mut max = Vector3::new(f32::MIN, f32::MIN, f32::MIN);
+        let mut min = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
+        let mut max = Vec3::new(f32::MIN, f32::MIN, f32::MIN);
 
         for c in [
-            nc - rn - un,
-            nc + rn - un,
-            nc - rn + un,
-            nc + rn + un,
-            fc - rn2 - un2,
-            fc + rn2 - un2,
-            fc - rn2 + un2,
-            fc + rn2 + un2,
+            (nc - rn) - un,
+            (nc + rn) - un,
+            (nc - rn) + un,
+            (nc + rn) + un,
+            (fc - rn2) - un2,
+            (fc + rn2) - un2,
+            (fc - rn2) + un2,
+            (fc + rn2) + un2,
         ] {
-            min = Vector3::new(min.x.min(c.x), min.y.min(c.y), min.z.min(c.z));
-            max = Vector3::new(max.x.max(c.x), max.y.max(c.y), max.z.max(c.z));
+            min = Vec3::new(min.x().min(*c.x()), min.y().min(*c.y()), min.z().min(*c.z()));
+            max = Vec3::new(max.x().max(*c.x()), max.y().max(*c.y()), max.z().max(*c.z()));
         }
 
         AABB { min, max }

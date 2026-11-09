@@ -3,27 +3,29 @@ use std::fmt;
 
 use rustc_hash::{FxBuildHasher, FxHashMap};
 
+use crate::world::chunk_position::ChunkPosition;
 use crate::world::data::block::BlockInstance;
-use crate::world::data::chunk::{global_position_to_chunk_pos, IntraChunkCoords};
+use crate::world::local_position::LocalPosition;
+use crate::world::world_position::WorldPosition;
 
 #[derive(Debug)]
 pub enum ModifiedWorldError {
-    ValeurInvalide(i32, i32, i32),
+    ValeurInvalide(ChunkPosition),
 }
 
 impl fmt::Display for ModifiedWorldError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ValeurInvalide(cx, cy, cz) => {
-                write!(f, "Le chunk ({}, {}, {}) n'existe pas ou n'a pas été modifié", *cx, *cy, *cz)
+            Self::ValeurInvalide(position) => {
+                write!(f, "Le chunk ({:?}) n'existe pas ou n'a pas été modifié", position)
             }
         }
     }
 }
 
 pub struct ModifiedChunk {
-    blocks: Vec<(IntraChunkCoords, BlockInstance)>,
-    index: FxHashMap<IntraChunkCoords, usize>,
+    blocks: Vec<(LocalPosition, BlockInstance)>,
+    index: FxHashMap<LocalPosition, usize>,
 }
 
 impl Default for ModifiedChunk {
@@ -40,24 +42,24 @@ impl ModifiedChunk {
         }
     }
 
-    pub fn get_block_at(&self, coords: &IntraChunkCoords) -> Option<&BlockInstance> {
+    pub fn get_block_at(&self, coords: &LocalPosition) -> Option<&BlockInstance> {
         self.index
             .get(coords)
             .and_then(|&i| self.blocks.get(i))
             .map(|(_, block)| block)
     }
 
-    pub fn set_block_at(&mut self, coords: IntraChunkCoords, block: BlockInstance) {
-        if let Some(&i) = self.index.get(&coords) {
-            self.blocks[i].1 = block;
+    pub fn set_block_at(&mut self, coords: &LocalPosition, block: BlockInstance) {
+        if let Some(i) = self.index.get(coords) {
+            self.blocks[*i].1 = block;
         } else {
             let i = self.blocks.len();
-            self.blocks.push((coords, block));
-            self.index.insert(coords, i);
+            self.blocks.push((*coords, block));
+            self.index.insert(*coords, i);
         }
     }
 
-    pub fn remove_block_at(&mut self, coords: &IntraChunkCoords) -> Option<BlockInstance> {
+    pub fn remove_block_at(&mut self, coords: &LocalPosition) -> Option<BlockInstance> {
         let i = self.index.remove(coords)?;
         let (_, removed_block) = self.blocks.swap_remove(i);
 
@@ -68,15 +70,15 @@ impl ModifiedChunk {
 
         Some(removed_block)
     }
-    pub fn blocks(&self) -> &[(IntraChunkCoords, BlockInstance)] {
+    pub fn blocks(&self) -> &[(LocalPosition, BlockInstance)] {
         &self.blocks
     }
 
-    pub fn into_blocks(self) -> Vec<(IntraChunkCoords, BlockInstance)> {
+    pub fn into_blocks(self) -> Vec<(LocalPosition, BlockInstance)> {
         self.blocks
     }
 
-    pub fn from_blocks(blocks: Vec<(IntraChunkCoords, BlockInstance)>) -> Self {
+    pub fn from_blocks(blocks: Vec<(LocalPosition, BlockInstance)>) -> Self {
         let mut index = HashMap::with_capacity_and_hasher(blocks.len(), FxBuildHasher);
         for (i, (coords, _)) in blocks.iter().enumerate() {
             index.insert(*coords, i);
@@ -86,7 +88,7 @@ impl ModifiedChunk {
 }
 
 pub struct ModifiedWorld {
-    pub chunks: FxHashMap<(i32, i32, i32), ModifiedChunk>,
+    pub chunks: FxHashMap<ChunkPosition, ModifiedChunk>,
 }
 
 impl Default for ModifiedWorld {
@@ -102,42 +104,40 @@ impl ModifiedWorld {
         }
     }
 
-    pub fn get_chunk_at(&self, cx: i32, cy: i32, cz: i32) -> Result<&ModifiedChunk, ModifiedWorldError> {
+    pub fn get_chunk_at(&self, position: &ChunkPosition) -> Result<&ModifiedChunk, ModifiedWorldError> {
+        self.chunks.get(position).ok_or(ModifiedWorldError::ValeurInvalide(*position))
+    }
+
+    pub fn get_chunk_at_mut(&mut self, position: &ChunkPosition) -> Result<&mut ModifiedChunk, String> {
         self.chunks
-            .get(&(cx, cy, cz))
-            .ok_or(ModifiedWorldError::ValeurInvalide(cx, cy, cz))
+            .get_mut(position)
+            .ok_or_else(|| format!("Le chunk ({:?}) n'existe pas ou n'a pas été modifié", position))
     }
 
-    pub fn get_chunk_at_mut(&mut self, cx: i32, cy: i32, cz: i32) -> Result<&mut ModifiedChunk, String> {
-        self.chunks
-            .get_mut(&(cx, cy, cz))
-            .ok_or_else(|| format!("Le chunk ({}, {}, {}) n'existe pas ou n'a pas été modifié", cx, cy, cz))
+    pub fn get_block_at(&self, position: &WorldPosition) -> Option<&BlockInstance> {
+        let (chunk_position, block_position) = position.into();
+        let chunk = self.chunks.get(&chunk_position)?;
+        chunk.get_block_at(&block_position)
     }
 
-    pub fn get_block_at(&self, gx: i32, gy: i32, gz: i32) -> Option<&BlockInstance> {
-        let (chunk_pos, intra_coords) = global_position_to_chunk_pos(gx, gy, gz);
-        let chunk = self.chunks.get(&chunk_pos)?;
-        chunk.get_block_at(&intra_coords)
+    pub fn set_block_at(&mut self, position: &WorldPosition, block: BlockInstance) {
+        let (chunk_position, block_position) = position.into();
+
+        let chunk = self.chunks.entry(chunk_position).or_default();
+        chunk.set_block_at(&block_position, block);
     }
 
-    pub fn set_block_at(&mut self, gx: i32, gy: i32, gz: i32, block: BlockInstance) {
-        let (chunk_pos, intra_coords) = global_position_to_chunk_pos(gx, gy, gz);
-
-        let chunk = self.chunks.entry(chunk_pos).or_default();
-        chunk.set_block_at(intra_coords, block);
+    pub fn remove_block_at(&mut self, position: &WorldPosition) -> Option<BlockInstance> {
+        let (chunk_position, block_position) = position.into();
+        let chunk = self.chunks.get_mut(&chunk_position)?;
+        chunk.remove_block_at(&block_position)
     }
 
-    pub fn remove_block_at(&mut self, gx: i32, gy: i32, gz: i32) -> Option<BlockInstance> {
-        let (chunk_pos, intra_coords) = global_position_to_chunk_pos(gx, gy, gz);
-        let chunk = self.chunks.get_mut(&chunk_pos)?;
-        chunk.remove_block_at(&intra_coords)
-    }
-
-    pub const fn chunks(&self) -> &FxHashMap<(i32, i32, i32), ModifiedChunk> {
+    pub const fn chunks(&self) -> &FxHashMap<ChunkPosition, ModifiedChunk> {
         &self.chunks
     }
 
-    pub fn into_chunks(self) -> FxHashMap<(i32, i32, i32), ModifiedChunk> {
+    pub fn into_chunks(self) -> FxHashMap<ChunkPosition, ModifiedChunk> {
         self.chunks
     }
 }

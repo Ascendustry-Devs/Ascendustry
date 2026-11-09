@@ -9,8 +9,7 @@ use crate::player::controllers::walk::WalkPlayerController;
 use crate::player::camera::Camera;
 use crate::player::controllers::{CameraController, PlayerController};
 use crate::systems::inputs::InputState;
-use crate::world::World;
-use cgmath::Point3;
+use crate::world::ClientWorld;
 use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     SPECTATOR_FLY_SPEED, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
@@ -18,13 +17,16 @@ use game::constants::{
 use game::inventory::{Inventory, ItemData, ItemRules, SlotData, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
+use game::world::chunk_position::ChunkPosition;
 use game::world::data::block::BlockInstance;
-use game::world::data::chunk::{Chunk, CHUNK_SIZE, CHUNK_SIZE_F};
+use game::world::data::chunk::Chunk;
 use game::world::raycast::voxel_raycast;
+use game::world::world_position::WorldPosition;
+use game::world::World;
 use network::messages::{new_inventory_update_paquet, Paquet};
 use physics::{body::PhysicsBody, collision::resolve_collision};
 use project_core::general_types::updatable::Updatable;
-use project_core::log_client;
+use project_core::{log_client, log_err_client};
 use winit::event::MouseButton;
 use winit::keyboard::KeyCode;
 
@@ -32,8 +34,8 @@ use winit::keyboard::KeyCode;
 /// Séparé de `Player` pour permettre l'ajout d'un corps physique sans tout casser.
 pub struct PlayerState {
     pub player_id: u64,
-    pub pos: Updatable<Point3<f32>>,
-    pub cpos: Updatable<Point3<i32>>,
+    pub pos: Updatable<Position>,
+    pub cpos: Updatable<ChunkPosition>,
     pub game_mode: PlayerGameMode,
     pub inventory: Inventory,
     pub horizontal_render_distance: u16,
@@ -51,14 +53,14 @@ impl PlayerState {
         player_id: u64,
         camera_controller: Box<dyn CameraController>,
         player_controller: Box<dyn PlayerController>,
-        spawn_pos: Point3<f32>,
+        spawn_pos: Position,
     ) -> Self {
         Self {
             player_id,
             game_mode: PlayerGameMode::Survival,
             inventory: Inventory::default(DEFAULT_INVENTORY_SIZE),
             pos: Updatable::new(spawn_pos),
-            cpos: Updatable::new(spawn_pos.map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32)),
+            cpos: Updatable::new((&spawn_pos).into()),
             horizontal_render_distance: HORIZONTAL_RENDER_DISTANCE,
             vertical_render_distance: VERTICAL_RENDER_DISTANCE,
             horizontal_simulation_distance: HORIZONTAL_SIMULATION_DISTANCE,
@@ -72,9 +74,9 @@ impl PlayerState {
 
     /// Met à jour la caméra (yaw/pitch).
     /// La position et `cpos` sont mis à jour dans `physics_update()` (timestep fixe).
-    pub fn update(&mut self, dt: f32, world: &mut World, inputs: &mut InputState) -> Vec<Paquet> {
-        let pos = self.get_pos();
-        self.camera_controller.update(dt, inputs, &mut self.camera, &pos);
+    pub fn update(&mut self, dt: f32, world: &mut ClientWorld, inputs: &mut InputState) -> Vec<Paquet> {
+        let position = *self.get_pos();
+        self.camera_controller.update(dt, inputs, &mut self.camera, &position);
 
         let mut commands = Vec::new();
 
@@ -109,55 +111,70 @@ impl PlayerState {
         commands
     }
 
-    fn break_block(&mut self, world: &mut World, commands: &mut Vec<Paquet>) {
-        let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |x, y, z| {
-            world.get_block_from_xyz(x, y, z).is_solid()
+    fn break_block(&mut self, world: &mut ClientWorld, commands: &mut Vec<Paquet>) {
+        let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |position| {
+            world.get_block(position).map_or(false, |block| block.is_solid())
         });
-        if let Some(hit) = hit {
-            let (x, y, z) = hit.block_pos;
-            let block_id = world.get_block_from_xyz(x, y, z).get_block_id();
-            let item = world.block_to_item(&block_id);
-            if let Some(item) = item {
-                log_client!("Ajout de l'item id n°{:?} dans l'inventaire", item.id);
-                if let Some(slot) = self.inventory.add_item(ItemData::new(item, None), 1, &ItemRules::default()) {
-                    commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
-                }
+        let Some(hit) = hit else { return };
+        let Some(block_id) = world.get_block(&hit.block_pos).map(|block| block.get_block_id()) else {
+            return;
+        };
+        let item = world.block_to_item(&block_id);
+        if let Some(item) = item {
+            log_client!("Ajout de l'item id n°{:?} dans l'inventaire", item.id);
+            if let Some(slot) = self.inventory.add_item(ItemData::new(item, None), 1, &ItemRules::default()) {
+                // TODO: get item rules based on item
+                commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
             }
-            let air = BlockInstance::air();
-            let success = world.set_block(x, y, z, air);
-            if success {
-                commands.push(GameProtocol::create_block_modification(x, y, z, air));
+        }
+
+        match world.set_block(&hit.block_pos, BlockInstance::air()) {
+            Ok(_) => {
+                commands.push(GameProtocol::create_block_modification(hit.block_pos, BlockInstance::air()));
+            }
+            Err(chunk) => {
+                let current_block = world.get_block(&hit.block_pos);
+                log_err_client!(
+                    "Couldn't break block {:?} at {:?} in chunk {:?}.",
+                    current_block,
+                    hit.block_pos,
+                    chunk
+                );
             }
         }
     }
 
-    fn place_block(&mut self, block: BlockInstance, world: &mut World, commands: &mut Vec<Paquet>) {
-        let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |x, y, z| {
-            world.get_block_from_xyz(x, y, z).is_solid()
+    fn place_block(&mut self, block: BlockInstance, world: &mut ClientWorld, commands: &mut Vec<Paquet>) {
+        let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |position| {
+            world.get_block(position).map_or(false, |block| block.is_solid())
         });
-        if let Some(hit) = hit {
-            let (x, y, z) = hit.block_pos;
-            let (d, u, v) = hit.normal;
-            let (dx, uy, vz) = (x - d, y - u, z - v);
+        let Some(hit) = hit else { return };
+        let (x, y, z) = (&hit.block_pos).into();
+        let (d, u, v) = hit.normal.into();
+        let (dx, uy, vz) = (x - d, y - u, z - v);
 
-            let item = world.block_to_item(&block.get_block_id());
-            if let Some(item) = item {
-                log_client!("Retrait de l'item id n°{:?} de l'inventaire", item.id);
-                if let Some(updated_stack) = self.inventory.remove_item(ItemData::new(item, None), 1, self.selected_slot) {
-                    commands.push(new_inventory_update_paquet(
-                        self.player_id,
-                        vec![SlotData {
-                            index: self.selected_slot,
-                            item: updated_stack,
-                        }],
-                    ));
-                }
+        let item = world.block_to_item(&block.get_block_id());
+        if let Some(item) = item {
+            log_client!("Retrait de l'item id n°{:?} de l'inventaire", item.id);
+            if let Some(updated_stack) = self.inventory.remove_item(ItemData::new(item, None), 1, self.selected_slot) {
+                commands.push(new_inventory_update_paquet(
+                    self.player_id,
+                    vec![SlotData {
+                        index: self.selected_slot,
+                        item: updated_stack,
+                    }],
+                ));
             }
+        }
 
-            let success = world.set_block(dx, uy, vz, block);
+        let position = WorldPosition::new(dx, uy, vz);
 
-            if success {
-                commands.push(GameProtocol::create_block_modification(dx, uy, vz, block));
+        match world.set_block(&position, block) {
+            Ok(_) => {
+                commands.push(GameProtocol::create_block_modification(position, block));
+            }
+            Err(chunk) => {
+                log_err_client!("Couldn't place block {:?} at {:?} in chunk {:?}.", block, position, chunk);
             }
         }
     }
@@ -175,10 +192,9 @@ impl PlayerState {
         }
     }
 
-    pub fn teleport(&mut self, x: f32, y: f32, z: f32) {
-        let pos = Point3 { x, y, z };
-        log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), pos);
-        self.set_pos(pos);
+    pub fn teleport(&mut self, position: Position) {
+        log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), position);
+        self.set_pos(position);
     }
 
     pub const fn set_render_distance(&mut self, horizontal: u16, vertical: u16) {
@@ -190,12 +206,12 @@ impl PlayerState {
         self.player_controller = player_controller;
     }
 
-    pub const fn get_pos(&self) -> Point3<f32> {
-        *self.pos.current()
+    pub const fn get_pos(&self) -> &Position {
+        self.pos.current()
     }
 
-    pub const fn get_cpos(&self) -> Point3<i32> {
-        *self.cpos.current()
+    pub const fn get_cpos(&self) -> &ChunkPosition {
+        self.cpos.current()
     }
 
     pub fn has_moved(&self) -> bool {
@@ -207,22 +223,18 @@ impl PlayerState {
         self.pos.update(*self.pos.current());
     }
 
-    pub fn set_pos(&mut self, pos: Point3<f32>) {
-        self.pos.update(pos);
-        self.cpos.update(
-            self.pos
-                .current()
-                .map(|coord| coord.div_euclid(CHUNK_SIZE as f32).floor() as i32),
-        );
+    pub fn set_pos(&mut self, position: Position) {
+        self.pos.update(position);
+        self.cpos.update((&position).into());
     }
 
     pub fn set_rot(&mut self, rot: Rotation) {
-        self.camera.set_rotation((rot.x, rot.y));
+        self.camera.set_rotation(rot);
     }
 
-    pub fn set_position_and_rotation(&mut self, pos: Position, rot: Rotation) {
-        self.set_pos(Point3::new(pos.x, pos.y, pos.z));
-        self.set_rot(rot);
+    pub fn set_position_and_rotation(&mut self, position: Position, rotation: Rotation) {
+        self.set_pos(position);
+        self.set_rot(rotation);
     }
 
     /// Retourne [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz]
@@ -230,7 +242,7 @@ impl PlayerState {
     #[inline(always)]
     pub fn get_simulation_chunk_range(&self) -> [i32; 6] {
         Chunk::get_cube_chunk_range(
-            (*self.cpos.current()).into(),
+            self.get_cpos(),
             self.horizontal_simulation_distance,
             self.vertical_simulation_distance,
         )
@@ -238,7 +250,7 @@ impl PlayerState {
 
     /// Génère toutes les clés (cx, cy, cz) des chunks à simuler autour du joueur.
     #[inline(always)]
-    pub fn get_simulation_chunk_keys(&self) -> Vec<(i32, i32, i32)> {
+    pub fn get_simulation_chunk_keys(&self) -> Vec<ChunkPosition> {
         let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.get_simulation_chunk_range();
         Chunk::get_cube_chunk_keys(min_cx, max_cx, min_cy, max_cy, min_cz, max_cz)
     }
@@ -248,7 +260,7 @@ impl PlayerState {
     #[inline(always)]
     pub fn get_rendered_chunk_range(&self) -> [i32; 6] {
         Chunk::get_cube_chunk_range(
-            (*self.cpos.current()).into(),
+            self.get_cpos(),
             self.horizontal_render_distance,
             self.vertical_render_distance,
         )
@@ -256,7 +268,7 @@ impl PlayerState {
 
     /// Génère toutes les clés (cx, cy, cz) des chunks à afficher autour du joueur.
     #[inline(always)]
-    pub fn get_rendered_chunk_keys(&self) -> Vec<(i32, i32, i32)> {
+    pub fn get_rendered_chunk_keys(&self) -> Vec<ChunkPosition> {
         let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.get_rendered_chunk_range();
         Chunk::get_cube_chunk_keys(min_cx, max_cx, min_cy, max_cy, min_cz, max_cz)
     }
@@ -275,7 +287,7 @@ impl Player {
         camera_controller: Box<dyn CameraController>,
         player_controller: Box<dyn PlayerController>,
     ) -> Self {
-        let spawn_pos = Point3::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
+        let spawn_pos = Position::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
         Self {
             state: PlayerState::new(player_id, camera_controller, player_controller, spawn_pos),
             physics_body: PhysicsBody::new(spawn_pos, 0.49),
@@ -283,33 +295,29 @@ impl Player {
     }
 
     /// Délègue la mise à jour de la caméra à `PlayerState` (yaw/pitch).
-    pub fn update(&mut self, dt: f32, world: &mut World, inputs: &mut InputState) -> Vec<Paquet> {
+    pub fn update(&mut self, dt: f32, world: &mut ClientWorld, inputs: &mut InputState) -> Vec<Paquet> {
         self.state.update(dt, world, inputs)
     }
 
     /// Met à jour la physique à timestep fixe :
     /// 1. Le contrôleur joueur modifie la vélocité du `PhysicsBody`
     /// 2. `resolve_collision` traduit la vélocité en déplacement et corrige les collisions
-    pub fn physics_update(&mut self, dt: f32, inputs: &mut InputState, world: &World, player_game_mode: PlayerGameMode) {
+    pub fn physics_update(&mut self, dt: f32, inputs: &mut InputState, world: &ClientWorld, player_game_mode: PlayerGameMode) {
         self.state
             .player_controller
             .update(dt, inputs, &mut self.physics_body, &self.state.camera);
         match player_game_mode {
             PlayerGameMode::Spectator => {
                 let pos = self.state.pos.current_mut();
-                *pos += self.physics_body.velocity.current() * dt;
+                *pos += *self.physics_body.velocity.current() * dt;
             }
             PlayerGameMode::Survival => {
                 resolve_collision(world, &mut self.physics_body, dt, self.state.pos.current_mut());
             }
         }
 
-        self.state.cpos.update(
-            self.state
-                .pos
-                .current()
-                .map(|coord| coord.div_euclid(CHUNK_SIZE_F).floor() as i32),
-        );
+        let cpos = ChunkPosition::from(self.state.pos.current());
+        self.state.cpos.update(cpos);
     }
 
     /// Délègue à `self.state`.
@@ -317,11 +325,11 @@ impl Player {
         self.state.set_render_distance(horizontal, vertical);
     }
 
-    pub const fn get_pos(&self) -> Point3<f32> {
+    pub const fn get_pos(&self) -> &Position {
         self.state.get_pos()
     }
 
-    pub const fn get_cpos(&self) -> Point3<i32> {
+    pub const fn get_cpos(&self) -> &ChunkPosition {
         self.state.get_cpos()
     }
 
@@ -329,23 +337,23 @@ impl Player {
         self.state.has_moved()
     }
 
-    pub fn set_pos(&mut self, pos: Point3<f32>) {
+    pub fn set_pos(&mut self, pos: Position) {
         self.state.set_pos(pos);
     }
 
-    pub fn teleport(&mut self, x: f32, y: f32, z: f32) {
-        self.state.teleport(x, y, z);
+    pub fn teleport(&mut self, pos: Position) {
+        self.state.teleport(pos);
     }
 
     pub fn get_simulation_chunk_range(&self) -> [i32; 6] {
         self.state.get_simulation_chunk_range()
     }
 
-    pub fn get_rendered_chunk_keys(&self) -> Vec<(i32, i32, i32)> {
+    pub fn get_rendered_chunk_keys(&self) -> Vec<ChunkPosition> {
         self.state.get_rendered_chunk_keys()
     }
 
-    pub fn get_simulation_chunk_keys(&self) -> Vec<(i32, i32, i32)> {
+    pub fn get_simulation_chunk_keys(&self) -> Vec<ChunkPosition> {
         self.state.get_simulation_chunk_keys()
     }
 
@@ -359,7 +367,7 @@ mod tests {
     use super::*;
     use crate::player::controllers::spectator::FreeCameraController;
 
-    fn new_state(spawn_pos: Point3<f32>) -> PlayerState {
+    fn new_state(spawn_pos: Position) -> PlayerState {
         PlayerState::new(
             0,
             Box::new(FreeCameraController::new(0.00390625)),
@@ -369,8 +377,8 @@ mod tests {
     }
 
     /// Reproduit le test d'appartenance utilisé par l'élagage de rendu.
-    fn is_in_render_range(range: [i32; 6], chunk: (i32, i32, i32)) -> bool {
-        let (x, y, z) = chunk;
+    fn is_in_render_range(range: [i32; 6], chunk: &ChunkPosition) -> bool {
+        let (x, y, z) = chunk.into();
         x >= range[0] && x <= range[1] && y >= range[2] && y <= range[3] && z >= range[4] && z <= range[5]
     }
 
@@ -379,9 +387,9 @@ mod tests {
         // Régression : la boîte de rendu doit contenir le chunk du joueur dès
         // la première frame. Avant, un cache mal initialisé éliminait le monde
         // entier de l'écran jusqu'au premier changement de chunk du joueur.
-        let state = new_state(Point3::new(0.5, 12.0, 0.5));
+        let state = new_state(Position::new(0.5, 12.0, 0.5));
         let range = state.get_rendered_chunk_range();
-        let cpos = (*state.cpos.current()).into();
+        let cpos = state.cpos.current();
 
         assert!(
             is_in_render_range(range, cpos),
@@ -393,11 +401,15 @@ mod tests {
     fn test_render_range_follows_teleportation() {
         // Régression : après une téléportation, la boîte de rendu doit suivre la
         // nouvelle position, y compris si le joueur change de chunk.
-        let mut state = new_state(Point3::new(0.5, 12.0, 0.5));
-        state.set_pos(Point3::new(100.5, 12.0, -64.5));
+        let mut state = new_state(Position::new(0.5, 12.0, 0.5));
+        state.set_pos(Position::new(100.5, 12.0, -64.5));
 
-        let cpos = (*state.cpos.current()).into();
-        assert_eq!(cpos, (3, 0, -3), "la position en chunk doit suivre la téléportation");
+        let cpos = state.cpos.current();
+        assert_eq!(
+            *cpos,
+            ChunkPosition::new(3, 0, -3),
+            "la position en chunk doit suivre la téléportation"
+        );
 
         let range = state.get_rendered_chunk_range();
         assert!(
@@ -410,10 +422,10 @@ mod tests {
     fn test_render_range_stays_consistent_when_chunk_does_not_change() {
         // Se déplacer à l'intérieur du même chunk ne doit pas modifier la
         // boîte de rendu.
-        let mut state = new_state(Point3::new(0.5, 12.0, 0.5));
+        let mut state = new_state(Position::new(0.5, 12.0, 0.5));
         let before = state.get_rendered_chunk_range();
 
-        state.set_pos(Point3::new(5.5, 13.0, 3.5));
+        state.set_pos(Position::new(5.5, 13.0, 3.5));
         assert_eq!(state.get_rendered_chunk_range(), before);
     }
 }

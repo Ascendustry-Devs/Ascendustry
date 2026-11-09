@@ -1,27 +1,31 @@
 use crate::aabb::AABB;
 use crate::body::PhysicsBody;
 use crate::collision_world::CollisionWorld;
-use cgmath::{Point3, Vector3};
-use game::constants::{COLLISION_EPSILON, PLAYER_HEIGHT, PLAYER_WIDTH};
+use game::{
+    constants::{COLLISION_EPSILON, PLAYER_HEIGHT, PLAYER_WIDTH},
+    types::Position,
+    world::world_position::WorldPosition,
+};
+use project_core::general_types::vec3::Vec3;
 
-fn aabb_at_feet(feet: &Point3<f32>) -> AABB {
+fn aabb_at_feet(feet: &Position) -> AABB {
     let half_width = PLAYER_WIDTH / 2.0;
     let half_height = PLAYER_HEIGHT / 2.0;
-    let center = Point3::new(feet.x, feet.y + half_height, feet.z);
-    AABB::new_sized(center, Vector3::new(half_width, half_height, half_width))
+    let center = Position::new(*feet.x(), feet.y() + half_height, *feet.z());
+    AABB::new_sized(center, Vec3::new(half_width, half_height, half_width))
 }
 
-pub fn get_colliding_blocks(world: &impl CollisionWorld, aabb: &AABB) -> Vec<(i32, i32, i32)> {
+pub fn get_colliding_blocks(world: &impl CollisionWorld, aabb: &AABB) -> Vec<WorldPosition> {
     if world.is_empty() {
         return Vec::new();
     }
 
-    let min_x = aabb.min.x.floor() as i32;
-    let max_x = (aabb.max.x - COLLISION_EPSILON).floor() as i32;
-    let min_y = aabb.min.y.floor() as i32;
-    let max_y = (aabb.max.y - COLLISION_EPSILON).floor() as i32;
-    let min_z = aabb.min.z.floor() as i32;
-    let max_z = (aabb.max.z - COLLISION_EPSILON).floor() as i32;
+    let min_x = aabb.min.x().floor() as i32;
+    let max_x = (aabb.max.x() - COLLISION_EPSILON).floor() as i32;
+    let min_y = aabb.min.y().floor() as i32;
+    let max_y = (aabb.max.y() - COLLISION_EPSILON).floor() as i32;
+    let min_z = aabb.min.z().floor() as i32;
+    let max_z = (aabb.max.z() - COLLISION_EPSILON).floor() as i32;
 
     if min_x > max_x || min_y > max_y || min_z > max_z {
         return Vec::new();
@@ -32,8 +36,9 @@ pub fn get_colliding_blocks(world: &impl CollisionWorld, aabb: &AABB) -> Vec<(i3
     for x in min_x..=max_x {
         for y in min_y..=max_y {
             for z in min_z..=max_z {
-                if world.is_block_solid(x, y, z) {
-                    blocks.push((x, y, z));
+                let position = WorldPosition::new(x, y, z);
+                if world.is_block_solid(&position) {
+                    blocks.push(position);
                 }
             }
         }
@@ -41,86 +46,86 @@ pub fn get_colliding_blocks(world: &impl CollisionWorld, aabb: &AABB) -> Vec<(i3
     blocks
 }
 
-pub fn resolve_collision(world: &impl CollisionWorld, body: &mut PhysicsBody, dt: f32, position: &mut Point3<f32>) {
+pub fn resolve_collision(world: &impl CollisionWorld, body: &mut PhysicsBody, dt: f32, position: &mut Position) {
     let mut velocity = *body.velocity_mut().current();
-    velocity.y += body.gravity * dt;
+    *velocity.y_mut() += body.gravity * dt;
 
-    position.y += velocity.y * dt;
-    if velocity.y > 0.0 {
+    *position.y_mut() += velocity.y() * dt;
+    if *velocity.y() > 0.0 {
         let aabb = aabb_at_feet(position);
         let nearest = get_colliding_blocks(world, &aabb)
             .iter()
-            .filter(|&(_, by, _)| (*by as f32) > position.y - PLAYER_HEIGHT)
-            .map(|&(_, by, _)| by)
+            .filter(|&c| (c.y() as f32) > position.y() - PLAYER_HEIGHT)
+            .map(|&c| c.y())
             .min();
         if let Some(by) = nearest {
-            position.y = by as f32 - PLAYER_HEIGHT - COLLISION_EPSILON;
-            velocity.y = 0.0;
+            *position.y_mut() = by as f32 - PLAYER_HEIGHT - COLLISION_EPSILON;
+            *velocity.y_mut() = 0.0;
         }
-    } else if velocity.y < 0.0 {
+    } else if *velocity.y() < 0.0 {
         let aabb = aabb_at_feet(position);
         let nearest = get_colliding_blocks(world, &aabb)
             .iter()
-            .filter(|&(_, by, _)| (*by as f32) < position.y)
-            .map(|&(_, by, _)| by)
+            .filter(|&c| (c.y() as f32) < *position.y())
+            .map(|&c| c.y())
             .max();
         if let Some(by) = nearest {
-            position.y = by as f32 + 1.0 + COLLISION_EPSILON;
+            *position.y_mut() = by as f32 + 1.0 + COLLISION_EPSILON;
             body.on_ground = true;
-            velocity.y = 0.0;
+            *velocity.y_mut() = 0.0;
         }
     }
 
-    position.x += velocity.x * dt;
+    *position.x_mut() += velocity.x() * dt;
     {
         let aabb = aabb_at_feet(position);
         let blocks = get_colliding_blocks(world, &aabb);
-        if velocity.x > 0.0 {
+        if *velocity.x() > 0.0 {
             if let Some(bx) = blocks
                 .iter()
-                .filter(|&&(bx, _, _)| (bx as f32) >= position.x)
-                .map(|&(bx, _, _)| bx)
+                .filter(|&c| (c.x() as f32) >= *position.x())
+                .map(|&c| c.x())
                 .max()
             {
-                position.x = bx as f32 - PLAYER_WIDTH / 2.0 - COLLISION_EPSILON;
-                velocity.x = 0.0;
+                *position.x_mut() = bx as f32 - PLAYER_WIDTH / 2.0 - COLLISION_EPSILON;
+                *velocity.x_mut() = 0.0;
             }
-        } else if velocity.x < 0.0 {
+        } else if *velocity.x() < 0.0 {
             if let Some(bx) = blocks
                 .iter()
-                .filter(|&&(bx, _, _)| (bx as f32) + 1.0 <= position.x)
-                .map(|&(bx, _, _)| bx)
+                .filter(|&c| (c.x() as f32) + 1.0 <= *position.x())
+                .map(|&c| c.x())
                 .min()
             {
-                position.x = bx as f32 + 1.0 + PLAYER_WIDTH / 2.0 + COLLISION_EPSILON;
-                velocity.x = 0.0;
+                *position.x_mut() = bx as f32 + 1.0 + PLAYER_WIDTH / 2.0 + COLLISION_EPSILON;
+                *velocity.x_mut() = 0.0;
             }
         }
     }
 
-    position.z += velocity.z * dt;
+    *position.z_mut() += velocity.z() * dt;
     {
         let aabb = aabb_at_feet(position);
         let blocks = get_colliding_blocks(world, &aabb);
-        if velocity.z > 0.0 {
+        if *velocity.z() > 0.0 {
             if let Some(bz) = blocks
                 .iter()
-                .filter(|&&(_, _, bz)| (bz as f32) >= position.z)
-                .map(|&(_, _, bz)| bz)
+                .filter(|&c| (c.z() as f32) >= *position.z())
+                .map(|&c| c.z())
                 .max()
             {
-                position.z = bz as f32 - PLAYER_WIDTH / 2.0 - COLLISION_EPSILON;
-                velocity.z = 0.0;
+                *position.z_mut() = bz as f32 - PLAYER_WIDTH / 2.0 - COLLISION_EPSILON;
+                *velocity.z_mut() = 0.0;
             }
-        } else if velocity.z < 0.0 {
+        } else if *velocity.z_mut() < 0.0 {
             if let Some(bz) = blocks
                 .iter()
-                .filter(|&&(_, _, bz)| (bz as f32) + 1.0 <= position.z)
-                .map(|&(_, _, bz)| bz)
+                .filter(|&c| (c.z() as f32) + 1.0 <= *position.z())
+                .map(|&c| c.z())
                 .min()
             {
-                position.z = bz as f32 + 1.0 + PLAYER_WIDTH / 2.0 + COLLISION_EPSILON;
-                velocity.z = 0.0;
+                *position.z_mut() = bz as f32 + 1.0 + PLAYER_WIDTH / 2.0 + COLLISION_EPSILON;
+                *velocity.z_mut() = 0.0;
             }
         }
     }

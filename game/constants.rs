@@ -1,4 +1,4 @@
-use cgmath::Vector3;
+use project_core::general_types::vec3::Vec3;
 
 use crate::world::data::chunk::CHUNK_SIZE_F;
 
@@ -44,7 +44,7 @@ pub const SIMULATION_DISTANCE_CHUNK_COUNT: u16 = {
 pub const HORIZONTAL_SIMULATION_DISTANCE_HALFED_F: f32 = (HORIZONTAL_SIMULATION_DISTANCE as f32) / 2.0;
 pub const VERTICAL_SIMULATION_DISTANCE_HALFED_F: f32 = (VERTICAL_SIMULATION_DISTANCE as f32) / 2.0;
 
-pub const HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F: Vector3<f32> = Vector3::new(
+pub const HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F: Vec3<f32> = Vec3::new(
     HORIZONTAL_SIMULATION_DISTANCE_HALFED_F * CHUNK_SIZE_F,
     VERTICAL_SIMULATION_DISTANCE_HALFED_F * CHUNK_SIZE_F,
     HORIZONTAL_SIMULATION_DISTANCE_HALFED_F * CHUNK_SIZE_F,
@@ -53,7 +53,7 @@ pub const HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F: Vector3<f32> = Vector3::n
 pub const CHUNK_PRIORITY_DISTANCE: f32 = 32.0;
 pub const CHUNK_PRIORITY_DISTANCE_SQR: f32 = CHUNK_PRIORITY_DISTANCE * CHUNK_PRIORITY_DISTANCE;
 
-pub const CHUNK_VECTOR: Vector3<f32> = Vector3::new(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F);
+pub const CHUNK_VECTOR: Vec3<f32> = Vec3::new(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F);
 
 /// Nombre maximum de chunks en attente de **maillage**.
 ///
@@ -100,7 +100,7 @@ pub const MOVEMENT_PLAUSIBILITY_MULTIPLIER: f32 = 3.5;
 
 // Geometry
 
-pub const UP: Vector3<f32> = Vector3::new(0.0, 1.0, 0.0);
+pub const UP: Vec3<f32> = Vec3::new(0.0, 1.0, 0.0);
 
 pub const DIRECT_NORMALS_3D: [(i32, i32, i32); 6] = [(-1, 0, 0), (1, 0, 0), (0, -1, 0), (0, 1, 0), (0, 0, -1), (0, 0, 1)];
 pub const INDIRECT_NORMALS_3D: [(i32, i32, i32); 20] = [

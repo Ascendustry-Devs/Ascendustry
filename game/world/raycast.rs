@@ -1,60 +1,74 @@
-use cgmath::{Point3, Vector3};
+use project_core::general_types::{normal::BinaryNormal3, vec3::Vec3};
 
-pub struct RaycastHit {
-    pub block_pos: (i32, i32, i32),
-    pub normal: (i32, i32, i32),
+use crate::{types::Position, world::world_position::WorldPosition};
+
+pub struct VoxelCubicRaycastHit {
+    pub block_pos: WorldPosition,
+    pub normal: BinaryNormal3,
 }
 
 pub fn voxel_raycast(
-    origin: &Point3<f32>,
-    direction: &Vector3<f32>,
+    origin: &Position,
+    direction: &Vec3<f32>,
     max_distance: f32,
-    mut stop_condition: impl FnMut(i32, i32, i32) -> bool,
-) -> Option<RaycastHit> {
-    let mut x = origin.x.floor() as i32;
-    let mut y = origin.y.floor() as i32;
-    let mut z = origin.z.floor() as i32;
+    mut stop_condition: impl FnMut(&WorldPosition) -> bool,
+) -> Option<VoxelCubicRaycastHit> {
+    let mut x = origin.x().floor() as i32;
+    let mut y = origin.y().floor() as i32;
+    let mut z = origin.z().floor() as i32;
 
-    let step_x = if direction.x > 0.0 {
+    let step_x = if *direction.x() > 0.0 {
         1
-    } else if direction.x < 0.0 {
+    } else if *direction.x() < 0.0 {
         -1
     } else {
         0
     };
-    let step_y = if direction.y > 0.0 {
+    let step_y = if *direction.y() > 0.0 {
         1
-    } else if direction.y < 0.0 {
+    } else if *direction.y() < 0.0 {
         -1
     } else {
         0
     };
-    let step_z = if direction.z > 0.0 {
+    let step_z = if *direction.z() > 0.0 {
         1
-    } else if direction.z < 0.0 {
+    } else if *direction.z() < 0.0 {
         -1
     } else {
         0
     };
 
-    let t_delta_x = if step_x != 0 { 1.0 / direction.x.abs() } else { f32::INFINITY };
-    let t_delta_y = if step_y != 0 { 1.0 / direction.y.abs() } else { f32::INFINITY };
-    let t_delta_z = if step_z != 0 { 1.0 / direction.z.abs() } else { f32::INFINITY };
+    let t_delta_x = if step_x != 0 {
+        1.0 / direction.x().abs()
+    } else {
+        f32::INFINITY
+    };
+    let t_delta_y = if step_y != 0 {
+        1.0 / direction.y().abs()
+    } else {
+        f32::INFINITY
+    };
+    let t_delta_z = if step_z != 0 {
+        1.0 / direction.z().abs()
+    } else {
+        f32::INFINITY
+    };
 
     let dist_to_next_face_x = if step_x > 0 {
-        x as f32 + 1.0 - origin.x
+        x as f32 + 1.0 - origin.x()
     } else {
-        origin.x - x as f32
+        origin.x() - x as f32
     };
     let dist_to_next_face_y = if step_y > 0 {
-        y as f32 + 1.0 - origin.y
+        y as f32 + 1.0 - origin.y()
     } else {
-        origin.y - y as f32
+        origin.y() - y as f32
     };
     let dist_to_next_face_z = if step_z > 0 {
-        z as f32 + 1.0 - origin.z
+        z as f32 + 1.0 - origin.z()
     } else {
-        origin.z - z as f32
+        origin.z() - z as f32
     };
 
     let mut t_max_x = if step_x != 0 {
@@ -82,10 +96,11 @@ pub fn voxel_raycast(
         if t > max_distance {
             return None;
         }
-        if stop_condition(x, y, z) {
-            return Some(RaycastHit {
-                block_pos: (x, y, z),
-                normal: (x - prev_x, y - prev_y, z - prev_z),
+        let position = WorldPosition::new(x, y, z);
+        if stop_condition(&position) {
+            return Some(VoxelCubicRaycastHit {
+                block_pos: position,
+                normal: (x - prev_x, y - prev_y, z - prev_z).into(),
             });
         }
 

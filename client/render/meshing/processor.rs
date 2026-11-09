@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use engine::geometry::vertex::Vertex;
-use game::world::data::chunk::CHUNK_SIZE;
+use game::world::{chunk_position::ChunkPosition, data::chunk::CHUNK_SIZE};
 use project_core::parallel::{buffer_pool::BufferPool, Parallelizable};
 
 use crate::{
@@ -15,12 +15,13 @@ pub struct GreedyMeshingProcessor;
 
 impl Parallelizable for GreedyMeshingProcessor {
     type Context = Arc<BufferPool<Vertex>>;
-    type Input = (MeshSnapshot, i32, i32, i32, Arc<TextureRegistry>);
+    type Input = (MeshSnapshot, ChunkPosition, Arc<TextureRegistry>);
     type Output = Option<Vec<Vertex>>;
 
     /// Makes greedy
     fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output {
-        let (snapshot, cx, cy, cz, textures) = input;
+        let (snapshot, position, textures) = input;
+        let (cx, cy, cz) = (&position).into();
 
         let start = Instant::now();
 

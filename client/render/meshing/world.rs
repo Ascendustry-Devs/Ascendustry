@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use engine::gpu::allocator::gpu_allocator::GpuAllocator;
-use game::constants::MAX_MESHING_CHUNKS_IN_QUEUE;
+use game::{constants::MAX_MESHING_CHUNKS_IN_QUEUE, world::chunk_position::ChunkPosition};
 use project_core::parallel::{buffer_pool::BufferPool, worker_pool::WorkerPool, WorkResult};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet};
@@ -14,16 +14,16 @@ use std::sync::Arc;
 use std::{cmp::max, mem::take, sync::RwLock};
 
 pub struct WorldMesh {
-    pub meshes: FxHashMap<(i32, i32, i32), ChunkMesh>,
-    pub chunk_meshes: FxHashSet<(i32, i32, i32)>,
+    pub meshes: FxHashMap<ChunkPosition, ChunkMesh>,
+    pub chunk_meshes: FxHashSet<ChunkPosition>,
     mesh_worker: WorkerPool<GreedyMeshingProcessor>,
     pending: FxHashMap<usize, MeshRequestAdd>,
-    pending_keys: FxHashMap<(i32, i32, i32), MeshSnapshot>,
+    pending_keys: FxHashMap<ChunkPosition, MeshSnapshot>,
     /// Requêtes de maillage en attente de soumission, ordonnées par priorité.
     queued: MeshRequestQueue,
     /// Position du joueur (en coordonnées de chunk), utilisée pour trier la
     /// file par priorité. `None` tant que la position n'est pas connue.
-    player_chunk: Option<(i32, i32, i32)>,
+    player_chunk: Option<ChunkPosition>,
 
     alloc: Option<Arc<RwLock<GpuAllocator>>>,
 }
@@ -59,8 +59,8 @@ impl WorldMesh {
 
     /// Indique la position du joueur (en coordonnées de chunk), utilisée pour
     /// trier les requêtes de maillage par priorité.
-    pub fn set_player_chunk(&mut self, player_chunk: (i32, i32, i32)) {
-        self.player_chunk = Some(player_chunk);
+    pub fn set_player_chunk(&mut self, player_chunk: &ChunkPosition) {
+        self.player_chunk = Some(*player_chunk);
     }
 
     pub fn update(
@@ -93,18 +93,18 @@ impl WorldMesh {
         self.queued.insert(request);
     }
 
-    fn delete_mesh_with_alloc(&mut self, alloc: &mut GpuAllocator, coords: &(i32, i32, i32)) {
-        self.chunk_meshes.remove(coords);
-        self.pending.retain(|_, v| v.coords.ne(coords));
-        self.pending_keys.remove(coords);
-        if let Some(mesh) = self.meshes.remove(coords) {
+    fn delete_mesh_with_alloc(&mut self, alloc: &mut GpuAllocator, chunk: &ChunkPosition) {
+        self.chunk_meshes.remove(chunk);
+        self.pending.retain(|_, v| v.coords.ne(chunk));
+        self.pending_keys.remove(chunk);
+        if let Some(mesh) = self.meshes.remove(chunk) {
             if let Some(mesh_id) = mesh.id {
                 match alloc.free(mesh_id) {
                     Ok(_) => {}
                     Err(e) => {
                         println!(
                             "WorldMesh delete_mesh: could not free mesh {:?} with id {}.\nError: {}",
-                            coords, mesh_id, e
+                            chunk, mesh_id, e
                         );
                     }
                 }
@@ -112,11 +112,11 @@ impl WorldMesh {
         }
     }
 
-    fn delete_mesh(&mut self, coords: &(i32, i32, i32)) {
+    fn delete_mesh(&mut self, chunk: &ChunkPosition) {
         let raw_alloc = take(&mut self.alloc).unwrap();
         {
             let alloc = &mut raw_alloc.write().unwrap();
-            self.delete_mesh_with_alloc(alloc, coords);
+            self.delete_mesh_with_alloc(alloc, chunk);
         }
         self.alloc = Some(raw_alloc);
     }
@@ -130,7 +130,7 @@ impl WorldMesh {
         // Les chunks sont maillés **du plus proche du joueur au plus loin** :
         // c'est ce qui évite les "trous" visuels autour du joueur et rend
         // l'apparition du monde progressive et radiale.
-        if let Some(player_chunk) = self.player_chunk {
+        if let Some(ref player_chunk) = self.player_chunk {
             self.queued.sort_by_priority(player_chunk);
         }
 
@@ -155,8 +155,7 @@ impl WorldMesh {
 
             // On récupère les infos nécessaires pour le mesher
             let snapshot = chunk.snapshot.clone();
-            let (cx, cy, cz) = chunk.coords;
-            let input = (snapshot, cx, cy, cz, textures.clone());
+            let input = (snapshot, chunk.coords, textures.clone());
 
             let result = self.mesh_worker.submit(input);
 
@@ -274,11 +273,11 @@ impl WorldMesh {
         responses
     }
 
-    pub fn mesh_infos_at(&self, cpos: &(i32, i32, i32)) -> Option<(Option<u32>, bool)> {
+    pub fn mesh_infos_at(&self, cpos: &ChunkPosition) -> Option<(Option<u32>, bool)> {
         self.meshes.get(cpos).map(|mesh| mesh.get_debug_infos())
     }
 
-    pub fn mesh_at_mut(&mut self, cpos: &(i32, i32, i32)) -> Option<&mut ChunkMesh> {
+    pub fn mesh_at_mut(&mut self, cpos: &ChunkPosition) -> Option<&mut ChunkMesh> {
         self.meshes.get_mut(cpos)
     }
 

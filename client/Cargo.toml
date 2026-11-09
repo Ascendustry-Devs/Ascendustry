@@ -15,7 +15,6 @@ name = "Ascendustry"
 path = "main.rs"
 
 [dependencies]
-cgmath = { workspace = true }
 bytemuck = { workspace = true }
 rustc-hash = { workspace = true }
 winit = { workspace = true }

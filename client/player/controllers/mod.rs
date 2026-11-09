@@ -1,5 +1,5 @@
 use crate::{player::camera::Camera, systems::inputs::InputState};
-use cgmath::Point3;
+use game::types::Position;
 use physics::body::PhysicsBody;
 
 pub mod spectator;
@@ -10,5 +10,5 @@ pub trait PlayerController {
 }
 
 pub trait CameraController {
-    fn update(&self, dt: f32, inputs: &mut InputState, camera: &mut Camera, player_pos: &Point3<f32>);
+    fn update(&self, dt: f32, inputs: &mut InputState, camera: &mut Camera, player_pos: &Position);
 }

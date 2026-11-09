@@ -6,12 +6,13 @@ use anyhow::Result;
 use game::inventory::Inventory;
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
+use game::world::chunk_position::ChunkPosition;
+use game::world::local_position::LocalPosition;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use game::world::data::block::BlockInstance;
-use game::world::data::chunk::IntraChunkCoords;
 use game::world::modified_chunk::ModifiedChunk;
 use game::world::modified_chunk::ModifiedWorld;
 
@@ -22,12 +23,12 @@ const SAVE_VERSION: u32 = 1;
 
 #[derive(Serialize, Deserialize)]
 pub struct SaveChunk {
-    pub blocks: Vec<(IntraChunkCoords, BlockInstance)>,
+    pub blocks: Vec<(LocalPosition, BlockInstance)>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct SaveWorld {
-    pub chunks: FxHashMap<(i32, i32, i32), SaveChunk>,
+    pub chunks: FxHashMap<ChunkPosition, SaveChunk>,
 }
 #[derive(Serialize, Deserialize, Clone)]
 pub struct PlayerSave {

@@ -2,7 +2,7 @@ use game::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use game::inventory::{Inventory, SlotData, DEFAULT_INVENTORY_SIZE};
 use game::player::PlayerGameMode;
 use game::types::{Position, Rotation};
-use game::world::data::chunk::CHUNK_SIZE_F;
+use game::world::chunk_position::ChunkPosition;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub struct Player {
 
 pub struct PlayerRegistry {
     players: FxHashMap<u64, Player>,
-    player_chunks: FxHashMap<u64, FxHashSet<(i32, i32, i32)>>,
+    player_chunks: FxHashMap<u64, FxHashSet<ChunkPosition>>,
 }
 
 impl PlayerRegistry {
@@ -44,12 +44,8 @@ impl PlayerRegistry {
         if self.players.contains_key(&id) {
             return;
         }
-        let position = Position {
-            x: SPAWN_POSITION_X,
-            y: SPAWN_POSITION_Y,
-            z: SPAWN_POSITION_Z,
-        };
-        let rotation = Rotation { x: 0.0, y: 0.0 };
+        let position = Position::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
+        let rotation = Rotation::new(0.0, 0.0);
         let player = Player {
             id,
             username,
@@ -87,22 +83,19 @@ impl PlayerRegistry {
         Some(self.players.values().cloned().collect())
     }
 
-    pub fn update_position(&mut self, id: u64, position: Position, rotation: Rotation) -> (i32, i32, i32) {
+    pub fn update_position(&mut self, id: u64, position: Position, rotation: Rotation) -> ChunkPosition {
         if let Some(player) = self.players.get_mut(&id) {
             player.position = position;
             player.rotation = rotation;
         }
-        let cx = (position.x / CHUNK_SIZE_F).floor() as i32;
-        let cy = (position.y / CHUNK_SIZE_F).floor() as i32;
-        let cz = (position.z / CHUNK_SIZE_F).floor() as i32;
-        (cx, cy, cz)
+        (&position).into()
     }
 
-    pub fn set_player_chunks(&mut self, id: u64, chunks: FxHashSet<(i32, i32, i32)>) {
+    pub fn set_player_chunks(&mut self, id: u64, chunks: FxHashSet<ChunkPosition>) {
         self.player_chunks.insert(id, chunks);
     }
 
-    pub fn all_required_chunks(&self) -> FxHashSet<(i32, i32, i32)> {
+    pub fn all_required_chunks(&self) -> FxHashSet<ChunkPosition> {
         self.player_chunks
             .values()
             .flat_map(|chunks| chunks.iter())

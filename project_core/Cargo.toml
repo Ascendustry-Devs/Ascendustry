@@ -7,5 +7,6 @@ edition.workspace = true
 path = "lib.rs"
 
 [dependencies]
-cgmath = { workspace = true }
 rustc-hash = { workspace = true }
+serde.workspace = true
+tokio = { workspace = true }

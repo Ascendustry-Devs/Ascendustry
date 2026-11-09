@@ -2,52 +2,70 @@ use crate::identity::IdentityRegistry;
 use crate::metrics::ServerMetrics;
 use crate::persistence::{PlayerSave, SaveData, SaveWorld};
 use crate::player::PlayerRegistry;
-use crate::world::WorldState;
+use crate::world::ServerWorld;
+use game::assets::resolve_asset_path;
 use game::constants::{SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z};
 use game::inventory::{Inventory, SlotData};
 use game::player::{PlayerGameMode, PlayerTransformation};
 use game::types::{Position, Rotation};
-use game::world::data::block::BlockId;
+use game::world::data::block::BlockInstance;
+use game::world::world_position::WorldPosition;
+use game::world::ChunkStorage;
+use game::world::World;
 use network::messages::{BroadcastMessage, ChunkData, ContenuPaquet, Paquet, TypePaquet};
 use physics::position::{find_safe_spawn_point, is_position_free};
 use physics::validator::is_movement_plausible;
+use project_core::log_server;
+use rand::random;
 use std::path::Path;
 use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 
 pub struct AppState {
-    world: RwLock<WorldState>,
+    world: RwLock<ServerWorld>,
     players: RwLock<PlayerRegistry>,
     identity: RwLock<IdentityRegistry>,
     pub metrics: ServerMetrics,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl AppState {
-    pub fn new() -> Self {
-        Self::with_blocks_path(
-            game::assets::resolve_asset_path("blocks/"),
-            game::assets::resolve_asset_path("items/"),
-        )
+    pub fn new(seed: u32) -> Self {
+        Self::with_blocks_path(seed, resolve_asset_path("blocks/"), resolve_asset_path("items/"))
     }
 
-    pub fn with_blocks_path(blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) -> Self {
+    pub fn from_save(data: SaveData) -> Self {
+        let modif_count = data.world.chunks.len();
+        log_server!("import_save: {} chunks modifiés chargés (seed={})", modif_count, data.seed);
+
+        let identity = data.identity;
+        let mut players = PlayerRegistry::new();
+        players.set_players(data.players);
+        let mut world = ServerWorld::new(data.seed, resolve_asset_path("blocks/"), resolve_asset_path("items/"));
+        world.modifications = data.world.into();
+
+        let players = RwLock::new(players);
+        let world = RwLock::new(world);
+        let identity = RwLock::new(identity);
+
         Self {
-            world: RwLock::new(WorldState::new(blocks_path, items_path)),
+            world,
+            players,
+            identity,
+            metrics: ServerMetrics::new(),
+        }
+    }
+
+    pub fn with_blocks_path(seed: u32, blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) -> Self {
+        Self {
+            world: RwLock::new(ServerWorld::new(seed, blocks_path, items_path)),
             players: RwLock::new(PlayerRegistry::new()),
             identity: RwLock::new(IdentityRegistry::new()),
             metrics: ServerMetrics::new(),
         }
     }
 
-    pub async fn init_random_seed(&self) {
-        let seed = rand::random::<u32>();
-        self.world.write().await.set_seed(seed);
+    pub fn get_random_seed() -> u32 {
+        random::<u32>()
     }
 
     pub async fn init_seed(&self, seed: u32) {
@@ -65,10 +83,10 @@ impl AppState {
     pub async fn add_player(&self, id: u64, username: String) {
         self.players.write().await.add(id, username);
         let world = self.world.write().await;
-        let (sx, sy, sz) = find_safe_spawn_point(&*world, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
+        let position = Position::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z);
+        let safe_position = find_safe_spawn_point(&*world, &position);
         drop(world);
-        let safe_position = Position { x: sx, y: sy, z: sz };
-        let safe_rotation = Rotation { x: 0.0, y: 0.0 };
+        let safe_rotation = Rotation::new(0.0, 0.0);
         let mut player = self.players.write().await;
         player.update_position(id, safe_position, safe_rotation);
         player.set_last_valid_transformation(id, safe_position, safe_rotation);
@@ -98,13 +116,13 @@ impl AppState {
         a.map(|p| p.rotation)
     }
 
-    pub async fn set_block(&self, x: i32, y: i32, z: i32, block_id: BlockId) {
-        self.world.write().await.set_block(x, y, z, block_id);
+    pub async fn set_block(&self, position: &WorldPosition, block: BlockInstance) {
+        let _ = self.world.write().await.set_block(position, block);
     }
 
     pub async fn update_player_position(&self, id: u64, position: Position, rotation: Rotation) {
-        let chunk_pos = self.players.write().await.update_position(id, position, rotation);
-        let required = WorldState::get_required_chunks(chunk_pos.0, chunk_pos.1, chunk_pos.2);
+        let chunk_position = self.players.write().await.update_position(id, position, rotation);
+        let required = ServerWorld::get_required_chunks(&chunk_position);
 
         self.players.write().await.set_player_chunks(id, required.clone());
 
@@ -112,7 +130,7 @@ impl AppState {
             let generated = self.world.read().await;
             required
                 .iter()
-                .filter(|c| !generated.world_generated_chunks.contains_key(*c))
+                .filter(|c| !generated.chunks().contains_key(*c))
                 .cloned()
                 .collect::<Vec<_>>()
         };
@@ -138,14 +156,14 @@ impl AppState {
         let mut players = self.players.write().await;
         players.update_gamemode(id, gamemode);
         if gamemode != PlayerGameMode::Spectator {
-            let (x, y, z) = players
+            let position = players
                 .get(&id)
-                .map(|p| (p.position.x, p.position.y, p.position.z))
-                .unwrap_or((SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z));
+                .map_or(Position::new(SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z), |p| {
+                    p.position
+                });
             let world = self.world.write().await;
-            let (sx, sy, sz) = find_safe_spawn_point(&*world, x, y, z);
+            let surface = find_safe_spawn_point(&*world, &position);
             drop(world);
-            let surface = Position { x: sx, y: sy, z: sz };
             if let Some(player) = players.get_mut(&id) {
                 player.position = surface;
                 player.last_valid_position = surface;
@@ -158,22 +176,12 @@ impl AppState {
         let players = self.players.read().await.get_all().unwrap_or_default();
         let identity = self.identity.read().await.clone();
         let modif_count = world.chunks.len();
-        project_core::log_server!(
+        log_server!(
             "export_save: {} chunks modifiés sauvegardés (seed={})",
             modif_count,
-            self.world.read().await.seed
+            self.world.read().await.seed()
         );
-        SaveData::new(self.world.read().await.seed, world, players, identity)
-    }
-
-    pub async fn import_save(&self, data: SaveData) {
-        let modif_count = data.world.chunks.len();
-        project_core::log_server!("import_save: {} chunks modifiés chargés (seed={})", modif_count, data.seed);
-        self.world.write().await.seed = data.seed;
-        self.world.write().await.world_generated_chunks.clear();
-        self.world.write().await.modifications = data.world.into();
-        self.players.write().await.set_players(data.players);
-        *self.identity.write().await = data.identity;
+        SaveData::new(self.world.read().await.seed(), world, players, identity)
     }
 
     // Le guard cycle permet de vérifier si les positions des joueurs sont valides et de les déplacer si nécessaire.
@@ -188,22 +196,9 @@ impl AppState {
                     continue;
                 }
 
-                let valid = is_position_free(
-                    &*self.world.read().await,
-                    player.position.x,
-                    player.position.y,
-                    player.position.z,
-                );
+                let valid = is_position_free(&*self.world.read().await, &player.position);
 
-                let plausible = is_movement_plausible(
-                    player.last_valid_position.x,
-                    player.last_valid_position.y,
-                    player.last_valid_position.z,
-                    player.position.x,
-                    player.position.y,
-                    player.position.z,
-                    0.2,
-                );
+                let plausible = is_movement_plausible(&player.last_valid_position, &player.position, 0.2);
 
                 evals.push((
                     player.id,
@@ -253,7 +248,7 @@ impl AppState {
         self.metrics.record_guard_cycle(elapsed);
     }
     pub async fn get_chunk_count(&self) -> usize {
-        self.world.read().await.world_generated_chunks.len()
+        self.world.read().await.chunks().len()
     }
 
     pub async fn get_modified_count(&self) -> usize {
@@ -266,7 +261,7 @@ impl AppState {
             .modifications
             .chunks()
             .keys()
-            .filter(|key| !world.world_generated_chunks.contains_key(key))
+            .filter(|key| !world.chunks().contains_key(key))
             .cloned()
             .collect();
         if !missing.is_empty() {

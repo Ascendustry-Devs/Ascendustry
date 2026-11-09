@@ -1,9 +1,10 @@
 use crate::player::camera::Camera;
 use crate::player::controllers::{CameraController, PlayerController};
 use crate::systems::inputs::InputState;
-use cgmath::{InnerSpace, Point3, Vector3, Zero};
 use game::constants::{PLAYER_EYE_HEIGHT, UP};
+use game::types::{Position, Rotation};
 use physics::body::PhysicsBody;
+use project_core::general_types::vec3::Vec3;
 use std::f32::consts::FRAC_PI_2;
 use winit::keyboard::KeyCode;
 
@@ -23,7 +24,7 @@ impl PlayerController for SpectatorPlayerController {
         let forward = camera.forward();
         let right = camera.right();
 
-        let mut direction = Vector3::new(0.0, 0.0, 0.0);
+        let mut direction = Vec3::new(0.0, 0.0, 0.0);
 
         if inputs.is_key_pressed(KeyCode::KeyW) {
             direction += forward;
@@ -44,13 +45,11 @@ impl PlayerController for SpectatorPlayerController {
             direction -= UP;
         }
 
-        if direction.magnitude2() > 0.0 {
+        if direction.sqr_magnitude() > 0.0 {
             let dir = direction.normalize();
             body.velocity.update(dir * (self.speed));
         } else {
-            let mut v = *body.velocity.current();
-            v.set_zero();
-            body.velocity.update(v);
+            body.velocity.update(Vec3::zero());
         }
     }
 }
@@ -72,19 +71,19 @@ impl FreeCameraController {
 }
 
 impl CameraController for FreeCameraController {
-    fn update(&self, _dt: f32, inputs: &mut InputState, camera: &mut Camera, player_pos: &Point3<f32>) {
+    fn update(&self, _dt: f32, inputs: &mut InputState, camera: &mut Camera, player_pos: &Position) {
         const CLAMP_BOTTOM: f32 = -FRAC_PI_2 + 0.01;
         const CLAMP_TOP: f32 = FRAC_PI_2 - 0.01;
 
         // La caméra est placée à la hauteur des yeux au-dessus des pieds
-        camera.set_position(*player_pos + Vector3::new(0.0, PLAYER_EYE_HEIGHT, 0.0));
+        camera.set_position(*player_pos + Vec3::new(0.0, PLAYER_EYE_HEIGHT, 0.0));
 
         let (dx, dy) = inputs.take_mouse_delta_f32();
 
-        camera.yaw.update_eq(|cur| cur + dx * self.sensitivity);
-        camera
-            .pitch
-            .update_eq(|cur| (cur - dy * self.sensitivity).clamp(CLAMP_BOTTOM, CLAMP_TOP));
+        camera.rotation.update_eq(|cur| Rotation {
+            x: cur.x + dx * self.sensitivity,
+            y: (cur.y - dy * self.sensitivity).clamp(CLAMP_BOTTOM, CLAMP_TOP),
+        });
 
         if camera.needs_new_view_proj() {
             camera.set_view_proj();

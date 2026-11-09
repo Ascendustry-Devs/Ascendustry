@@ -11,7 +11,6 @@ server = []
 client = []
 
 [dependencies]
-cgmath = { workspace = true }
 serde = { workspace = true }
 bytemuck = { workspace = true }
 rustc-hash = { workspace = true }

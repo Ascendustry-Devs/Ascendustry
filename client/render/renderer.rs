@@ -1,11 +1,16 @@
 use std::{collections::HashSet, ops::ControlFlow};
 
 use bytemuck::cast_slice;
-use cgmath::{Matrix4, Vector3};
 use engine::{core::frame::GameFrameData, geometry::vertex::generate_cube, render::Renderer};
-use game::{constants::CHUNK_VECTOR, world::data::chunk::CHUNK_SIZE_F};
+use game::{
+    constants::CHUNK_VECTOR,
+    world::{chunk_position::ChunkPosition, data::chunk::CHUNK_SIZE_F},
+};
 use physics::aabb::AABB;
-use project_core::math::geometry::plane::Plane;
+use project_core::{
+    general_types::{mat4::Mat4, vec3::Vec3},
+    math::geometry::plane::Plane,
+};
 use rustc_hash::FxBuildHasher;
 
 use crate::{game::GameState, render::meshing::chunk::ChunkMesh};
@@ -23,12 +28,12 @@ impl GameRenderer {
     }
 
     #[inline(never)]
-    fn update_chunks(state: &mut GameState, data: &mut GameFrameData, renderer: &Renderer, view_proj: &Matrix4<f32>) {
+    fn update_chunks(state: &mut GameState, data: &mut GameFrameData, renderer: &Renderer, view_proj: &Mat4<f32>) {
         state.player.state.camera.aspect.update(renderer.render_options.aspect);
 
         let (cam_x, cam_y, cam_z) = {
             let pos = state.player.state.camera.eye();
-            (pos.x, pos.y, pos.z)
+            (*pos.x(), *pos.y(), *pos.z())
         };
 
         data.camera.update(cam_x, cam_y, cam_z, (*view_proj).into());
@@ -61,11 +66,11 @@ impl GameRenderer {
         cam_frustum_aabb: &AABB,
         cam_frustum: &[Plane; 6],
         render_range: [i32; 6],
-        coords: &(i32, i32, i32),
+        coords: &ChunkPosition,
         mesh: &ChunkMesh,
     ) -> ControlFlow<()> {
-        let (x, y, z) = *coords;
-        let min = Vector3::new(x as f32, y as f32, z as f32) * CHUNK_SIZE_F;
+        let (x, y, z) = coords.into();
+        let min = Vec3::new(x as f32, y as f32, z as f32) * CHUNK_SIZE_F;
         let max = min + CHUNK_VECTOR;
 
         // AABB pre-check : ~80% of chunks are eliminated in 6 simple checks.
@@ -97,8 +102,8 @@ impl GameRenderer {
     ///
     /// `render_range` = [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz].
     #[inline(always)]
-    fn is_chunk_in_render_range(render_range: [i32; 6], coords: &(i32, i32, i32)) -> bool {
-        let (x, y, z) = *coords;
+    fn is_chunk_in_render_range(render_range: [i32; 6], coords: &ChunkPosition) -> bool {
+        let (x, y, z) = coords.into();
         x >= render_range[0]
             && x <= render_range[1]
             && y >= render_range[2]
@@ -108,24 +113,24 @@ impl GameRenderer {
     }
 
     #[inline(never)]
-    fn is_chunk_outside_aabb(min: &Vector3<f32>, max: &Vector3<f32>, aabb: &AABB) -> bool {
-        min.x > aabb.max.x
-            || max.x < aabb.min.x
-            || min.y > aabb.max.y
-            || max.y < aabb.min.y
-            || min.z > aabb.max.z
-            || max.z < aabb.min.z
+    fn is_chunk_outside_aabb(min: &Vec3<f32>, max: &Vec3<f32>, aabb: &AABB) -> bool {
+        *min.x() > *aabb.max.x()
+            || *max.x() < *aabb.min.x()
+            || *min.y() > *aabb.max.y()
+            || *max.y() < *aabb.min.y()
+            || *min.z() > *aabb.max.z()
+            || *max.z() < *aabb.min.z()
     }
 
     #[inline(never)]
-    fn is_chunk_in_camera_frustum(min: &Vector3<f32>, max: &Vector3<f32>, planes: &[Plane; 6]) -> bool {
+    fn is_chunk_in_camera_frustum(min: &Vec3<f32>, max: &Vec3<f32>, planes: &[Plane; 6]) -> bool {
         for p in planes {
-            let positive = Vector3::new(
-                if p.normal.x >= 0.0 { max.x } else { min.x },
-                if p.normal.y >= 0.0 { max.y } else { min.y },
-                if p.normal.z >= 0.0 { max.z } else { min.z },
+            let positive = Vec3::new(
+                if *p.normal.x() >= 0.0 { *max.x() } else { *min.x() },
+                if *p.normal.y() >= 0.0 { *max.y() } else { *min.y() },
+                if *p.normal.z() >= 0.0 { *max.z() } else { *min.z() },
             );
-            if p.distance(positive) < 0.0 {
+            if p.distance(&positive) < 0.0 {
                 return false;
             }
         }
@@ -138,7 +143,7 @@ impl GameRenderer {
         let mut alloc = renderer.render_manager.world_buffer.write().unwrap();
         for p in state.remote_players.get_all_mut().iter_mut() {
             if let Some(new_pos) = p.position.change() {
-                let player_data = generate_cube(new_pos.0, new_pos.1, new_pos.2);
+                let player_data = generate_cube(new_pos);
                 let raw_data = cast_slice(&player_data);
                 if let Some(mesh_id) = p.mesh_id {
                     if let Some(update_err) = alloc.update(mesh_id, raw_data).err() {

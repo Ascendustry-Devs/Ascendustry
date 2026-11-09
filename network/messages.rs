@@ -1,7 +1,9 @@
 use game::inventory::{Inventory, SlotData};
 use game::player::{PlayerGameMode, PlayerTransformation};
 use game::types::{Position, Rotation};
-use game::world::data::block::BlockId;
+use game::world::chunk_position::ChunkPosition;
+use game::world::data::block::BlockInstance;
+use game::world::world_position::WorldPosition;
 use serde::{Deserialize, Serialize};
 
 pub const CURRENT_VERSION: u8 = 1;
@@ -68,10 +70,8 @@ pub enum ContenuPaquet {
         timestamp: u64,
     },
     SetBlock {
-        x: i32,
-        y: i32,
-        z: i32,
-        block_id: BlockId,
+        position: WorldPosition,
+        block: BlockInstance,
     },
     GamemodeChange {
         player_id: u64,
@@ -98,9 +98,7 @@ pub enum ContenuPaquet {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ChunkData {
-    pub x: i32,
-    pub y: i32,
-    pub z: i32,
+    pub position: ChunkPosition,
     pub data: Vec<u8>,
 }
 
@@ -152,7 +150,7 @@ pub const fn create_player_update(player_id: u64, x: f32, y: f32, z: f32, rx: f3
         ContenuPaquet::PlayerTransformation {
             data: PlayerTransformation {
                 player_id,
-                position: Position { x, y, z },
+                position: Position::new(x, y, z),
                 rotation: Rotation { x: rx, y: ry },
             },
         },
@@ -171,8 +169,8 @@ pub const fn new_pong_paquet(timestamp: u64) -> Paquet {
     Paquet::new(TypePaquet::Pong, ContenuPaquet::Pong { timestamp })
 }
 
-pub const fn new_set_block_paquet(x: i32, y: i32, z: i32, block_id: BlockId) -> Paquet {
-    Paquet::new(TypePaquet::SetBlock, ContenuPaquet::SetBlock { x, y, z, block_id })
+pub const fn new_set_block_paquet(position: WorldPosition, block: BlockInstance) -> Paquet {
+    Paquet::new(TypePaquet::SetBlock, ContenuPaquet::SetBlock { position, block })
 }
 
 pub const fn new_gamemode_change_paquet(player_id: u64, gamemode: PlayerGameMode) -> Paquet {

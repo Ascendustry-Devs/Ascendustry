@@ -1,12 +1,15 @@
-use game::player::PlayerTransformation;
+use game::{
+    player::PlayerTransformation,
+    types::{Position, Rotation},
+};
 use project_core::general_types::updatable::Updatable;
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use std::time::{Duration, Instant};
 
 pub struct RemotePlayer {
     pub player_id: u64,
-    pub position: Updatable<(f32, f32, f32)>,
-    pub rotation: Updatable<(f32, f32)>,
+    pub position: Updatable<Position>,
+    pub rotation: Updatable<Rotation>,
     pub mesh_id: Option<u32>,
     pub last_update: Instant,
 }
@@ -35,13 +38,13 @@ impl RemotePlayersManager {
                 let entry = self.players.entry(t.player_id);
                 let player = entry.or_insert_with(|| RemotePlayer {
                     player_id: t.player_id,
-                    position: Updatable::new((0.0, 0.0, 0.0)),
-                    rotation: Updatable::new((0.0, 0.0)),
+                    position: Updatable::new(Position::new(0.0, 0.0, 0.0)),
+                    rotation: Updatable::new(Rotation::new(0.0, 0.0)),
                     mesh_id: None,
                     last_update: now,
                 });
-                player.position.update((t.position.x, t.position.y, t.position.z));
-                player.rotation.update((t.rotation.x, t.rotation.y));
+                player.position.update(t.position);
+                player.rotation.update(t.rotation);
             }
         }
     }

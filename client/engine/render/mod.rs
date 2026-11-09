@@ -74,9 +74,10 @@ impl Renderer {
 
     fn world_pass(&self, render_pass: &mut RenderPass) {
         // World & Player meshes (other than local player)
-        let mesh_count = self.render_manager.ids_to_render.len() as u32;
-        let alloc = self.render_manager.world_buffer.read().unwrap();
+        // let mesh_count = self.render_manager.ids_to_render.len() as u32;
+        let mesh_count = self.render_manager.indirect_commands.len() as u32;
         if mesh_count > 0 {
+            let alloc = self.render_manager.world_buffer.read().unwrap();
             render_pass.set_vertex_buffer(0, alloc.get_buffer().slice(..));
 
             let can_multidraw = self.gpu_context.features.contains(Features::MULTI_DRAW_INDIRECT_COUNT);

@@ -9,7 +9,7 @@ use crate::assets::block_loader::load_block_definitions;
 use crate::inventory::item_manager::{ItemId, ItemInstance, ItemManager};
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Pod, Zeroable, Serialize, Deserialize)]
 pub struct BlockInstance {
     pub id: BlockId,
 }

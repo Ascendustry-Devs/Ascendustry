@@ -1,37 +1,70 @@
-use cgmath::Point3;
-use game::inventory::item_manager::ItemManager;
-use game::world::data::block::{BlockId, BlockInstance, BlockManager};
-use game::world::data::chunk::{global_position_to_chunk_pos, CHUNK_SIZE, CHUNK_SIZE_SQR_USIZE, CHUNK_SIZE_USIZE};
+use game::assets::item_loader::load_item_definitions;
+use game::assets::resolve_asset_path;
+use game::inventory::ItemManager;
+use game::world::chunk_position::ChunkPosition;
+use game::world::data::block::{BlockInstance, BlockManager};
+use game::world::data::chunk::{Chunk, CHUNK_SIZE_SQR_USIZE, CHUNK_SIZE_USIZE};
 use game::world::generation::chunk::ChunkWithChecksum;
-use game::world::generation::chunk_generator::{generate_chunks_parallel_blocking, generate_chunks_sequential};
+use game::world::generation::chunk_generator::{generate_chunks_parallel_blocking, generate_chunks_sequential, ChunkGenerator};
+use game::world::local_position::LocalPosition;
 use game::world::modified_chunk::ModifiedWorld;
+use game::world::world_position::WorldPosition;
+use game::world::{ChunkAccess, ChunkModification, ChunkStorage, World};
 use network::messages::ChunkData;
-use project_core::log_warn_server;
+use physics::collision_world::CollisionWorld;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use physics::collision_world::CollisionWorld;
-
-pub struct WorldState {
-    pub seed: u32,
-    pub block_manager: Arc<RwLock<BlockManager>>,
-    pub item_manager: Arc<RwLock<ItemManager>>,
-    pub world_generated_chunks: FxHashMap<(i32, i32, i32), ChunkWithChecksum>,
+pub struct ServerWorld {
+    seed: u32,
+    chunks: ServerChunks,
+    chunk_generator: ChunkGenerator,
+    block_manager: Arc<RwLock<BlockManager>>,
+    item_manager: Arc<RwLock<ItemManager>>,
     pub modifications: ModifiedWorld,
 }
 
-impl WorldState {
-    pub fn new(blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) -> Self {
+impl World for ServerWorld {
+    type Storage = ServerChunks;
+
+    fn seed(&self) -> u32 {
+        self.seed
+    }
+
+    fn chunks(&self) -> &Self::Storage {
+        &self.chunks
+    }
+
+    fn chunks_mut(&mut self) -> &mut Self::Storage {
+        &mut self.chunks
+    }
+
+    fn chunk_generator(&self) -> &ChunkGenerator {
+        &self.chunk_generator
+    }
+
+    fn block_manager(&self) -> &Arc<RwLock<BlockManager>> {
+        &self.block_manager
+    }
+
+    fn item_manager(&self) -> &Arc<RwLock<ItemManager>> {
+        &self.item_manager
+    }
+}
+
+impl ServerWorld {
+    pub fn new(seed: u32, blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) -> Self {
         let block_manager = Arc::new(RwLock::new(BlockManager::new()));
         let item_manager = Arc::new(RwLock::new(ItemManager::new()));
 
         let mut instance = Self {
-            seed: 0,
+            seed,
+            chunks: ServerChunks::new(),
+            chunk_generator: ChunkGenerator::new(Arc::clone(&block_manager), seed),
             block_manager,
             item_manager,
-            world_generated_chunks: HashMap::with_hasher(FxBuildHasher),
             modifications: ModifiedWorld::new(),
         };
 
@@ -43,7 +76,7 @@ impl WorldState {
     pub fn init(&mut self, blocks_path: impl AsRef<Path>, items_path: impl AsRef<Path>) {
         {
             let mut item_manager = self.item_manager.write().unwrap();
-            let items = game::assets::item_loader::load_item_definitions(items_path).expect("Failed to load item definitions");
+            let items = load_item_definitions(items_path).expect("Failed to load item definitions");
             for item in items {
                 item_manager.register(item);
             }
@@ -61,64 +94,43 @@ impl WorldState {
         }
     }
 
-    pub const fn set_seed(&mut self, seed: u32) {
+    pub fn set_seed(&mut self, seed: u32) {
         self.seed = seed;
     }
 
-    pub const fn get_seed(&self) -> u32 {
+    pub fn get_seed(&self) -> u32 {
         self.seed
     }
 
-    pub fn set_block(&mut self, x: i32, y: i32, z: i32, block_id: BlockId) {
-        let cx = x.div_euclid(CHUNK_SIZE);
-        let cy = y.div_euclid(CHUNK_SIZE);
-        let cz = z.div_euclid(CHUNK_SIZE);
-
-        if self.world_generated_chunks.contains_key(&(cx, cy, cz)) {
-            self.modifications.set_block_at(x, y, z, BlockInstance::new(block_id));
-        } else {
-            log_warn_server!("Tentative de modification d'un chunk non chargé : ({}, {}, {})", cx, cy, cz);
-        }
-    }
-
-    pub fn get_block(&self, gx: i32, gy: i32, gz: i32) -> BlockInstance {
-        if let Some(block) = self.modifications.get_block_at(gx, gy, gz) {
-            return *block;
-        }
-        let ((cx, cy, cz), intra) = global_position_to_chunk_pos(gx, gy, gz);
-        if let Some(wrapped) = self.world_generated_chunks.get(&(cx, cy, cz)) {
-            return wrapped
-                .chunk_data
-                .chunk
-                .get_block_from_xyz(intra.x as i32, intra.y as i32, intra.z as i32);
-        }
-        BlockInstance::air()
-    }
-
     /// Génère les chunks manquants à partir d'une liste de coordonnées.
-    pub fn generate_missing(&mut self, coords: &[(i32, i32, i32)]) {
-        let missing: Vec<_> = coords
-            .iter()
-            .filter(|c| !self.world_generated_chunks.contains_key(*c))
-            .cloned()
-            .collect();
+    pub fn generate_missing(&mut self, coords: &[ChunkPosition]) {
+        let missing: Vec<_> = coords.iter().filter(|c| !self.chunks.contains_key(*c)).cloned().collect();
         if missing.is_empty() {
             return;
         }
         let generated = generate_chunks_parallel_blocking(Arc::clone(&self.block_manager), self.seed, missing);
-        self.world_generated_chunks.extend(generated);
+        self.chunks.extend(generated.into_iter().map(|(position, generated)| {
+            (
+                position,
+                ServerChunk {
+                    chunk: (*generated.chunk_data.chunk).clone(),
+                    checksum: Checksum::from(generated.checksum),
+                },
+            )
+        }));
     }
 
-    pub fn retain_chunks(&mut self, keep: &FxHashSet<(i32, i32, i32)>) {
-        self.world_generated_chunks.retain(|key, _| keep.contains(key));
+    pub fn retain_chunks(&mut self, keep: &FxHashSet<ChunkPosition>) {
+        self.chunks.retain(|key, _| keep.contains(key));
     }
 
-    pub fn get_required_chunks(cx: i32, cy: i32, cz: i32) -> FxHashSet<(i32, i32, i32)> {
+    pub fn get_required_chunks(position: &ChunkPosition) -> FxHashSet<ChunkPosition> {
         let mut chunks = HashSet::with_hasher(FxBuildHasher);
+        let (cx, cy, cz) = position.into();
         for dx in -1..=1 {
             for dy in -1..=1 {
                 for dz in -1..=1 {
-                    chunks.insert((cx + dx, cy + dy, cz + dz));
+                    chunks.insert(ChunkPosition::new(cx + dx, cy + dy, cz + dz));
                 }
             }
         }
@@ -127,21 +139,23 @@ impl WorldState {
     /// /!\ Fonction UNIQUEMENT Itérative et bloquante
     pub fn generate_chunks_between_2_pos(
         &mut self,
-        p1: Point3<i32>,
-        p2: Point3<i32>,
-    ) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
-        let min_x = p1.x.min(p2.x);
-        let max_x = p1.x.max(p2.x);
-        let min_y = p1.y.min(p2.y);
-        let max_y = p1.y.max(p2.y);
-        let min_z = p1.z.min(p2.z);
-        let max_z = p1.z.max(p2.z);
+        a: &ChunkPosition,
+        b: &ChunkPosition,
+    ) -> FxHashMap<ChunkPosition, ChunkWithChecksum> {
+        let (ax, ay, az) = a.into();
+        let (bx, by, bz) = b.into();
+        let min_x = ax.min(bx);
+        let max_x = ax.max(bx);
+        let min_y = ay.min(by);
+        let max_y = ay.max(by);
+        let min_z = az.min(bz);
+        let max_z = az.max(bz);
 
         let mut coords = Vec::new();
         for cx in min_x..=max_x {
             for cy in min_y..=max_y {
                 for cz in min_z..=max_z {
-                    coords.push((cx, cy, cz));
+                    coords.push(ChunkPosition::new(cx, cy, cz));
                 }
             }
         }
@@ -151,19 +165,19 @@ impl WorldState {
     /// /!\ Fonction UNIQUEMENT Itérative et bloquante
     pub fn generate_chunks_in_radius(
         &mut self,
-        center: Point3<i32>,
+        center: &ChunkPosition,
         radius: i32,
-    ) -> FxHashMap<(i32, i32, i32), ChunkWithChecksum> {
+    ) -> FxHashMap<ChunkPosition, ChunkWithChecksum> {
         let radius_sq = (radius as i64) * (radius as i64);
         let mut coords = Vec::new();
-        for cx in (center.x - radius)..=(center.x + radius) {
-            for cy in (center.y - radius)..=(center.y + radius) {
-                for cz in (center.z - radius)..=(center.z + radius) {
-                    let dx = (cx as i64 - center.x as i64).pow(2);
-                    let dy = (cy as i64 - center.y as i64).pow(2);
-                    let dz = (cz as i64 - center.z as i64).pow(2);
+        for cx in (center.x() - radius)..=(center.x() + radius) {
+            for cy in (center.y() - radius)..=(center.y() + radius) {
+                for cz in (center.z() - radius)..=(center.z() + radius) {
+                    let dx = (cx as i64 - center.x() as i64).pow(2);
+                    let dy = (cy as i64 - center.y() as i64).pow(2);
+                    let dz = (cz as i64 - center.z() as i64).pow(2);
                     if dx + dy + dz <= radius_sq {
-                        coords.push((cx, cy, cz));
+                        coords.push(ChunkPosition::new(cx, cy, cz));
                     }
                 }
             }
@@ -175,25 +189,24 @@ impl WorldState {
         self.modifications
             .chunks()
             .keys()
-            .filter(|key| self.world_generated_chunks.contains_key(key))
-            .map(|&(cx, cy, cz)| {
-                let generated = &self.world_generated_chunks[&(cx, cy, cz)];
-                let chunk = &generated.chunk_data.chunk;
-                let mut blocks = chunk.blocks.clone();
+            .filter(|key| self.chunks.get(key).is_some())
+            .map(|position| {
+                let generated = self.chunks.get(position);
+                let server_chunk = generated.expect("wtf? filter works but this not?");
+                let mut blocks = server_chunk.get_chunk().blocks.clone();
                 // Appliquer les modifications par-dessus
-                if let Ok(modified) = self.modifications.get_chunk_at(cx, cy, cz) {
+                if let Ok(modified) = self.modifications.get_chunk_at(position) {
                     for (coords, block) in modified.blocks() {
-                        let idx =
-                            coords.x as usize + coords.y as usize * CHUNK_SIZE_USIZE + coords.z as usize * CHUNK_SIZE_SQR_USIZE;
+                        let idx = coords.x() as usize
+                            + coords.y() as usize * CHUNK_SIZE_USIZE
+                            + coords.z() as usize * CHUNK_SIZE_SQR_USIZE;
                         blocks[idx] = *block;
                     }
                 }
                 // Sérialiser avec bincode (déjà utilisé partout)
                 let data = bincode::serialize(&blocks).unwrap();
                 ChunkData {
-                    x: cx,
-                    y: cy,
-                    z: cz,
+                    position: *position,
                     data,
                 }
             })
@@ -201,21 +214,104 @@ impl WorldState {
     }
 }
 
-impl CollisionWorld for WorldState {
+impl CollisionWorld for ServerWorld {
     fn is_empty(&self) -> bool {
-        self.world_generated_chunks.is_empty()
+        self.chunks.is_empty()
     }
 
-    fn is_block_solid(&self, x: i32, y: i32, z: i32) -> bool {
-        self.get_block(x, y, z).is_solid()
+    fn is_block_solid(&self, position: &WorldPosition) -> bool {
+        self.get_block(position).map_or(false, |block| block.is_solid())
     }
 }
 
-impl Default for WorldState {
+impl Default for ServerWorld {
     fn default() -> Self {
-        Self::new(
-            game::assets::resolve_asset_path("blocks/"),
-            game::assets::resolve_asset_path("items/"),
-        )
+        Self::new(0, resolve_asset_path("blocks/"), resolve_asset_path("items/"))
+    }
+}
+
+impl ChunkStorage for ServerChunks {
+    type Value = ServerChunk;
+
+    fn contains_key(&self, coords: &ChunkPosition) -> bool {
+        self.inner.contains_key(coords)
+    }
+
+    fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    fn extend<T: Iterator<Item = (ChunkPosition, Self::Value)>>(&mut self, iter: T) {
+        self.inner.extend(iter);
+    }
+
+    fn retain<F: FnMut(&ChunkPosition, &mut Self::Value) -> bool>(&mut self, f: F) {
+        self.inner.retain(f);
+    }
+
+    fn get(&self, position: &ChunkPosition) -> Option<&Self::Value> {
+        self.inner.get(position)
+    }
+
+    fn get_mut(&mut self, position: &ChunkPosition) -> Option<&mut Self::Value> {
+        self.inner.get_mut(position)
+    }
+}
+
+impl ChunkAccess for ServerChunk {
+    fn get_chunk(&self) -> &Chunk {
+        &self.chunk
+    }
+
+    fn get_chunk_mut(&mut self) -> &mut Chunk {
+        &mut self.chunk
+    }
+}
+
+impl ChunkModification for ServerChunk {
+    fn set_block(&mut self, position: &LocalPosition, block: BlockInstance) -> Option<BlockInstance> {
+        self.chunk.set_block_from_local_xyz(position, block)
+    }
+}
+
+impl ServerChunks {
+    pub const fn new() -> Self {
+        Self {
+            inner: HashMap::with_hasher(FxBuildHasher),
+        }
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct ServerChunk {
+    chunk: Chunk,
+    checksum: Checksum,
+}
+
+#[derive(Default, Clone)]
+pub struct Checksum {
+    inner: [u8; 2],
+}
+impl From<[u8; 2]> for Checksum {
+    fn from(checksum: [u8; 2]) -> Checksum {
+        return Checksum { inner: checksum };
+    }
+}
+
+pub struct ServerChunks {
+    inner: FxHashMap<ChunkPosition, ServerChunk>,
+}
+
+impl ServerChunks {
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 }

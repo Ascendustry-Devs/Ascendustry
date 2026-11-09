@@ -1,9 +1,9 @@
-use cgmath::Vector3;
+use project_core::general_types::vec3::Vec3;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt::Display, sync::Arc};
 
-use crate::world::data::block::BlockInstance;
+use crate::world::{chunk_position::ChunkPosition, data::block::BlockInstance, local_position::LocalPosition};
 
 pub const CHUNK_VALIDATION_BATCH_SIZE: usize = 20;
 
@@ -25,7 +25,7 @@ pub const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
 pub const CHUNK_SIZE_F64: f64 = CHUNK_SIZE as f64;
 pub const CHUNK_SIZE_USIZE: usize = CHUNK_SIZE as usize;
 pub const CHUNK_SIZE_HALFED: i32 = CHUNK_SIZE / 2;
-pub const CHUNK_SIZE_HALFED_VEC3_F: Vector3<f32> = Vector3::new(CHUNK_SIZE_HALFED_F, CHUNK_SIZE_HALFED_F, CHUNK_SIZE_HALFED_F);
+pub const CHUNK_SIZE_HALFED_VEC3_F: Vec3<f32> = Vec3::new(CHUNK_SIZE_HALFED_F, CHUNK_SIZE_HALFED_F, CHUNK_SIZE_HALFED_F);
 pub const CHUNK_SIZE_HALFED_F: f32 = CHUNK_SIZE_HALFED as f32;
 pub const CHUNK_SIZE_SQR: i32 = CHUNK_SIZE * CHUNK_SIZE;
 pub const CHUNK_SIZE_SQR_USIZE: usize = CHUNK_SIZE_SQR as usize;
@@ -49,13 +49,14 @@ impl Display for ChunkState {
     }
 }
 
+#[derive(Debug)]
 pub struct ChunkData {
     pub chunk: Arc<Chunk>,
     pub state: ChunkState,
     pub is_dirty: bool,
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Chunk {
     pub blocks: Vec<BlockInstance>,
     pub x: i32,
@@ -95,6 +96,11 @@ impl Chunk {
         self.get_block_from_i((x + y * CHUNK_SIZE + z * CHUNK_SIZE_SQR) as usize)
     }
 
+    pub fn get_block_from_local_xyz(&self, position: &LocalPosition) -> BlockInstance {
+        let (x, y, z) = position.into();
+        self.get_block_from_i(x as usize + (y as usize) * CHUNK_SIZE_USIZE + (z as usize) * CHUNK_SIZE_SQR_USIZE)
+    }
+
     pub fn get_block_from_i(&self, i: usize) -> BlockInstance {
         self.blocks[i]
     }
@@ -105,8 +111,22 @@ impl Chunk {
     }
 
     #[inline(always)]
-    pub fn set_block_from_i(&mut self, i: usize, block: BlockInstance) {
+    pub fn set_block_from_local_xyz(&mut self, position: &LocalPosition, block: BlockInstance) -> Option<BlockInstance> {
+        let (x, y, z) = position.into();
+        self.set_block_from_i(
+            x as usize + (y as usize) * CHUNK_SIZE_USIZE + (z as usize) * CHUNK_SIZE_SQR_USIZE,
+            block,
+        )
+    }
+
+    #[inline(always)]
+    pub fn set_block_from_i(&mut self, i: usize, block: BlockInstance) -> Option<BlockInstance> {
+        let old = self.blocks[i];
+        if old == block {
+            return None;
+        }
         self.blocks[i] = block;
+        Some(old)
     }
 
     pub const fn chunk_coords_from_world(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
@@ -164,11 +184,11 @@ impl Chunk {
         [(sum1 as u8), (sum2 as u8)]
     }
 
-    pub const fn get_cube_chunk_range(center: (i32, i32, i32), hd: u16, vd: u16) -> [i32; 6] {
+    pub fn get_cube_chunk_range(center: &ChunkPosition, hd: u16, vd: u16) -> [i32; 6] {
         let halfed_hd = hd.div_euclid(2) as i32;
         let halfed_vd = vd.div_euclid(2) as i32;
 
-        let (cx, cy, cz) = center;
+        let (cx, cy, cz) = center.into();
 
         let min_cx = cx - halfed_hd;
         let max_cx = cx + halfed_hd;
@@ -187,14 +207,14 @@ impl Chunk {
         max_cy: i32,
         min_cz: i32,
         max_cz: i32,
-    ) -> Vec<(i32, i32, i32)> {
+    ) -> Vec<ChunkPosition> {
         let chunk_number = ((max_cx - min_cx) * (max_cy - min_cy) * (max_cz - min_cz)) as usize;
         let mut keys = Vec::with_capacity(chunk_number);
 
         for x in min_cx..=max_cx {
             for y in min_cy..=max_cy {
                 for z in min_cz..=max_cz {
-                    keys.push((x, y, z));
+                    keys.push(ChunkPosition::new(x, y, z));
                 }
             }
         }
