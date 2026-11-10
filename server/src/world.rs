@@ -12,6 +12,7 @@ use game::world::world_position::WorldPosition;
 use game::world::{ChunkAccess, ChunkModification, ChunkStorage, World};
 use network::messages::ChunkData;
 use physics::collision_world::CollisionWorld;
+use project_core::general_types::checksum::Checksum;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -104,7 +105,7 @@ impl ServerWorld {
 
     /// Génère les chunks manquants à partir d'une liste de coordonnées.
     pub fn generate_missing(&mut self, coords: &[ChunkPosition]) {
-        let missing: Vec<_> = coords.iter().filter(|c| !self.chunks.contains_key(*c)).cloned().collect();
+        let missing: Vec<_> = coords.iter().filter(|c| !self.chunks.contains_key(c)).cloned().collect();
         if missing.is_empty() {
             return;
         }
@@ -114,7 +115,7 @@ impl ServerWorld {
                 position,
                 ServerChunk {
                     chunk: (*generated.chunk_data.chunk).clone(),
-                    checksum: Checksum::from(generated.checksum),
+                    checksum: generated.checksum,
                 },
             )
         }));
@@ -220,7 +221,7 @@ impl CollisionWorld for ServerWorld {
     }
 
     fn is_block_solid(&self, position: &WorldPosition) -> bool {
-        self.get_block(position).map_or(false, |block| block.is_solid())
+        self.get_block(position).is_some_and(|block| block.is_solid())
     }
 }
 
@@ -290,20 +291,17 @@ impl ServerChunks {
     }
 }
 
-#[derive(Default, Clone)]
-pub struct ServerChunk {
-    chunk: Chunk,
-    checksum: Checksum,
+impl Default for ServerChunks {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Default, Clone)]
-pub struct Checksum {
-    inner: [u8; 2],
-}
-impl From<[u8; 2]> for Checksum {
-    fn from(checksum: [u8; 2]) -> Checksum {
-        return Checksum { inner: checksum };
-    }
+pub struct ServerChunk {
+    chunk: Chunk,
+    #[allow(unused)]
+    checksum: Checksum,
 }
 
 pub struct ServerChunks {

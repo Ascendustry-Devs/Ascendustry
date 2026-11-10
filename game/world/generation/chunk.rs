@@ -1,23 +1,18 @@
 #![allow(static_mut_refs)]
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 use noise::NoiseFn;
+use project_core::general_types::checksum::Checksum;
 
 use crate::world::chunk_position::ChunkPosition;
 use crate::world::data::block::{BlockId, BlockInstance, BlockManager};
-use crate::world::data::chunk::{Chunk, CHUNK_BLOCK_NUMBER, CHUNK_SIZE};
+use crate::world::data::chunk::{Chunk, ChunkData, CHUNK_BLOCK_NUMBER, CHUNK_SIZE};
 use crate::world::generation::chunk_generator::ChunkGenContext;
-use crate::world::generation::profiler::{
-    gen_record_section, GEN_HIST_CAVE, GEN_HIST_NOISE, GEN_HIST_ORE, GEN_HIST_OTHER, GEN_HIST_SURFACE, GEN_HIST_TERRAIN,
-    GEN_HIST_VEGETATION, GEN_STAT_CAVE, GEN_STAT_NOISE, GEN_STAT_ORE, GEN_STAT_OTHER, GEN_STAT_SURFACE, GEN_STAT_TERRAIN,
-    GEN_STAT_VEGETATION,
-};
 
 #[derive(Debug)]
 pub struct ChunkWithChecksum {
-    pub chunk_data: crate::world::data::chunk::ChunkData,
-    pub checksum: [u8; 2],
+    pub chunk_data: ChunkData,
+    pub checksum: Checksum,
 }
 
 impl Chunk {
@@ -29,13 +24,9 @@ impl Chunk {
 
     #[inline]
     pub fn generate_with_context(chunk_position: &ChunkPosition, ctx: &ChunkGenContext) -> Self {
-        let t0 = Instant::now();
-        let (cx, cy, cz) = chunk_position.into();
-        let cwx = cx * CHUNK_SIZE;
-        let cwy = cy * CHUNK_SIZE;
-        let cwz = cz * CHUNK_SIZE;
+        let chunk_origin = chunk_position.origin();
+        let (cwx, cwy, cwz) = (&chunk_origin).into();
 
-        let t_noise_start = Instant::now();
         let blocks = ctx.block_manager.read().unwrap();
 
         let block_id = |name: &str| -> BlockId {
@@ -63,7 +54,6 @@ impl Chunk {
         drop(blocks);
 
         let blocks_arr = vec![BlockInstance::air(); CHUNK_BLOCK_NUMBER];
-        let t_noise_end = t_noise_start.elapsed().as_nanos();
 
         #[derive(Clone, Copy)]
         struct ColInfo {
@@ -82,8 +72,6 @@ impl Chunk {
 
         let mut terrain_heights = [0i32; (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize)];
         let mut max_terrain_y = i32::MIN;
-        let mut t_surface_acc: u128 = 0;
-        let mut t_terrain_acc: u128 = 0;
 
         // Pré-calcul unique par colonne (biome + terrain + ids)
         for x in 0..CHUNK_SIZE {
@@ -92,17 +80,13 @@ impl Chunk {
                 let wz = (z + cwz) as f64;
                 let col = (z as usize) * (CHUNK_SIZE as usize) + (x as usize);
 
-                let t_s = Instant::now();
                 let biome_idx = ctx.get_biome_index(wx, wz);
                 let biome = &ctx.biome_registry.biomes[biome_idx];
-                t_surface_acc += t_s.elapsed().as_nanos();
 
-                let t_t = Instant::now();
                 let nx = wx * biome.terrain.scale;
                 let nz = wz * biome.terrain.scale;
                 let valeur = ctx.surface.get([nx, nz]);
                 let terrain_y = valeur.mul_add(biome.terrain.amplitude, biome.terrain.base_height) as i32;
-                t_terrain_acc += t_t.elapsed().as_nanos();
 
                 terrain_heights[col] = terrain_y;
                 if terrain_y > max_terrain_y {
@@ -134,38 +118,18 @@ impl Chunk {
 
         let mut chunk = Self {
             blocks: blocks_arr,
-            x: cx,
-            y: cy,
-            z: cz,
+            x: chunk_position.x(),
+            y: chunk_position.y(),
+            z: chunk_position.z(),
         };
 
         // Early exit : si le chunk est complètement au-dessus du relief, il est composé d'air pur
         if cwy >= max_terrain_y {
-            let t_total = t0.elapsed().as_nanos();
-            let t_other_acc = t_total.saturating_sub(t_surface_acc + t_terrain_acc + t_noise_end);
-            unsafe {
-                static mut NOISE_IDX: usize = 0;
-                static mut SURF_IDX: usize = 0;
-                static mut TERR_IDX: usize = 0;
-                static mut CAVE_IDX: usize = 0;
-                static mut ORE_IDX: usize = 0;
-                static mut VEG_IDX: usize = 0;
-                static mut OTHER_IDX: usize = 0;
-                gen_record_section(&mut GEN_STAT_NOISE, &mut GEN_HIST_NOISE, t_noise_end, &mut NOISE_IDX);
-                gen_record_section(&mut GEN_STAT_SURFACE, &mut GEN_HIST_SURFACE, t_surface_acc, &mut SURF_IDX);
-                gen_record_section(&mut GEN_STAT_TERRAIN, &mut GEN_HIST_TERRAIN, t_terrain_acc, &mut TERR_IDX);
-                gen_record_section(&mut GEN_STAT_CAVE, &mut GEN_HIST_CAVE, 0, &mut CAVE_IDX);
-                gen_record_section(&mut GEN_STAT_ORE, &mut GEN_HIST_ORE, 0, &mut ORE_IDX);
-                gen_record_section(&mut GEN_STAT_VEGETATION, &mut GEN_HIST_VEGETATION, 0, &mut VEG_IDX);
-                gen_record_section(&mut GEN_STAT_OTHER, &mut GEN_HIST_OTHER, t_other_acc, &mut OTHER_IDX);
-            }
             return chunk;
         }
 
         // Passe grottes (masques par colonne avec sous-échantillonnage 3D et interpolation trilinéaire)
-        let t_cave_start = Instant::now();
         let cave_bits = ctx.compute_cave_column_masks(cwx, cwy, cwz, &terrain_heights);
-        let t_cave_acc = t_cave_start.elapsed().as_nanos();
 
         // Pré-filtrer les minerais par couche Y sous forme de masque de bits (zéro allocation heap)
         let mut active_ores_by_y = [0u32; CHUNK_SIZE as usize];
@@ -183,7 +147,6 @@ impl Chunk {
         }
 
         // Grille de rejet par boîte 4x4x4 pour les minerais — chronométré sous ORE
-        let t_ore_start = Instant::now();
         let (ore_cell_mask, ore_sample_grids) = ctx.compute_ore_rejection_grid(cwx, cwy, cwz, &active_ores_by_y, max_terrain_y);
 
         // Passe de placement : surface, sous-surface, roche et résolution des minerais
@@ -235,30 +198,6 @@ impl Chunk {
                     chunk.set_block_from_xyz(x, y, z, BlockInstance::new(block_id_res));
                 }
             }
-        }
-
-        let t_ore_acc = t_ore_start.elapsed().as_nanos();
-        let t_veg_acc: u128 = 0;
-        let t_other_acc = t0
-            .elapsed()
-            .as_nanos()
-            .saturating_sub(t_surface_acc + t_terrain_acc + t_cave_acc + t_ore_acc + t_noise_end);
-
-        unsafe {
-            static mut NOISE_IDX: usize = 0;
-            static mut SURF_IDX: usize = 0;
-            static mut TERR_IDX: usize = 0;
-            static mut CAVE_IDX: usize = 0;
-            static mut ORE_IDX: usize = 0;
-            static mut VEG_IDX: usize = 0;
-            static mut OTHER_IDX: usize = 0;
-            gen_record_section(&mut GEN_STAT_NOISE, &mut GEN_HIST_NOISE, t_noise_end, &mut NOISE_IDX);
-            gen_record_section(&mut GEN_STAT_SURFACE, &mut GEN_HIST_SURFACE, t_surface_acc, &mut SURF_IDX);
-            gen_record_section(&mut GEN_STAT_TERRAIN, &mut GEN_HIST_TERRAIN, t_terrain_acc, &mut TERR_IDX);
-            gen_record_section(&mut GEN_STAT_CAVE, &mut GEN_HIST_CAVE, t_cave_acc, &mut CAVE_IDX);
-            gen_record_section(&mut GEN_STAT_ORE, &mut GEN_HIST_ORE, t_ore_acc, &mut ORE_IDX);
-            gen_record_section(&mut GEN_STAT_VEGETATION, &mut GEN_HIST_VEGETATION, t_veg_acc, &mut VEG_IDX);
-            gen_record_section(&mut GEN_STAT_OTHER, &mut GEN_HIST_OTHER, t_other_acc, &mut OTHER_IDX);
         }
 
         chunk
@@ -345,30 +284,6 @@ mod tests {
     }
 
     #[test]
-    fn test_profiler_timing_categories_populated() {
-        let mut bm = BlockManager::new();
-        let blocks = crate::assets::block_loader::load_block_definitions(crate::assets::resolve_asset_path("blocks/"))
-            .expect("Failed to load block definitions");
-        for block in blocks {
-            bm.register(block);
-        }
-        let bm = Arc::new(RwLock::new(bm));
-        // cy = 0 est un chunk sous-terrain / niveau du sol avec surface, roche, grottes
-        let chunk = Chunk::generate(bm, &ChunkPosition::new(0, 0, 0), 42);
-        let solid_count = chunk.blocks.iter().filter(|b| b.is_solid()).count();
-        assert!(solid_count > 0, "Le chunk terrestre doit contenir des blocs solides");
-
-        unsafe {
-            assert!(GEN_STAT_SURFACE.count > 0, "SURFACE doit avoir été mesuré");
-            assert!(GEN_STAT_SURFACE.last_nanos > 0, "SURFACE doit avoir un timing non nul");
-            assert!(GEN_STAT_TERRAIN.count > 0, "TERRAIN doit avoir été mesuré");
-            assert!(GEN_STAT_TERRAIN.last_nanos > 0, "TERRAIN doit avoir un timing non nul");
-            assert!(GEN_STAT_CAVE.count > 0, "CAVE doit avoir été mesuré");
-            assert!(GEN_STAT_OTHER.count > 0, "OTHER doit avoir été mesuré");
-        }
-    }
-
-    #[test]
     fn test_chunk_generation_with_ore_rejection_identical_blocks() {
         let mut bm = BlockManager::new();
         let blocks = crate::assets::block_loader::load_block_definitions(crate::assets::resolve_asset_path("blocks/"))
@@ -383,29 +298,5 @@ mod tests {
         let chunk1 = Chunk::generate(Arc::clone(&bm), &position, 999);
         let chunk2 = Chunk::generate(Arc::clone(&bm), &position, 999);
         assert_eq!(chunk1.blocks, chunk2.blocks);
-    }
-
-    #[test]
-    fn test_ore_timing_includes_grid_precomputation() {
-        // Vérifie que le temps ORE est > 0 pour un chunk terrestre,
-        // prouvant que le pré-échantillonnage de la grille est bien inclus.
-        let mut bm = BlockManager::new();
-        let blocks = crate::assets::block_loader::load_block_definitions(crate::assets::resolve_asset_path("blocks/"))
-            .expect("Failed to load block definitions");
-        for block in blocks {
-            bm.register(block);
-        }
-        let bm = Arc::new(RwLock::new(bm));
-
-        // cy = -1 est un chunk profondément enfoui, il doit avoir des minerais
-        let _chunk = Chunk::generate(bm, &ChunkPosition::new(0, -1, 0), 42);
-
-        unsafe {
-            assert!(GEN_STAT_ORE.count > 0, "ORE doit avoir été mesuré");
-            assert!(
-                GEN_STAT_ORE.last_nanos > 0,
-                "ORE doit avoir un timing non nul (inclut le pré-échantillonnage de la grille)"
-            );
-        }
     }
 }

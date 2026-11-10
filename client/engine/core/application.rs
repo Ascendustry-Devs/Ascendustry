@@ -10,6 +10,7 @@ use winit::{application::ApplicationHandler, keyboard::KeyCode, keyboard::Physic
 
 use crate::audio::GameAudioManager;
 use crate::core::frame::{EngineFrameData, GameFrameData};
+use crate::core::inputs::InputState;
 use crate::core::state::State;
 use crate::gpu::allocator::gpu_allocator::GpuAllocator;
 use crate::render::Renderer;
@@ -30,13 +31,27 @@ impl Display for AppEvent {
 }
 
 pub trait AppState {
+    fn inputs(&mut self) -> &mut InputState;
+
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>);
     fn update(&mut self, frame: &EngineFrameData, data: &mut GameFrameData, renderer: &mut Renderer);
-    fn on_mouse_move(&mut self, dx: f64, dy: f64);
-    fn on_mouse_button(&mut self, button: MouseButton, is_pressed: bool);
-    fn on_mouse_wheel(&mut self, _delta: f32) {}
-    fn on_key(&mut self, code: KeyCode, is_pressed: bool);
     fn dispose(&mut self, alloc: &mut Arc<RwLock<GpuAllocator>>);
+
+    fn on_mouse_move(&mut self, dx: f64, dy: f64) {
+        self.inputs().set_mouse_delta((dx, dy));
+    }
+
+    fn on_mouse_button(&mut self, button: MouseButton, is_pressed: bool) {
+        self.inputs().set_mouse_button_press(button, is_pressed);
+    }
+
+    fn on_mouse_wheel(&mut self, delta: f32) {
+        self.inputs().set_mouse_wheel(delta);
+    }
+
+    fn on_key(&mut self, code: KeyCode, is_pressed: bool) {
+        self.inputs().set_key_press(code, is_pressed);
+    }
 }
 
 pub struct App<S: AppState> {

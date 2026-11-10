@@ -57,11 +57,11 @@ impl<'a> WorldBrowser<'a> {
     }
 
     pub fn browse_block_at(&self, position: &WorldPosition) -> Option<BlockData> {
-        let Some(id) = self.world.get_block(position).map(|block| block.get_block_id()) else {
-            return None;
-        };
+        let id = self.world.get_block(position).map(|block| block.get_block_id())?;
+
         let registry = self.world.block_manager().try_read().ok()?;
-        return registry.get_block_by_id(&id).cloned();
+
+        registry.get_block_by_id(&id).cloned()
     }
 }
 

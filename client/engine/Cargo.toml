@@ -12,7 +12,6 @@ server = []
 client = []
 
 [dependencies]
-cgmath = { workspace = true }
 bytemuck = { workspace = true }
 rustc-hash = { workspace = true }
 wgpu = { workspace = true }

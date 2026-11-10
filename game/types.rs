@@ -3,11 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::world::chunk_position::ChunkPosition;
 
-// pub struct Position {
-//     pub x: f32,
-//     pub y: f32,
-//     pub z: f32,
-// }
 pub type Position = Pos3<f32>;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
@@ -35,6 +30,6 @@ impl From<&ChunkPosition> for Position {
         let z = (value.z() << 5) as f32;
 
         let inner = Vec3::new(x, y, z);
-        Self { 0: inner }
+        Self(inner)
     }
 }

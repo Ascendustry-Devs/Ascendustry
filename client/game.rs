@@ -7,7 +7,7 @@ use crate::{
         Player,
     },
     render::{meshing::world::WorldMesh, renderer::GameRenderer},
-    systems::{inputs::InputState, texture_registry::TextureRegistry},
+    systems::texture_registry::TextureRegistry,
     ui::{
         adapters::{hotbar::HotbarAdapter, inventory::InventoryAdapter, UiAdapter},
         context::UiContext,
@@ -21,25 +21,13 @@ use engine::{
     core::{
         application::AppState,
         frame::{EngineFrameData, GameFrameData},
+        inputs::InputState,
     },
-    gpu::{allocator::gpu_allocator::GpuAllocator, textures::id::TextureId},
-    render::{
-        ui::{
-            interpreter::{compiler::UiCompiler, translator::UiTranslator},
-            widgets::{textured_panel::TexturedPanel, Widget, WidgetTransform},
-        },
-        Renderer,
-    },
+    gpu::allocator::gpu_allocator::GpuAllocator,
+    render::Renderer,
 };
-use game::world::{
-    generation::profiler::{
-        CHUNKS_GENERATED, GEN_HIST_CAVE, GEN_HIST_LEN, GEN_HIST_NOISE, GEN_HIST_ORE, GEN_HIST_OTHER, GEN_HIST_SURFACE,
-        GEN_HIST_TERRAIN, GEN_HIST_TOTAL, GEN_HIST_VEGETATION, GEN_STAT_CAVE, GEN_STAT_NOISE, GEN_STAT_ORE, GEN_STAT_OTHER,
-        GEN_STAT_SURFACE, GEN_STAT_TERRAIN, GEN_STAT_TOTAL, GEN_STAT_VEGETATION, TIME_SPENT_GENERATING_NANOS,
-    },
-    World,
-};
-use network::messages::{new_save_request_paquet, ChunkData, ContenuPaquet};
+use game::world::World;
+use network::messages::{new_save_request_paquet, ChunkData, ContenuPaquet, Paquet};
 use project_core::log_err_client;
 use std::{
     mem::take,
@@ -48,7 +36,7 @@ use std::{
     time::Duration,
 };
 use tokio::time::Instant;
-use winit::{event::MouseButton, keyboard::KeyCode};
+use winit::keyboard::KeyCode;
 
 // TODO: bug de flickering/scintillements dans certains angles de caméra : voir le calcul des meshs à rendre pour la frame
 // TODO: hotbar bugguée : lorsqu'on prend 2 items, puis qu'on fini le stack du premier, on perd aussi le deuxième
@@ -62,80 +50,6 @@ const DT_CAP: f32 = {
     }
 };
 const PING_INTERVAL: Duration = Duration::from_secs(10);
-
-pub static mut TIME_SPENT_MESHING_NANOS: u128 = 0;
-pub static mut TIME_SPENT_PREPARING_NANOS: u128 = 0;
-pub static mut CHUNKS_MESHED: u32 = 0;
-
-#[derive(Clone, Debug, Default)]
-pub struct MeshTimeStats {
-    pub count: u64,
-    pub sum_nanos: u128,
-    pub min_nanos: u128,
-    pub max_nanos: u128,
-    pub last_nanos: u128,
-}
-
-pub static mut MESH_STAT_TOTAL: MeshTimeStats = MeshTimeStats {
-    count: 0,
-    sum_nanos: 0,
-    min_nanos: u128::MAX,
-    max_nanos: 0,
-    last_nanos: 0,
-};
-pub static mut MESH_STAT_PREP: MeshTimeStats = MeshTimeStats {
-    count: 0,
-    sum_nanos: 0,
-    min_nanos: u128::MAX,
-    max_nanos: 0,
-    last_nanos: 0,
-};
-pub static mut MESH_STAT_MASK: MeshTimeStats = MeshTimeStats {
-    count: 0,
-    sum_nanos: 0,
-    min_nanos: u128::MAX,
-    max_nanos: 0,
-    last_nanos: 0,
-};
-pub static mut MESH_STAT_AO: MeshTimeStats = MeshTimeStats {
-    count: 0,
-    sum_nanos: 0,
-    min_nanos: u128::MAX,
-    max_nanos: 0,
-    last_nanos: 0,
-};
-pub static mut MESH_STAT_RECT: MeshTimeStats = MeshTimeStats {
-    count: 0,
-    sum_nanos: 0,
-    min_nanos: u128::MAX,
-    max_nanos: 0,
-    last_nanos: 0,
-};
-pub static mut MESH_STAT_EMIT: MeshTimeStats = MeshTimeStats {
-    count: 0,
-    sum_nanos: 0,
-    min_nanos: u128::MAX,
-    max_nanos: 0,
-    last_nanos: 0,
-};
-pub static mut MESH_STAT_OTHER: MeshTimeStats = MeshTimeStats {
-    count: 0,
-    sum_nanos: 0,
-    min_nanos: u128::MAX,
-    max_nanos: 0,
-    last_nanos: 0,
-};
-
-// Buffer circulaire pour calculer médian/écart-type sans allocation massive
-pub const MESH_HIST_LEN: usize = 4096;
-pub static mut MESH_HIST_TOTAL: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
-pub static mut MESH_HIST_PREP: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
-pub static mut MESH_HIST_MASK: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
-pub static mut MESH_HIST_AO: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
-pub static mut MESH_HIST_RECT: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
-pub static mut MESH_HIST_EMIT: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
-pub static mut MESH_HIST_OTHER: [u128; MESH_HIST_LEN] = [0u128; MESH_HIST_LEN];
-pub static mut MESH_HIST_IDX: usize = 0;
 
 pub struct GameState {
     pub world: ClientWorld,
@@ -256,167 +170,6 @@ impl GameState {
                 }
             }
         }
-
-        if self.inputs.take_key_pressed(KeyCode::KeyO) {
-            unsafe fn fmt_ns(v: u128) -> String {
-                if v >= 1_000 {
-                    format!("{}.{:03}µs", v / 1000, v % 1000,)
-                } else {
-                    format!("{}ns", v)
-                }
-            }
-            unsafe fn med_std(hist: &[u128; MESH_HIST_LEN], count: u64) -> (u128, f64) {
-                if count == 0 {
-                    return (0, 0.0);
-                }
-                let c_usize = count as usize;
-                let n = if c_usize < MESH_HIST_LEN { c_usize } else { MESH_HIST_LEN };
-                let mut tmp = [0u128; MESH_HIST_LEN];
-                tmp[..n].copy_from_slice(&hist[..n]);
-                let slice = &mut tmp[0..n];
-                slice.sort_unstable();
-                let med = slice[n / 2];
-                // mean
-                let mut sum: u128 = 0;
-                for element in slice.iter().take(n) {
-                    sum += element;
-                }
-                let mean = (sum as f64) / (n as f64);
-                let mut var: f64 = 0.0;
-                for element in slice.iter().take(n) {
-                    let d = (*element as f64) - mean;
-                    var += d * d;
-                }
-                var /= n as f64;
-                (med, var.sqrt())
-            }
-            unsafe fn print_stat(name: &str, s: &MeshTimeStats, hist: &[u128; MESH_HIST_LEN]) {
-                if s.count == 0 {
-                    println!("{}: aucun échantillon", name);
-                    return;
-                }
-                let avg = s.sum_nanos / (s.count as u128);
-                let (med, stddev) = med_std(hist, s.count);
-                println!(
-                    "{}: count={} sum={} avg={} min={} max={} med={} stddev={} | {}",
-                    name,
-                    s.count,
-                    fmt_ns(s.sum_nanos),
-                    fmt_ns(avg),
-                    fmt_ns(s.min_nanos),
-                    fmt_ns(s.max_nanos),
-                    fmt_ns(med),
-                    fmt_ns(stddev.floor() as u128),
-                    fmt_ns(s.last_nanos)
-                );
-            }
-            unsafe {
-                let time_spent_preparing_nanos = TIME_SPENT_PREPARING_NANOS;
-                let time_spent_meshing_nanos = TIME_SPENT_MESHING_NANOS;
-                let chunks_meshed = CHUNKS_MESHED;
-                println!("==== MESH PROFILER (touche O) ====");
-                println!(
-                    "Global: preparing={}ns meshing={}ns chunks={}",
-                    time_spent_preparing_nanos, time_spent_meshing_nanos, chunks_meshed
-                );
-                if chunks_meshed > 0 {
-                    let avg_preparing_nanos = time_spent_preparing_nanos / (chunks_meshed as u128);
-                    let avg_meshing_nanos = time_spent_meshing_nanos / (chunks_meshed as u128);
-                    println!("  avg preparing: {}", fmt_ns(avg_preparing_nanos));
-                    println!("  avg meshing:    {}", fmt_ns(avg_meshing_nanos));
-                }
-                println!("--- Par chunk (détails) ---");
-                print_stat("TOTAL", &MESH_STAT_TOTAL, &MESH_HIST_TOTAL);
-                print_stat("PREP (ChunkSolidity::new + setup)", &MESH_STAT_PREP, &MESH_HIST_PREP);
-                print_stat("MASK (détection faces / plans)", &MESH_STAT_MASK, &MESH_HIST_MASK);
-                print_stat("AO (face_ao)", &MESH_STAT_AO, &MESH_HIST_AO);
-                print_stat("RECT (fusion greedy / rectangles)", &MESH_STAT_RECT, &MESH_HIST_RECT);
-                print_stat("EMIT (construction vertices / tri)", &MESH_STAT_EMIT, &MESH_HIST_EMIT);
-                print_stat("OTHER (reste / swap)", &MESH_STAT_OTHER, &MESH_HIST_OTHER);
-                println!("===============================");
-            }
-        }
-
-        if self.inputs.take_key_pressed(KeyCode::KeyY) {
-            unsafe fn fmt_ns(v: u128) -> String {
-                if v >= 1_000_000 {
-                    format!("{}.{:03}ms", v / 1_000_000, (v % 1_000_000) / 1000)
-                } else if v >= 1_000 {
-                    format!("{}.{:03}µs", v / 1000, v % 1000)
-                } else {
-                    format!("{}ns", v)
-                }
-            }
-            unsafe fn med_std(hist: &[u128; GEN_HIST_LEN], count: u64) -> (u128, f64) {
-                if count == 0 {
-                    return (0, 0.0);
-                }
-                let c_usize = count as usize;
-                let n = if c_usize < GEN_HIST_LEN { c_usize } else { GEN_HIST_LEN };
-                let mut tmp = [0u128; GEN_HIST_LEN];
-                tmp[..n].copy_from_slice(&hist[..n]);
-                let slice = &mut tmp[0..n];
-                slice.sort_unstable();
-                let med = slice[n / 2];
-                let mut sum: u128 = 0;
-                for element in slice.iter().take(n) {
-                    sum += element;
-                }
-                let mean = (sum as f64) / (n as f64);
-                let mut var: f64 = 0.0;
-                for element in slice.iter().take(n) {
-                    let d = (*element as f64) - mean;
-                    var += d * d;
-                }
-                var /= n as f64;
-                (med, var.sqrt())
-            }
-            unsafe fn print_stat(name: &str, s: &game::world::generation::profiler::GenTimeStats, hist: &[u128; GEN_HIST_LEN]) {
-                if s.count == 0 {
-                    println!("{}: aucun échantillon", name);
-                    return;
-                }
-                let avg = s.sum_nanos / (s.count as u128);
-                let (med, stddev) = med_std(hist, s.count);
-                println!(
-                    "{}: count={} sum={} avg={} min={} max={} med={} stddev={} | {}",
-                    name,
-                    s.count,
-                    fmt_ns(s.sum_nanos),
-                    fmt_ns(avg),
-                    fmt_ns(s.min_nanos),
-                    fmt_ns(s.max_nanos),
-                    fmt_ns(med),
-                    fmt_ns(stddev.floor() as u128),
-                    fmt_ns(s.last_nanos)
-                );
-            }
-            unsafe {
-                let time_spent_generating_nanos =
-                    TIME_SPENT_GENERATING_NANOS.load(std::sync::atomic::Ordering::Relaxed) as u128;
-                let chunks_generated = CHUNKS_GENERATED.load(std::sync::atomic::Ordering::Relaxed);
-                println!("==== GEN PROFILER (touche Y) ====");
-                println!(
-                    "Global: generating={} chunks={}",
-                    fmt_ns(time_spent_generating_nanos),
-                    chunks_generated
-                );
-                if chunks_generated > 0 {
-                    let avg_generating_nanos = time_spent_generating_nanos / (chunks_generated as u128);
-                    println!("  avg generating: {}", fmt_ns(avg_generating_nanos));
-                }
-                println!("--- Par chunk (détails) ---");
-                print_stat("TOTAL", &GEN_STAT_TOTAL, &GEN_HIST_TOTAL);
-                print_stat("NOISE", &GEN_STAT_NOISE, &GEN_HIST_NOISE);
-                print_stat("SURFACE", &GEN_STAT_SURFACE, &GEN_HIST_SURFACE);
-                print_stat("TERRAIN", &GEN_STAT_TERRAIN, &GEN_HIST_TERRAIN);
-                print_stat("CAVE", &GEN_STAT_CAVE, &GEN_HIST_CAVE);
-                print_stat("ORE", &GEN_STAT_ORE, &GEN_HIST_ORE);
-                print_stat("VEGETATION", &GEN_STAT_VEGETATION, &GEN_HIST_VEGETATION);
-                print_stat("OTHER", &GEN_STAT_OTHER, &GEN_HIST_OTHER);
-                println!("================================");
-            }
-        }
     }
 
     #[inline(never)]
@@ -430,7 +183,7 @@ impl GameState {
         &mut self,
         frame: &EngineFrameData,
         mesh_manager: &mut Arc<RwLock<GpuAllocator>>,
-    ) -> (Vec<network::messages::Paquet>, MeshRequestMessage) {
+    ) -> (Vec<Paquet>, MeshRequestMessage) {
         let network_commands = self.player.update(frame.dt, &mut self.world, &mut self.inputs);
         let mesh_request = self.world.update(mesh_manager, &mut self.world_mesh, &self.player);
         let mesh_request = take(mesh_request);
@@ -438,7 +191,7 @@ impl GameState {
     }
 
     #[inline(never)]
-    fn update_network(&mut self, network_commands: Vec<network::messages::Paquet>) {
+    fn update_network(&mut self, network_commands: Vec<Paquet>) {
         {
             let net = self.network.as_mut().expect("NetworkManager: uninitialized.");
             if !net.is_connected() {
@@ -553,6 +306,10 @@ impl GameState {
 }
 
 impl AppState for GameState {
+    fn inputs(&mut self) -> &mut InputState {
+        &mut self.inputs
+    }
+
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>) {
         self.apply_received_packets();
         println!("player initial pos: {:?} {:?}", self.player.get_pos(), self.player.get_cpos());
@@ -652,69 +409,12 @@ impl AppState for GameState {
         self.update_rendering(data, renderer);
     }
 
-    fn on_mouse_move(&mut self, dx: f64, dy: f64) {
-        self.inputs.set_mouse_delta((dx, dy));
-    }
-
-    fn on_mouse_button(&mut self, button: MouseButton, is_pressed: bool) {
-        self.inputs.set_mouse_button_press(button, is_pressed);
-    }
-
-    fn on_mouse_wheel(&mut self, delta: f32) {
-        self.inputs.set_mouse_wheel(delta);
-    }
-
-    fn on_key(&mut self, code: KeyCode, is_pressed: bool) {
-        self.inputs.set_key_press(code, is_pressed);
-    }
-
     fn dispose(&mut self, alloc: &mut Arc<RwLock<GpuAllocator>>) {
         // TODO: faire fonctionner -> // Network dispose (disconnection, memory release...), if any.
         // if let Some(net) = self.network.as_mut() {
 
         // }
-
         self.world.dispose();
         self.world_mesh.dispose(alloc);
     }
-}
-
-#[allow(unused)]
-fn ui_test(renderer: &mut Renderer) {
-    // UI
-    // In 5 steps.
-
-    // 1. Widget tree
-    // Build everything you want with it.
-    // let test_panel: Panel = {
-    //     let transform = WidgetTransform::new(8, 8, 160, 130);
-    //     let color = 0xFFCCAAAA;
-    //     let child = None;
-    //     Panel::new(transform, color, child)
-    // };
-    let test_panel: TexturedPanel = {
-        let transform = WidgetTransform::new(8, 8, 160, 130);
-        let texture = TextureId::default();
-        let child = None;
-        TexturedPanel::new(transform, texture, child)
-    };
-
-    let mut draw_commands = Vec::new();
-
-    // 2. Draw call
-    // At the top of the tree, call root.draw and give it an empty
-    // Vec of DrawCommand (it will call .draw() recursively).
-    test_panel.draw(&mut draw_commands);
-
-    // 3. Translation
-    // When commands are ready, we need to translate them
-    // into vertices to be compatible with the shader.
-    let vertices = UiTranslator::translate(draw_commands, &renderer.texture_manager);
-
-    // 4. Compilation
-    // Transform our UiVertices into raw bytes.
-    let bytes = UiCompiler::compile(vertices);
-
-    // 5. Submit the bytes to the GPU, and voila.
-    renderer.ui_renderer.update_vertices(&bytes);
 }

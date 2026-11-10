@@ -1,6 +1,6 @@
 use crate::player::camera::Camera;
 use crate::player::controllers::{CameraController, PlayerController};
-use crate::systems::inputs::InputState;
+use engine::core::inputs::InputState;
 use game::constants::{PLAYER_EYE_HEIGHT, UP};
 use game::types::{Position, Rotation};
 use physics::body::PhysicsBody;

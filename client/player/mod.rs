@@ -8,8 +8,8 @@ use crate::player::controllers::walk::WalkPlayerController;
 
 use crate::player::camera::Camera;
 use crate::player::controllers::{CameraController, PlayerController};
-use crate::systems::inputs::InputState;
 use crate::world::ClientWorld;
+use engine::core::inputs::InputState;
 use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     SPECTATOR_FLY_SPEED, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
@@ -113,7 +113,7 @@ impl PlayerState {
 
     fn break_block(&mut self, world: &mut ClientWorld, commands: &mut Vec<Paquet>) {
         let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |position| {
-            world.get_block(position).map_or(false, |block| block.is_solid())
+            world.get_block(position).is_some_and(|block| block.is_solid())
         });
         let Some(hit) = hit else { return };
         let Some(block_id) = world.get_block(&hit.block_pos).map(|block| block.get_block_id()) else {
@@ -146,7 +146,7 @@ impl PlayerState {
 
     fn place_block(&mut self, block: BlockInstance, world: &mut ClientWorld, commands: &mut Vec<Paquet>) {
         let hit = voxel_raycast(self.camera.eye(), &self.camera.forward(), 4.0, |position| {
-            world.get_block(position).map_or(false, |block| block.is_solid())
+            world.get_block(position).is_some_and(|block| block.is_solid())
         });
         let Some(hit) = hit else { return };
         let (x, y, z) = (&hit.block_pos).into();
@@ -306,18 +306,18 @@ impl Player {
         self.state
             .player_controller
             .update(dt, inputs, &mut self.physics_body, &self.state.camera);
+
+        let mut new_pos = *self.get_pos();
         match player_game_mode {
             PlayerGameMode::Spectator => {
-                let pos = self.state.pos.current_mut();
-                *pos += *self.physics_body.velocity.current() * dt;
+                new_pos += *self.physics_body.velocity.current() * dt;
             }
             PlayerGameMode::Survival => {
-                resolve_collision(world, &mut self.physics_body, dt, self.state.pos.current_mut());
+                resolve_collision(world, &mut self.physics_body, dt, &mut new_pos);
             }
         }
 
-        let cpos = ChunkPosition::from(self.state.pos.current());
-        self.state.cpos.update(cpos);
+        self.set_pos(new_pos);
     }
 
     /// Délègue à `self.state`.

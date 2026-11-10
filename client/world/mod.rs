@@ -249,7 +249,7 @@ impl ClientWorld {
             &mut player.get_simulation_chunk_keys().iter(),
             &self.chunks.keys().copied().collect(),
             &self.in_flight,
-            &player_chunk,
+            player_chunk,
         );
 
         self.missing_chunks = missing.into();
@@ -298,7 +298,7 @@ impl ClientWorld {
         let chunk_data = ChunkData::new(chunk);
         self.chunks.insert(*position, chunk_data);
         // Le chunk vient du serveur : il n'est plus à générer.
-        self.in_flight.remove(&position);
+        self.in_flight.remove(position);
         self.missing_chunks.retain(|p| p != position);
 
         if self.are_all_neighbors_ready(position) {
@@ -381,7 +381,7 @@ impl ClientWorld {
     pub fn get_mesh_snapshot(&self, chunk_position: &ChunkPosition) -> MeshSnapshot {
         let (cx, cy, cz) = chunk_position.into();
         MeshSnapshot {
-            main: Arc::clone(&self.chunks.get(&chunk_position).unwrap().chunk),
+            main: Arc::clone(&self.chunks.get(chunk_position).unwrap().chunk),
             neg_x: self
                 .chunks
                 .get(&ChunkPosition::new(cx - 1, cy, cz))
@@ -490,13 +490,19 @@ impl CollisionWorld for ClientWorld {
         if !self.chunks.contains_key(&chunk) {
             return true;
         }
-        self.get_block(position).map_or(false, |block| block.is_solid())
+        self.get_block(position).is_some_and(|block| block.is_solid())
     }
 }
 
 #[derive(Debug)]
 pub struct ClientChunks {
     inner: FxHashMap<ChunkPosition, ChunkData>,
+}
+
+impl Default for ClientChunks {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ClientChunks {

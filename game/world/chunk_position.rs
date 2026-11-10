@@ -22,6 +22,11 @@ impl ChunkPosition {
     }
 
     #[inline(always)]
+    pub const fn origin(&self) -> WorldPosition {
+        WorldPosition::new(self.x * CHUNK_SIZE, self.y * CHUNK_SIZE, self.z * CHUNK_SIZE)
+    }
+
+    #[inline(always)]
     pub fn x(&self) -> i32 {
         self.x
     }
@@ -39,7 +44,7 @@ impl ChunkPosition {
 
 impl From<&WorldPosition> for ChunkPosition {
     fn from(value: &WorldPosition) -> Self {
-        let (x, y, z) = value.into();
+        let (x, y, z): (i32, i32, i32) = value.into();
         Self {
             x: x.div_euclid(CHUNK_SIZE),
             y: y.div_euclid(CHUNK_SIZE),

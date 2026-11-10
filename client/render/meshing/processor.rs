@@ -1,13 +1,11 @@
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use engine::geometry::vertex::Vertex;
-use game::world::{chunk_position::ChunkPosition, data::chunk::CHUNK_SIZE};
+use game::{types::Position, world::chunk_position::ChunkPosition};
 use project_core::parallel::{buffer_pool::BufferPool, Parallelizable};
 
 use crate::{
-    game::{CHUNKS_MESHED, TIME_SPENT_MESHING_NANOS},
-    render::meshing::chunk_new::make_greedy_chunk,
-    systems::texture_registry::TextureRegistry,
+    render::meshing::chunk_new::make_greedy_chunk, systems::texture_registry::TextureRegistry,
     world::mesh_request::MeshSnapshot,
 };
 
@@ -21,50 +19,13 @@ impl Parallelizable for GreedyMeshingProcessor {
     /// Makes greedy
     fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output {
         let (snapshot, position, textures) = input;
-        let (cx, cy, cz) = (&position).into();
 
-        let start = Instant::now();
+        // Origine monde du chunk (indispensable : sinon tous les chunks se superposent à l'origine).
+        let origin: Position = (&position).into();
 
         let mut vertices = ctx.get_buffer();
 
-        // Origine monde du chunk (indispensable : sinon tous les chunks se
-        // superposent à l'origine).
-        let origin = [(cx * CHUNK_SIZE) as f32, (cy * CHUNK_SIZE) as f32, (cz * CHUNK_SIZE) as f32];
-
-        make_greedy_chunk(&snapshot, &mut vertices, origin, textures);
-
-        // let padded = PaddedChunk::from_snapshot(&snapshot.main, &snapshot);
-
-        // // Pre-calc entire chunk blocks solidity to save CPU (by avoiding repetition)
-        // // let mut solidity = [false; PADDED_CHUNK_BLOCK_CBE_USIZE];
-
-        // // for i in 0..PADDED_CHUNK_BLOCK_CBE_USIZE {
-        // //     solidity[i] = padded.get_block_from_i(i).is_solid();
-        // // }
-
-        // let start_preparing = Instant::now();
-
-        // let mut solidity = PaddedChunkSliceMask::default();
-        // for i in 0..PADDED_CHUNK_BLOCK_CBE_USIZE {
-        //     solidity.set_i_to(i, padded.get_block_from_i(i).is_solid() as u32);
-        // }
-
-        // let end_preparing = Instant::now();
-
-        // // Pre-calc chunk world position to save CPU (by avoiding repetition)
-        // let (cwx, cwy, cwz) = ((cx * CHUNK_SIZE) as f32, (cy * CHUNK_SIZE) as f32, (cz * CHUNK_SIZE) as f32);
-
-        // ChunkMesh::make_greedy_x(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
-        // ChunkMesh::make_greedy_y(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
-        // ChunkMesh::make_greedy_z(&padded, &solidity, &mut vertices, cwx, cwy, cwz, &texture_lookup);
-
-        let end = Instant::now();
-
-        unsafe {
-            // TIME_SPENT_PREPARING_NANOS += end_preparing.duration_since(start_preparing).as_nanos();
-            TIME_SPENT_MESHING_NANOS += end.duration_since(start).as_nanos();
-            CHUNKS_MESHED += 1;
-        }
+        make_greedy_chunk(&snapshot, &mut vertices, [*origin.x(), *origin.y(), *origin.z()], textures);
 
         Some(vertices)
     }

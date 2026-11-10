@@ -19,7 +19,6 @@ impl Default for InputState {
     }
 }
 
-#[allow(unused)]
 impl InputState {
     #[inline(always)]
     pub const fn new() -> Self {

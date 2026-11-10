@@ -6,7 +6,6 @@ pub struct AABB {
     pub max: Vec3<f32>,
 }
 
-#[allow(unused)]
 impl AABB {
     pub fn new(center: Position, half_size: f32) -> Self {
         Self::new_sized(center, Vec3::new(half_size, half_size, half_size))

@@ -36,19 +36,9 @@ impl<T> Updatable<T> {
         &self.last
     }
 
-    // #[inline(always)]
-    // pub fn last_mut(&mut self) -> &mut T {
-    //     &mut self.last
-    // }
-
     #[inline(always)]
     pub const fn current(&self) -> &T {
         &self.current
-    }
-
-    #[inline(always)]
-    pub const fn current_mut(&mut self) -> &mut T {
-        &mut self.current
     }
 
     #[inline(always)]

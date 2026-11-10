@@ -1,4 +1,5 @@
-use crate::{player::camera::Camera, systems::inputs::InputState};
+use crate::player::camera::Camera;
+use engine::core::inputs::InputState;
 use game::types::Position;
 use physics::body::PhysicsBody;
 

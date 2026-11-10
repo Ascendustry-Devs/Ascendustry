@@ -42,14 +42,3 @@ impl From<&WorldPosition> for (i32, i32, i32) {
         (value.x(), value.y(), value.z())
     }
 }
-
-// impl From<&ChunkPosition> for Position {
-//     fn from(value: &ChunkPosition) -> Self {
-//         let (x, y, z) = value.into();
-//         Self {
-//             x: x * CHUNK_SIZE,
-//             y: y * CHUNK_SIZE,
-//             z: z * CHUNK_SIZE,
-//         }
-//     }
-// }

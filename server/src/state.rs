@@ -130,7 +130,7 @@ impl AppState {
             let generated = self.world.read().await;
             required
                 .iter()
-                .filter(|c| !generated.chunks().contains_key(*c))
+                .filter(|c| !generated.chunks().contains_key(c))
                 .cloned()
                 .collect::<Vec<_>>()
         };

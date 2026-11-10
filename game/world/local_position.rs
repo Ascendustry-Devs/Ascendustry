@@ -42,11 +42,11 @@ impl LocalPosition {
 
 impl From<&WorldPosition> for LocalPosition {
     fn from(value: &WorldPosition) -> Self {
-        let (x, y, z) = value.into();
+        let (x, y, z): (i32, i32, i32) = value.into();
         Self::new(
-            x.rem_euclid(CHUNK_SIZE).abs() as u16,
-            y.rem_euclid(CHUNK_SIZE).abs() as u16,
-            z.rem_euclid(CHUNK_SIZE).abs() as u16,
+            x.rem_euclid(CHUNK_SIZE).unsigned_abs() as u16,
+            y.rem_euclid(CHUNK_SIZE).unsigned_abs() as u16,
+            z.rem_euclid(CHUNK_SIZE).unsigned_abs() as u16,
         )
     }
 }

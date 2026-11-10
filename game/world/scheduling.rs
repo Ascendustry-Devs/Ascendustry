@@ -89,7 +89,7 @@ pub fn compute_missing_chunks_sorted<'a>(
         })
         .collect();
 
-    missing.sort_by_key(|coords| chunk_priority_sq(coords, &player_chunk));
+    missing.sort_by_key(|coords| chunk_priority_sq(coords, player_chunk));
     missing
 }
 

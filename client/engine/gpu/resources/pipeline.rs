@@ -1,6 +1,5 @@
 use wgpu::RenderPipeline;
 
-#[allow(unused)]
 pub struct Pipelines {
     opaque: RenderPipeline,
     alpha_cutout: RenderPipeline,
@@ -9,7 +8,6 @@ pub struct Pipelines {
     ui: RenderPipeline,
 }
 
-#[allow(unused)]
 impl Pipelines {
     pub const fn new(
         opaque: RenderPipeline,

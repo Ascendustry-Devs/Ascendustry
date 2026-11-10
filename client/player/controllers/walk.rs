@@ -1,6 +1,6 @@
 use crate::player::camera::Camera;
 use crate::player::controllers::PlayerController;
-use crate::systems::inputs::InputState;
+use engine::core::inputs::InputState;
 use game::constants::DECEL_COEF;
 use physics::body::PhysicsBody;
 use project_core::general_types::vec3::Vec3;

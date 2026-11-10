@@ -6,6 +6,12 @@ pub struct UiStack {
     internal: Vec<Box<dyn DynUiLayer>>,
 }
 
+impl Default for UiStack {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UiStack {
     pub const fn new() -> Self {
         Self { internal: Vec::new() }

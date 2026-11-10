@@ -6,8 +6,6 @@ pub mod layouts;
 pub mod stack;
 pub mod views;
 
-use std::collections::HashMap;
-
 use engine::{
     gpu::textures::manager::TextureManager,
     render::ui::{
@@ -15,13 +13,10 @@ use engine::{
         render::UiRenderer,
     },
 };
-use game::inventory::item_manager::ItemId;
-use rustc_hash::{FxBuildHasher, FxHashMap};
 
 use crate::ui::{context::UiContext, layers::DynUiLayer, stack::UiStack};
 
 pub struct ClientUI {
-    item_textures: FxHashMap<ItemId, u32>,
     screen_size: (u32, u32),
     stack: UiStack,
     vertices: Vec<u8>,
@@ -36,7 +31,6 @@ impl Default for ClientUI {
 impl ClientUI {
     pub const fn new() -> Self {
         Self {
-            item_textures: HashMap::with_hasher(FxBuildHasher),
             screen_size: (0, 0),
             stack: UiStack::new(),
             vertices: Vec::new(),

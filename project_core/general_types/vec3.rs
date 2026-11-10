@@ -188,7 +188,7 @@ where
     type Output = Self;
 
     fn add(self, rhs: Vec3<T>) -> Self::Output {
-        Self { 0: rhs.add(self.0) }
+        Self(rhs.add(self.0))
     }
 }
 
@@ -211,7 +211,7 @@ where
 
     fn sub(self, rhs: Vec3<T>) -> Self::Output {
         let inner = self.0 - rhs;
-        Self { 0: inner }
+        Self(inner)
     }
 }
 

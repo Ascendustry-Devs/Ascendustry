@@ -124,21 +124,21 @@ where
 
 pub fn look_to_rh(eye: &Pos3<f32>, dir: &Vec3<f32>, up: &Vec3<f32>) -> Mat4<f32> {
     let f = dir.normalize();
-    let s = f.cross(&up).normalize();
+    let s = f.cross(up).normalize();
     let u = s.cross(&f);
 
     Mat4::new([
-        s.x().clone(),
-        u.x().clone(),
-        -f.x().clone(),
+        *s.x(),
+        *u.x(),
+        -*f.x(),
         0.0,
-        s.y().clone(),
-        u.y().clone(),
-        -f.y().clone(),
+        *s.y(),
+        *u.y(),
+        -*f.y(),
         0.0,
-        s.z().clone(),
-        u.z().clone(),
-        -f.z().clone(),
+        *s.z(),
+        *u.z(),
+        -*f.z(),
         0.0,
         -s.dot(eye),
         -u.dot(eye),

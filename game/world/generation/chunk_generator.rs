@@ -5,7 +5,6 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use rustc_hash::{FxBuildHasher, FxHashMap};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 use crate::world::chunk_position::ChunkPosition;
 use crate::world::data::block::BlockManager;
@@ -13,7 +12,6 @@ use crate::world::data::chunk::{Chunk, ChunkData, CHUNK_SIZE};
 use crate::world::generation::biome::BiomeRegistry;
 use crate::world::generation::chunk::ChunkWithChecksum;
 use crate::world::generation::ore_gen::{OreGenConfig, OreVeinConfig};
-use crate::world::generation::profiler::*;
 
 // + caves proches
 // - caves éloignées
@@ -257,7 +255,8 @@ impl ChunkGenContext {
             .clamp(0, ORE_GRID_POINTS as i32 - 1) as usize;
 
         let ore_count = self.get_ore_count().min(4);
-        for i in 0..ore_count {
+        for (i, sample_grid) in sample_grids.iter_mut().enumerate().take(ore_count) {
+            // for i in 0..ore_count {
             if (chunk_active_ores & (1 << i)) == 0 {
                 continue;
             }
@@ -285,17 +284,23 @@ impl ChunkGenContext {
             // 1. Échantillonner la grille pour le minerai i — uniquement les couches utiles
             let scale = config.noise_scale;
             let cell = ORE_CELL_SIZE as i32;
-            let sample_grid = &mut sample_grids[i];
-            for gx in 0..ORE_GRID_POINTS {
+            // let sample_grid = &mut sample_grids[i];
+            for (gx, grid_x) in sample_grid.iter_mut().enumerate().take(ORE_GRID_POINTS) {
+                // for gx in 0..ORE_GRID_POINTS {
                 let nx = ((cwx + gx as i32 * cell) as f64) * scale;
-                let grid_x = &mut sample_grid[gx];
-                for gz in 0..ORE_GRID_POINTS {
+                // let grid_x = &mut sample_grid[gx];
+                for (gz, grid_xz) in grid_x.iter_mut().enumerate().take(ORE_GRID_POINTS) {
+                    // for gz in 0..ORE_GRID_POINTS {
                     let nz = ((cwz + gz as i32 * cell) as f64) * scale;
-                    let grid_xz = &mut grid_x[gz];
-                    for gy in ore_gy_min..=gy_top {
+                    // let grid_xz = &mut grid_x[gz];
+                    for (gy, grid_xzy) in grid_xz.iter_mut().enumerate().take(gy_top + 1).skip(ore_gy_min) {
                         let ny = ((cwy + gy as i32 * cell) as f64) * scale;
-                        grid_xz[gy] = noise.get([nx, ny, nz]) as f32;
+                        *grid_xzy = noise.get([nx, ny, nz]) as f32;
                     }
+                    // for gy in ore_gy_min..=gy_top {
+                    //     let ny = ((cwy + gy as i32 * cell) as f64) * scale;
+                    //     grid_xz[gy] = noise.get([nx, ny, nz]) as f32;
+                    // }
                 }
             }
 
@@ -313,7 +318,7 @@ impl ChunkGenContext {
                             for cx in 0..=1 {
                                 for cz in 0..=1 {
                                     for cy in 0..=1 {
-                                        let v = sample_grids[i][gx + cx][gz + cz][gy + cy].abs();
+                                        let v = sample_grid[gx + cx][gz + cz][gy + cy].abs();
                                         if v > max_val {
                                             max_val = v;
                                         }
@@ -385,13 +390,10 @@ impl Parallelizable for ChunkGen {
     type Context = ChunkGenContext;
 
     fn process(input: Self::Input, ctx: &Self::Context) -> Self::Output {
-        let start = Instant::now();
         let chunk = Chunk::generate_with_context(&input, ctx);
 
         let checksum = chunk.compute_checksum();
         let chunk_data = ChunkData::new(chunk);
-        let nanos = start.elapsed().as_nanos();
-        gen_record_total(nanos);
         (input, ChunkWithChecksum { chunk_data, checksum })
     }
 }

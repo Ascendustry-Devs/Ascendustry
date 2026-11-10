@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter, Result};
 
 #[repr(C)]
-#[allow(unused)]
 #[derive(Default, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum RenderMode {
     #[default]

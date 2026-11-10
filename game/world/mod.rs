@@ -34,6 +34,9 @@ pub trait ChunkStorage {
     fn retain<F: FnMut(&ChunkPosition, &mut Self::Value) -> bool>(&mut self, f: F);
     fn capacity(&self) -> usize;
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn clear(&mut self);
 }
 

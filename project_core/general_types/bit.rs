@@ -30,18 +30,8 @@ macro_rules! impl_bit_field {
 
 impl_bit_field!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);
 
-pub struct Bit;
+pub enum Bit {}
 
-// value: 11101001
-//            ||
-// part_size = 2
-// i = 3
-//
-// value: 11101001
-//            || -> 01
-// part_size = 2
-// i = 3
-// new_part = 1
 impl Bit {
     /// Masque des `part_size` bits de poids faible.
     ///

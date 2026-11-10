@@ -17,10 +17,10 @@ use crate::{
     render::modes::RenderMode,
 };
 
-#[allow(unused)]
 pub struct TextureManager {
     gpu_resources: Arc<GpuTools>,
 
+    #[allow(unused)]
     max_texture_size: u32,
     max_array_depth: u32,
 

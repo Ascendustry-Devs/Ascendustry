@@ -1,4 +1,4 @@
-use project_core::general_types::vec3::Vec3;
+use project_core::general_types::{checksum::Checksum, vec3::Vec3};
 use rustc_hash::{FxBuildHasher, FxHashSet};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, fmt::Display, sync::Arc};
@@ -8,7 +8,7 @@ use crate::world::{chunk_position::ChunkPosition, data::block::BlockInstance, lo
 pub const CHUNK_VALIDATION_BATCH_SIZE: usize = 20;
 
 #[allow(unused)]
-fn fletcher16(data: &[u8]) -> [u8; 2] {
+fn fletcher16(data: &[u8]) -> Checksum {
     let mut sum1: u16 = 0;
     let mut sum2: u16 = 0;
     for &byte in data {
@@ -17,7 +17,7 @@ fn fletcher16(data: &[u8]) -> [u8; 2] {
     }
     sum1 %= 255;
     sum2 %= 255;
-    [(sum1 as u8), (sum2 as u8)]
+    [(sum1 as u8), (sum2 as u8)].into()
 }
 
 pub const CHUNK_SIZE: i32 = 32;
@@ -163,7 +163,7 @@ impl Chunk {
         neighbors
     }
 
-    pub fn compute_checksum(&self) -> [u8; 2] {
+    pub fn compute_checksum(&self) -> Checksum {
         let mut sum1: u16 = 0;
         let mut sum2: u16 = 0;
 
@@ -181,7 +181,7 @@ impl Chunk {
 
         sum1 %= 255;
         sum2 %= 255;
-        [(sum1 as u8), (sum2 as u8)]
+        [(sum1 as u8), (sum2 as u8)].into()
     }
 
     pub fn get_cube_chunk_range(center: &ChunkPosition, hd: u16, vd: u16) -> [i32; 6] {
