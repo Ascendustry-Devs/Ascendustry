@@ -1,4 +1,4 @@
-use crate::general_types::vec3::{Dot, Vec3};
+use crate::math::geometry::vec3::{Dot, Vec3};
 
 #[derive(PartialEq, Copy, Clone)]
 pub struct Plane {

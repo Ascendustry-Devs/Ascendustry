@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use project_core::general_types::mat4::ortho;
+use project_core::math::geometry::mat4::ortho;
 use wgpu::{BindGroup, Buffer, BufferDescriptor, BufferUsages, RenderPass, RenderPipeline};
 
 use crate::{

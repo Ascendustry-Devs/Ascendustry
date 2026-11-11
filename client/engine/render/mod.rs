@@ -12,10 +12,14 @@ use std::{
     sync::Arc,
 };
 
-use game::world::data::chunk::CHUNK_SIZE_F;
+use bytemuck::cast_slice;
+use game::world::data::chunk::CHUNK_SIZE_HALFED_F;
 use winit::window::Window;
 
-use crate::{geometry::vertex::Vertex, render::ui::render::UiRenderer};
+use crate::render::{
+    debug::{CHUNK_BORDERS, GIZMO},
+    ui::render::UiRenderer,
+};
 use wgpu::{
     wgt::{CommandEncoderDescriptor, DrawIndirectArgs},
     Features, RenderPass, SurfaceTexture,
@@ -101,33 +105,6 @@ impl Renderer {
         camera: &RenderCamera,
         text_renderer: Option<&'a mut TextRenderer>,
     ) {
-        const CHUNK_BORDERS: [Vertex; 24] = [
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        ];
-
         if !self.is_surface_configured {
             return;
         }
@@ -138,18 +115,24 @@ impl Renderer {
         let mut encoder = encoder.write().unwrap();
 
         if let Some(view_proj) = camera.view_proj().change() {
-            queue.write_buffer(&self.gpu_resources.camera_buffer, 0, bytemuck::cast_slice(view_proj));
+            queue.write_buffer(&self.gpu_resources.camera_buffer, 0, cast_slice(view_proj));
         }
 
         if let Some(cw) = camera.cw().change() {
             let chunk_borders_vertices =
                 CHUNK_BORDERS.map(|v| v.copy_with_pos(v.position[0] + cw[0], v.position[1] + cw[1], v.position[2] + cw[2]));
 
-            queue.write_buffer(
-                &self.debug.chunk_borders_buffer,
-                0,
-                bytemuck::cast_slice(&chunk_borders_vertices),
-            );
+            let gizmo_vertices = GIZMO.map(|v| {
+                v.copy_with_pos(
+                    v.position[0] + cw[0] + CHUNK_SIZE_HALFED_F,
+                    v.position[1] + cw[1] + CHUNK_SIZE_HALFED_F,
+                    v.position[2] + cw[2] + CHUNK_SIZE_HALFED_F,
+                )
+            });
+
+            queue.write_buffer(&self.debug.gizmo_buffer, 0, cast_slice(&gizmo_vertices));
+
+            queue.write_buffer(&self.debug.chunk_borders_buffer, 0, cast_slice(&chunk_borders_vertices));
         };
 
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());

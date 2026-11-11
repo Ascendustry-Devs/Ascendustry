@@ -3,7 +3,8 @@ use game::{
     constants::{GRAVITY, JUMP_SPEED, WALK_SPEED},
     types::Position,
 };
-use project_core::general_types::{updatable::Updatable, vec3::Vec3};
+use project_core::general_types::updatable::Updatable;
+use project_core::math::geometry::vec3::Vec3;
 
 pub struct PhysicsBody {
     pub aabb: AABB,

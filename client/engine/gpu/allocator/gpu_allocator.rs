@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use project_core::general_types::id_pool::IdPool;
+use project_core::data_structure_types::id_pool::IdPool;
 use rustc_hash::FxHashSet;
 use wgpu::{Buffer, BufferAddress, BufferUsages, CommandEncoder};
 

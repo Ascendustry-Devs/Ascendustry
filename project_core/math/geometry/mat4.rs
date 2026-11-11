@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
-    general_types::vec3::{Dot, Vec3},
     math::geometry::space::Pos3,
+    math::geometry::vec3::{Dot, Vec3},
 };
 
 #[repr(C)]

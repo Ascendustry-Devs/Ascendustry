@@ -1,10 +1,3 @@
 pub mod bit;
 pub mod checksum;
-pub mod data_manager;
-pub mod id_pool;
-pub mod mat4;
-pub mod normal;
-pub mod unique_index;
-pub mod unique_queue;
 pub mod updatable;
-pub mod vec3;

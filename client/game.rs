@@ -41,7 +41,7 @@ use winit::keyboard::KeyCode;
 // TODO: bug de flickering/scintillements dans certains angles de caméra : voir le calcul des meshs à rendre pour la frame
 // TODO: hotbar bugguée : lorsqu'on prend 2 items, puis qu'on fini le stack du premier, on perd aussi le deuxième
 
-const FPS_CAP: u32 = 60; // u32::MAX;
+const FPS_CAP: u32 = 0; // u32::MAX;
 const DT_CAP: f32 = {
     if FPS_CAP == 0 {
         0.0
@@ -135,7 +135,7 @@ impl GameState {
             let cpos = self.player.state.cpos.current();
             println!("==== Chunk {:?} ====", cpos);
             if let Some((state, dirty)) = self.world.chunk_infos_at(cpos) {
-                println!("- Data (CPU):\n  └─ {}", state);
+                println!("- Data (CPU):\n  └─ {:?}", state);
                 if dirty {
                     println!("  └─ Dirty")
                 }
@@ -301,6 +301,7 @@ impl GameState {
 
     #[inline(always)]
     fn update_rendering(&mut self, data: &mut GameFrameData, renderer: &mut Renderer) {
+        self.player.state.camera.aspect.update(renderer.render_options.aspect);
         GameRenderer::render(self, data, renderer);
     }
 }

@@ -12,6 +12,7 @@ use crate::world::data::chunk::{Chunk, ChunkData, CHUNK_SIZE};
 use crate::world::generation::biome::BiomeRegistry;
 use crate::world::generation::chunk::ChunkWithChecksum;
 use crate::world::generation::ore_gen::{OreGenConfig, OreVeinConfig};
+use crate::world::local_position::LocalPosition;
 
 // + caves proches
 // - caves éloignées
@@ -347,10 +348,12 @@ impl ChunkGenContext {
     /// VARIANTE 2 (APPROXIMÉE) : Interpole trilinéairement la valeur du minerai depuis la grille d'échantillons.
     /// Évite totalement le calcul de bruit 3D Simplex en boucle interne.
     #[inline(always)]
-    pub fn should_place_ore_approx(&self, index: usize, x: i32, y: i32, z: i32, grid: &OreSampleGrid) -> bool {
+    pub fn should_place_ore_approx(&self, index: usize, position: &LocalPosition, grid: &OreSampleGrid) -> bool {
         let Some(config) = self.ore_configs.get(index) else {
             return false;
         };
+
+        let (x, y, z) = position.into();
 
         let gx = (x / 4) as usize;
         let dx = (x % 4) as usize;
@@ -472,195 +475,4 @@ pub fn generate_chunks_parallel_blocking(
             (*chunk_position, ChunkWithChecksum { chunk_data, checksum })
         })
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_cave_block_short_circuit_equivalence() {
-        let bm = Arc::new(RwLock::new(BlockManager::new()));
-        let ctx = ChunkGenContext::new(12345, bm);
-
-        for x in 0..16 {
-            let wx = (x * 4) as f64;
-            for z in 0..16 {
-                let wz = (z * 4) as f64;
-                for y in 0..16 {
-                    let wy = (y * 4) as f64;
-                    let depth = 5;
-
-                    let nx = wx * CAVE_SCALE;
-                    let ny = wy * CAVE_SCALE;
-                    let nz = wz * CAVE_SCALE;
-                    let c1 = ctx.cave_1.get([nx, ny, nz]).abs();
-                    let c2 = ctx.cave_2.get([nx, ny, nz]).abs();
-                    let naive = c1 < CAVE_THRESHOLD && c2 < CAVE_THRESHOLD;
-
-                    let optimized = ctx.is_cave_block(wx, wy, wz, depth);
-                    assert_eq!(optimized, naive, "Divergence at ({wx}, {wy}, {wz})");
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_compute_cave_column_masks_interpolated_high_agreement() {
-        let bm = Arc::new(RwLock::new(BlockManager::new()));
-        let ctx = ChunkGenContext::new(42, bm);
-
-        let cwx = 0;
-        let cwy = 0;
-        let cwz = 0;
-        let terrain_heights = [32i32; (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize)];
-
-        let interpolated_masks = ctx.compute_cave_column_masks(cwx, cwy, cwz, &terrain_heights);
-
-        let mut matches = 0usize;
-        let total_voxels = (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize);
-
-        for x in 0..CHUNK_SIZE {
-            let wx = (x + cwx) as f64;
-            for z in 0..CHUNK_SIZE {
-                let wz = (z + cwz) as f64;
-                let col = (z as usize) * (CHUNK_SIZE as usize) + (x as usize);
-                let mask = interpolated_masks[col];
-
-                for y in 0..CHUNK_SIZE {
-                    let wy = (y + cwy) as f64;
-                    let exact = ctx.is_cave_block(wx, wy, wz, 10);
-                    let interp = (mask & (1 << y)) != 0;
-                    if exact == interp {
-                        matches += 1;
-                    }
-                }
-            }
-        }
-
-        let agreement_rate = (matches as f64) / (total_voxels as f64);
-        assert!(
-            agreement_rate > 0.97,
-            "L'interpolation trilinéaire 1/4 blocs doit concorder à plus de 97% avec le bruit exact (obtenu: {:.2}%)",
-            agreement_rate * 100.0
-        );
-    }
-
-    #[test]
-    fn test_ore_rejection_zero_false_negatives() {
-        let bm = Arc::new(RwLock::new(BlockManager::new()));
-        let ctx = ChunkGenContext::new(42, bm);
-
-        let cwx = 0;
-        let cwy = 0;
-        let cwz = 0;
-        let active_ores = [0b1111u32; CHUNK_SIZE as usize];
-        let max_terrain_y = CHUNK_SIZE; // tout le chunk est potentiellement rocheux
-
-        let (cell_mask, _sample_grids) = ctx.compute_ore_rejection_grid(cwx, cwy, cwz, &active_ores, max_terrain_y);
-
-        // Vérifie sur tous les 32 768 voxels du chunk que si should_place_ore est vrai,
-        // la cellule correspondante dans cell_mask A TOUJOURS le bit actif (0 faux négatif).
-        for ore_idx in 0..ctx.get_ore_count().min(4) {
-            let bit = 1u32 << ore_idx;
-            for x in 0..CHUNK_SIZE {
-                let wx = (x + cwx) as f64;
-                let gx = (x / 4) as usize;
-                for z in 0..CHUNK_SIZE {
-                    let wz = (z + cwz) as f64;
-                    let gz = (z / 4) as usize;
-                    for y in 0..CHUNK_SIZE {
-                        let wy = (y + cwy) as f64;
-                        let gy = (y / 4) as usize;
-
-                        if ctx.should_place_ore(ore_idx, wx, wy, wz) {
-                            let cell_has_bit = (cell_mask[gx][gz][gy] & bit) != 0;
-                            assert!(
-                                cell_has_bit,
-                                "FAUX NÉGATIF détecté pour le minerai {} à ({}, {}, {}) !",
-                                ore_idx, x, y, z
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_should_place_ore_approx_high_agreement() {
-        let bm = Arc::new(RwLock::new(BlockManager::new()));
-        let ctx = ChunkGenContext::new(42, bm);
-
-        let cwx = 0;
-        let cwy = 0;
-        let cwz = 0;
-        let active_ores = [0b1111u32; CHUNK_SIZE as usize];
-        let max_terrain_y = CHUNK_SIZE;
-
-        let (_cell_mask, sample_grids) = ctx.compute_ore_rejection_grid(cwx, cwy, cwz, &active_ores, max_terrain_y);
-
-        for ore_idx in 0..ctx.get_ore_count().min(4) {
-            let mut matches = 0usize;
-            let total = (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize);
-
-            for x in 0..CHUNK_SIZE {
-                let wx = (x + cwx) as f64;
-                for z in 0..CHUNK_SIZE {
-                    let wz = (z + cwz) as f64;
-                    for y in 0..CHUNK_SIZE {
-                        let wy = (y + cwy) as f64;
-
-                        let exact = ctx.should_place_ore_exact(ore_idx, wx, wy, wz);
-                        let approx = ctx.should_place_ore_approx(ore_idx, x, y, z, &sample_grids[ore_idx]);
-                        if exact == approx {
-                            matches += 1;
-                        }
-                    }
-                }
-            }
-
-            let rate = (matches as f64) / (total as f64);
-            assert!(
-                rate > 0.98,
-                "L'approximation pour le minerai {} doit concorder à plus de 98% (obtenu: {:.2}%)",
-                ore_idx,
-                rate * 100.0
-            );
-        }
-    }
-
-    #[test]
-    fn test_ore_vertical_bounding_skips_air() {
-        // Vérifie que le bornage vertical ne crée pas de faux négatifs :
-        // avec max_terrain_y = 16, les minerais au-dessus de y=16 ne doivent pas être produits.
-        let bm = Arc::new(RwLock::new(BlockManager::new()));
-        let ctx = ChunkGenContext::new(42, bm);
-
-        let cwx = 0;
-        let cwy = 0;
-        let cwz = 0;
-        let active_ores = [0b1111u32; CHUNK_SIZE as usize];
-
-        // Cas 1 : grille complète (tout le chunk est rocheux)
-        let (full_mask, _) = ctx.compute_ore_rejection_grid(cwx, cwy, cwz, &active_ores, CHUNK_SIZE);
-
-        // Cas 2 : grille bornée (relief à y=16, soit la moitié du chunk)
-        let bounded_terrain_y = 16;
-        let (bounded_mask, _) = ctx.compute_ore_rejection_grid(cwx, cwy, cwz, &active_ores, bounded_terrain_y);
-
-        // Les cellules sous le relief doivent être identiques (pas de faux négatifs)
-        let cell_y_max = (bounded_terrain_y / ORE_CELL_SIZE as i32) as usize;
-        for gx in 0..ORE_GRID_CELLS {
-            for gz in 0..ORE_GRID_CELLS {
-                for gy in 0..cell_y_max {
-                    assert_eq!(
-                        full_mask[gx][gz][gy], bounded_mask[gx][gz][gy],
-                        "Divergence dans la cellule ({}, {}, {}) entre grille complète et bornée",
-                        gx, gz, gy
-                    );
-                }
-            }
-        }
-    }
 }

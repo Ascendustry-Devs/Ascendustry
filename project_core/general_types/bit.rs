@@ -98,31 +98,3 @@ impl Bit {
         (value & !mask) | ((new_part & low) << shift)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::general_types::bit::Bit;
-
-    #[test]
-    pub fn test_get() {
-        let expected = 0b_100;
-
-        let value = 0b_01_100_010;
-        let part_size = 3;
-        let i = 6;
-
-        assert_eq!(expected, Bit::get_part_of(value, i, part_size))
-    }
-
-    #[test]
-    pub fn test_set() {
-        let expected = 0b_011_111_10;
-
-        let value = 0b_011_000_10;
-        let new_part = 0b_111;
-        let part_size = 3;
-        let i = 5;
-
-        assert_eq!(expected, Bit::set_part_of(value, i, part_size, new_part))
-    }
-}

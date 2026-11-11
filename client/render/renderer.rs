@@ -4,16 +4,18 @@ use bytemuck::cast_slice;
 use engine::{core::frame::GameFrameData, geometry::vertex::generate_cube, render::Renderer};
 use game::{
     constants::CHUNK_VECTOR,
-    world::{chunk_position::ChunkPosition, data::chunk::CHUNK_SIZE_F},
+    types::Position,
+    world::{chunk_position::ChunkPosition, data::chunk::CHUNK_SIZE},
 };
 use physics::aabb::AABB;
-use project_core::{
-    general_types::{mat4::Mat4, vec3::Vec3},
-    math::geometry::plane::Plane,
-};
+use project_core::math::geometry::{plane::Plane, vec3::Vec3};
 use rustc_hash::FxBuildHasher;
 
-use crate::{game::GameState, render::meshing::chunk::ChunkMesh};
+use crate::{
+    game::GameState,
+    player::Player,
+    render::meshing::{chunk::ChunkMesh, world::WorldMesh},
+};
 
 pub struct GameRenderer;
 
@@ -21,40 +23,32 @@ impl GameRenderer {
     pub fn render(state: &mut GameState, data: &mut GameFrameData, renderer: &mut Renderer) {
         // ATTENTION: dans le futur, trouver une alternative pour mieux mettre en cache les meshs ids
         // Peut créer des bugs de rendus difficilement débuggables
-        if let Some(view_proj) = state.player.state.camera.view_proj().change() {
-            Self::update_chunks(state, data, renderer, &view_proj.clone());
+        if state.player.state.camera.view_proj().has_changed() {
+            Self::update_chunks(&state.world_mesh, &state.player, data);
         };
         Self::update_players(state, data, renderer);
     }
 
     #[inline(never)]
-    fn update_chunks(state: &mut GameState, data: &mut GameFrameData, renderer: &Renderer, view_proj: &Mat4<f32>) {
-        state.player.state.camera.aspect.update(renderer.render_options.aspect);
-
-        let (cam_x, cam_y, cam_z) = {
-            let pos = state.player.state.camera.eye();
-            (*pos.x(), *pos.y(), *pos.z())
-        };
-
-        data.camera.update(cam_x, cam_y, cam_z, (*view_proj).into());
-        data.visible_meshes.clear();
-
-        let cam = &state.player.state.camera;
+    fn update_chunks(world_mesh: &WorldMesh, player: &Player, data: &mut GameFrameData) {
+        let cam = &player.state.camera;
         let cam_frustum = cam.get_frustum_planes();
         let cam_frustum_aabb = cam.get_frustum_aabb();
 
-        let meshes = &state.world_mesh.meshes;
-        // Boîte de rendu autour du joueur, en coordonnées de chunk :
-        // [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz].
-        // Un test d'intervalle est plus rapide qu'une recherche dans un ensemble
-        // haché, et surtout ne nécessite aucun cache à invalider.
-        let render_range = state.player.get_rendered_chunk_range();
+        let (cam_x, cam_y, cam_z) = player.state.camera.eye().into();
+        let view_proj = cam.view_proj().current();
+
+        let meshes = &world_mesh.meshes;
+        let render_range = player.get_rendered_chunk_range();
 
         let out = &mut data.visible_meshes;
         let aabb = &cam_frustum_aabb;
 
+        data.camera.update(cam_x, cam_y, cam_z, (*view_proj).into());
+        out.clear();
+
         for (coords, mesh) in meshes.iter() {
-            if let ControlFlow::Break(_) = Self::cull_chunk(out, aabb, cam_frustum, render_range, coords, mesh) {
+            if let ControlFlow::Break(_) = Self::cull_chunk(out, aabb, cam_frustum, &render_range, coords, mesh) {
                 continue;
             }
         }
@@ -63,35 +57,36 @@ impl GameRenderer {
     #[inline(never)]
     fn cull_chunk(
         out: &mut HashSet<u32, FxBuildHasher>,
-        cam_frustum_aabb: &AABB,
-        cam_frustum: &[Plane; 6],
-        render_range: [i32; 6],
+        camera_frustum_aabb: &AABB,
+        camera_frustum: &[Plane; 6],
+        render_range: &[i32; 6],
         coords: &ChunkPosition,
         mesh: &ChunkMesh,
     ) -> ControlFlow<()> {
-        let (x, y, z) = coords.into();
-        let min = Vec3::new(x as f32, y as f32, z as f32) * CHUNK_SIZE_F;
-        let max = min + CHUNK_VECTOR;
-
-        // AABB pre-check : ~80% of chunks are eliminated in 6 simple checks.
-        if Self::is_chunk_outside_aabb(&min, &max, cam_frustum_aabb) {
-            return ControlFlow::Break(());
-        }
-
-        // Frustum check: we eliminate chunks whose AABB is outside the frustum of the camera (not visible).
-        if !Self::is_chunk_in_camera_frustum(&min, &max, cam_frustum) {
-            return ControlFlow::Break(());
-        }
-
-        // Last check to avoid edge cases & not-to-render chunks (in the future, e.g.: occluded chunks).
-        // 6 comparaisons d'entiers : bien moins coûteux qu'une recherche dans un ensemble haché.
-        if !Self::is_chunk_in_render_range(render_range, coords) {
-            return ControlFlow::Break(());
-        }
-
         let Some(id) = mesh.id else {
             return ControlFlow::Break(());
         };
+
+        let (x, y, z) = coords.into();
+        let corner = Position::new((x * CHUNK_SIZE) as f32, (y * CHUNK_SIZE) as f32, (z * CHUNK_SIZE) as f32);
+        let chunk_aabb = AABB::from_corner_and_extent(corner, CHUNK_VECTOR);
+
+        // AABB pre-check : ~80% of chunks are eliminated in 11 simple operations: 3 LEQ, 3 GEQ and 5 ANDs.
+        if !chunk_aabb.intersects(camera_frustum_aabb) {
+            return ControlFlow::Break(());
+        }
+
+        // Check to avoid edge cases & not-to-render chunks (in the future, e.g.: occluded chunks).
+        // As efficient as the AABB pre-check.
+        if !Self::is_chunk_in_render_range(&render_range, coords) {
+            return ControlFlow::Break(());
+        }
+
+        // Last frustum check: we eliminate chunks whose AABB is outside the frustum of the camera (not visible).
+        // Did in last because it's the most expansive check (scalar products).
+        if !Self::is_chunk_in_camera_frustum(&chunk_aabb, camera_frustum) {
+            return ControlFlow::Break(());
+        }
 
         out.insert(id);
 
@@ -102,7 +97,7 @@ impl GameRenderer {
     ///
     /// `render_range` = [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz].
     #[inline(always)]
-    fn is_chunk_in_render_range(render_range: [i32; 6], coords: &ChunkPosition) -> bool {
+    fn is_chunk_in_render_range(render_range: &[i32; 6], coords: &ChunkPosition) -> bool {
         let (x, y, z) = coords.into();
         x >= render_range[0]
             && x <= render_range[1]
@@ -113,18 +108,10 @@ impl GameRenderer {
     }
 
     #[inline(never)]
-    fn is_chunk_outside_aabb(min: &Vec3<f32>, max: &Vec3<f32>, aabb: &AABB) -> bool {
-        *min.x() > *aabb.max.x()
-            || *max.x() < *aabb.min.x()
-            || *min.y() > *aabb.max.y()
-            || *max.y() < *aabb.min.y()
-            || *min.z() > *aabb.max.z()
-            || *max.z() < *aabb.min.z()
-    }
-
-    #[inline(never)]
-    fn is_chunk_in_camera_frustum(min: &Vec3<f32>, max: &Vec3<f32>, planes: &[Plane; 6]) -> bool {
-        for p in planes {
+    fn is_chunk_in_camera_frustum(chunk_aabb: &AABB, camera_frustum: &[Plane; 6]) -> bool {
+        let min = chunk_aabb.min;
+        let max = chunk_aabb.max;
+        for p in camera_frustum {
             let positive = Vec3::new(
                 if *p.normal.x() >= 0.0 { *max.x() } else { *min.x() },
                 if *p.normal.y() >= 0.0 { *max.y() } else { *min.y() },

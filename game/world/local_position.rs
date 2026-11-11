@@ -15,13 +15,18 @@ pub struct LocalPosition {
 
 impl LocalPosition {
     #[inline(always)]
+    pub const fn zero() -> Self {
+        Self { inner: 0 }
+    }
+
+    #[inline(always)]
     pub fn new(x: u16, y: u16, z: u16) -> Self {
         assert!(x < 32 && y < 32 && z < 32);
-        let mut inner = 0u16;
-        inner = Bit::set_part_of(inner, X_PADDING, COORD_BITS, x);
-        inner = Bit::set_part_of(inner, Y_PADDING, COORD_BITS, y);
-        inner = Bit::set_part_of(inner, Z_PADDING, COORD_BITS, z);
-        Self { inner }
+        let mut instance = Self { inner: 0 };
+        instance.set_x(x);
+        instance.set_y(y);
+        instance.set_z(z);
+        instance
     }
 
     #[inline(always)]
@@ -36,7 +41,22 @@ impl LocalPosition {
 
     #[inline(always)]
     pub fn z(&self) -> u16 {
-        self.inner & 0x1F
+        Bit::get_part_of(self.inner, Z_PADDING, COORD_BITS)
+    }
+
+    #[inline(always)]
+    pub fn set_x(&mut self, x: u16) {
+        self.inner = Bit::set_part_of(self.inner, X_PADDING, COORD_BITS, x);
+    }
+
+    #[inline(always)]
+    pub fn set_y(&mut self, y: u16) {
+        self.inner = Bit::set_part_of(self.inner, Y_PADDING, COORD_BITS, y);
+    }
+
+    #[inline(always)]
+    pub fn set_z(&mut self, z: u16) {
+        self.inner = Bit::set_part_of(self.inner, Z_PADDING, COORD_BITS, z);
     }
 }
 

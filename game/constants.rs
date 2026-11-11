@@ -1,4 +1,4 @@
-use project_core::general_types::vec3::Vec3;
+use project_core::math::geometry::vec3::Vec3;
 
 use crate::world::data::chunk::CHUNK_SIZE_F;
 
@@ -77,7 +77,7 @@ pub const COLLISION_EPSILON: f32 = 1e-3;
 
 pub const GRAVITY: f32 = -30.0;
 
-pub const JUMP_SPEED: f32 = 8.0;
+pub const JUMP_SPEED: f32 = 8.5;
 
 pub const WALK_SPEED: f32 = 6.3;
 

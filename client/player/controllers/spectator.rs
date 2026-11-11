@@ -4,7 +4,7 @@ use engine::core::inputs::InputState;
 use game::constants::{PLAYER_EYE_HEIGHT, UP};
 use game::types::{Position, Rotation};
 use physics::body::PhysicsBody;
-use project_core::general_types::vec3::Vec3;
+use project_core::math::geometry::vec3::Vec3;
 use std::f32::consts::FRAC_PI_2;
 use winit::keyboard::KeyCode;
 

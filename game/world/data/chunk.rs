@@ -1,9 +1,12 @@
-use project_core::general_types::{checksum::Checksum, vec3::Vec3};
+use project_core::general_types::checksum::Checksum;
+use project_core::math::geometry::vec3::Vec3;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, fmt::Display, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
-use crate::world::{chunk_position::ChunkPosition, data::block::BlockInstance, local_position::LocalPosition};
+use crate::world::{
+    chunk_position::ChunkPosition, data::block::BlockInstance, local_position::LocalPosition, world_position::WorldPosition,
+};
 
 pub const CHUNK_VALIDATION_BATCH_SIZE: usize = 20;
 
@@ -29,9 +32,10 @@ pub const CHUNK_SIZE_HALFED_VEC3_F: Vec3<f32> = Vec3::new(CHUNK_SIZE_HALFED_F, C
 pub const CHUNK_SIZE_HALFED_F: f32 = CHUNK_SIZE_HALFED as f32;
 pub const CHUNK_SIZE_SQR: i32 = CHUNK_SIZE * CHUNK_SIZE;
 pub const CHUNK_SIZE_SQR_USIZE: usize = CHUNK_SIZE_SQR as usize;
-pub const CHUNK_BLOCK_NUMBER: usize = (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE) as usize;
+pub const CHUNK_SIZE_CUBE_USIZE: usize = (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE) as usize;
 pub const LAST_CHUNK_AXIS_INDEX: i32 = CHUNK_SIZE - 1;
 pub const LAST_CHUNK_AXIS_INDEX_USIZE: usize = LAST_CHUNK_AXIS_INDEX as usize;
+pub const LAST_CHUNK_AXIS_INDEX_U16: u16 = LAST_CHUNK_AXIS_INDEX as u16;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -39,16 +43,6 @@ pub enum ChunkState {
     Pending = 0,
     Ready = 1,
     Meshed = 2,
-}
-
-impl Display for ChunkState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            Self::Pending => "Pending",
-            Self::Ready => "Ready",
-            Self::Meshed => "Meshed",
-        })
-    }
 }
 
 #[derive(Debug)]
@@ -64,13 +58,6 @@ pub struct Chunk {
     pub x: i32,
     pub y: i32,
     pub z: i32,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
-pub struct IntraChunkCoords {
-    pub x: u8,
-    pub y: u8,
-    pub z: u8,
 }
 
 impl ChunkData {
@@ -94,35 +81,29 @@ impl ChunkData {
 }
 
 impl Chunk {
-    pub fn get_block_from_xyz(&self, x: i32, y: i32, z: i32) -> BlockInstance {
-        self.get_block_from_i((x + y * CHUNK_SIZE + z * CHUNK_SIZE_SQR) as usize)
-    }
-
-    pub fn get_block_from_local_xyz(&self, position: &LocalPosition) -> BlockInstance {
-        let (x, y, z) = position.into();
-        self.get_block_from_i(x as usize + (y as usize) * CHUNK_SIZE_USIZE + (z as usize) * CHUNK_SIZE_SQR_USIZE)
-    }
-
-    pub fn get_block_from_i(&self, i: usize) -> BlockInstance {
-        self.blocks[i]
+    #[inline(always)]
+    fn get_index(position: &LocalPosition) -> usize {
+        let (x, y, z) = (position.x() as usize, position.y() as usize, position.z() as usize);
+        x + y * CHUNK_SIZE_USIZE + z * CHUNK_SIZE_SQR_USIZE
     }
 
     #[inline(always)]
-    pub fn set_block_from_xyz(&mut self, x: i32, y: i32, z: i32, block: BlockInstance) {
-        self.set_block_from_i((x + y * CHUNK_SIZE + z * CHUNK_SIZE_SQR) as usize, block);
+    pub fn get_block(&self, position: &LocalPosition) -> BlockInstance {
+        self.get_block_from_index(Self::get_index(position))
     }
 
     #[inline(always)]
-    pub fn set_block_from_local_xyz(&mut self, position: &LocalPosition, block: BlockInstance) -> Option<BlockInstance> {
-        let (x, y, z) = position.into();
-        self.set_block_from_i(
-            x as usize + (y as usize) * CHUNK_SIZE_USIZE + (z as usize) * CHUNK_SIZE_SQR_USIZE,
-            block,
-        )
+    pub fn get_block_from_index(&self, index: usize) -> BlockInstance {
+        self.blocks[index]
     }
 
     #[inline(always)]
-    pub fn set_block_from_i(&mut self, i: usize, block: BlockInstance) -> Option<BlockInstance> {
+    pub fn set_block(&mut self, position: &LocalPosition, block: BlockInstance) -> Option<BlockInstance> {
+        self.set_block_from_index(Self::get_index(position), block)
+    }
+
+    #[inline(always)]
+    pub fn set_block_from_index(&mut self, i: usize, block: BlockInstance) -> Option<BlockInstance> {
         let old = self.blocks[i];
         if old == block {
             return None;
@@ -131,34 +112,27 @@ impl Chunk {
         Some(old)
     }
 
-    pub const fn chunk_coords_from_world(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
-        (x.div_euclid(CHUNK_SIZE), y.div_euclid(CHUNK_SIZE), z.div_euclid(CHUNK_SIZE))
-    }
-
-    pub const fn local_coords_from_world(x: i32, y: i32, z: i32) -> (i32, i32, i32) {
-        (x.rem_euclid(CHUNK_SIZE), y.rem_euclid(CHUNK_SIZE), z.rem_euclid(CHUNK_SIZE))
-    }
-
-    pub fn neighbors_from_block_pos(x: i32, y: i32, z: i32) -> Vec<(i32, i32, i32)> {
-        let mut neighbors = Vec::new();
-        let (cx, cy, cz) = Self::chunk_coords_from_world(x, y, z);
-        let (lx, ly, lz) = Self::local_coords_from_world(x, y, z);
+    pub fn neighbors_from_block_pos(position: &WorldPosition) -> Vec<(i32, i32, i32)> {
+        let mut neighbors = Vec::with_capacity(3);
+        let (chunk_position, local_position) = position.into();
+        let (cx, cy, cz) = (&chunk_position).into();
+        let (lx, ly, lz) = (&local_position).into();
 
         if lx == 0 {
             neighbors.push((cx - 1, cy, cz));
-        } else if lx == LAST_CHUNK_AXIS_INDEX {
+        } else if lx == LAST_CHUNK_AXIS_INDEX_U16 {
             neighbors.push((cx + 1, cy, cz));
         }
 
         if ly == 0 {
             neighbors.push((cx, cy - 1, cz));
-        } else if ly == LAST_CHUNK_AXIS_INDEX {
+        } else if ly == LAST_CHUNK_AXIS_INDEX_U16 {
             neighbors.push((cx, cy + 1, cz));
         }
 
         if lz == 0 {
             neighbors.push((cx, cy, cz - 1));
-        } else if lz == LAST_CHUNK_AXIS_INDEX {
+        } else if lz == LAST_CHUNK_AXIS_INDEX_U16 {
             neighbors.push((cx, cy, cz + 1));
         }
 
@@ -248,16 +222,4 @@ impl Chunk {
 
         keys
     }
-}
-
-pub const fn global_position_to_chunk_pos(gx: i32, gy: i32, gz: i32) -> ((i32, i32, i32), IntraChunkCoords) {
-    let cx = gx.div_euclid(CHUNK_SIZE);
-    let cy = gy.div_euclid(CHUNK_SIZE);
-    let cz = gz.div_euclid(CHUNK_SIZE);
-
-    let ix = (gx.rem_euclid(CHUNK_SIZE)) as u8;
-    let iy = (gy.rem_euclid(CHUNK_SIZE)) as u8;
-    let iz = (gz.rem_euclid(CHUNK_SIZE)) as u8;
-
-    ((cx, cy, cz), IntraChunkCoords { x: ix, y: iy, z: iz })
 }

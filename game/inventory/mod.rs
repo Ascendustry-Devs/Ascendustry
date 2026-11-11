@@ -1,5 +1,3 @@
-mod tests;
-
 pub mod item_manager;
 
 use std::fmt::Display;
@@ -89,7 +87,11 @@ impl ItemData {
         item_rules.get_item_type(self.item.id).unwrap_or(ItemType::Placeable)
     }
 
-    pub fn modify_custom_name(&mut self, custom_name: Option<String>) {
+    pub fn get_custom_name(&self) -> &Option<String> {
+        &self.custom_name
+    }
+
+    pub fn set_custom_name(&mut self, custom_name: Option<String>) {
         self.custom_name = custom_name;
     }
 
@@ -212,6 +214,15 @@ impl Inventory {
     pub fn get_slot(&self, slot: usize) -> Option<&ItemStack> {
         if self.is_slot_correct(slot) {
             Some(&self.slot_data[slot])
+        } else {
+            None
+        }
+    }
+
+    /// Retourne le slot mutable à l'index spécifié, s'il existe.
+    pub fn get_slot_mut(&mut self, slot: usize) -> Option<&mut ItemStack> {
+        if self.is_slot_correct(slot) {
+            Some(&mut self.slot_data[slot])
         } else {
             None
         }

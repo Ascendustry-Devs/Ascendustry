@@ -1,4 +1,4 @@
-use project_core::general_types::{normal::BinaryNormal3, vec3::Vec3};
+use project_core::math::geometry::{normal::BinaryNormal3, vec3::Vec3};
 
 use crate::{types::Position, world::world_position::WorldPosition};
 

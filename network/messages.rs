@@ -144,14 +144,14 @@ pub const fn create_handshake_ack(player_id: u64, server_time: u64, is_player_id
     )
 }
 
-pub const fn create_player_update(player_id: u64, x: f32, y: f32, z: f32, rx: f32, ry: f32) -> Paquet {
+pub const fn create_player_update(player_id: u64, position: Position, rotation: Rotation) -> Paquet {
     Paquet::new(
         TypePaquet::PlayerTransformation,
         ContenuPaquet::PlayerTransformation {
             data: PlayerTransformation {
                 player_id,
-                position: Position::new(x, y, z),
-                rotation: Rotation { yaw: rx, pitch: ry },
+                position,
+                rotation,
             },
         },
     )

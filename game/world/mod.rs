@@ -75,7 +75,7 @@ pub trait World {
         let (chunk_position, local_position): (ChunkPosition, LocalPosition) = position.into();
 
         if let Some(chunk) = self.get_chunk(&chunk_position) {
-            Some(chunk.get_block_from_local_xyz(&local_position))
+            Some(chunk.get_block(&local_position))
         } else {
             log_warn_server!("Tentative d'accès à un chunk non chargé : {:?}", chunk_position);
             None
@@ -103,10 +103,10 @@ impl ChunkAccess for ChunkData {
 
 impl ChunkModification for ChunkData {
     fn set_block(&mut self, position: &LocalPosition, block: BlockInstance) -> Option<BlockInstance> {
-        if self.chunk.get_block_from_local_xyz(position) == block {
+        if self.chunk.get_block(position) == block {
             return None;
         }
         self.set_dirty();
-        Arc::make_mut(&mut self.chunk).set_block_from_local_xyz(position, block)
+        Arc::make_mut(&mut self.chunk).set_block(position, block)
     }
 }

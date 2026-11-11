@@ -7,12 +7,12 @@ use game::{
 };
 use physics::aabb::AABB;
 use project_core::{
-    general_types::{
+    general_types::updatable::Updatable,
+    math::geometry::{
         mat4::{look_to_rh, perspective, Mat4},
-        updatable::Updatable,
+        plane::Plane,
         vec3::Vec3,
     },
-    math::geometry::plane::Plane,
 };
 
 #[derive(Clone)]

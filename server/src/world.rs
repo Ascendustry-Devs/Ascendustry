@@ -279,7 +279,7 @@ impl ChunkAccess for ServerChunk {
 
 impl ChunkModification for ServerChunk {
     fn set_block(&mut self, position: &LocalPosition, block: BlockInstance) -> Option<BlockInstance> {
-        self.chunk.set_block_from_local_xyz(position, block)
+        self.chunk.set_block(position, block)
     }
 }
 

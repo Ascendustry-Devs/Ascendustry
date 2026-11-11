@@ -1,4 +1,4 @@
-use crate::general_types::vec3::Vec3;
+use crate::math::geometry::vec3::Vec3;
 use crate::typed_vec3;
 
 typed_vec3!(Pos3);

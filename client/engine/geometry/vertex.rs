@@ -53,7 +53,7 @@ impl Vertex {
         u: f32,
         v: f32,
     ) -> Self {
-        let color = (a as u32) << 24 | (r as u32) << 16 | (g as u32) << 8 | (b as u32);
+        let color = (r as u32) << 24 | (g as u32) << 16 | (b as u32) << 8 | (a as u32);
         Self::new_with_color(x, y, z, color, tex_layer, ao, u, v)
     }
 

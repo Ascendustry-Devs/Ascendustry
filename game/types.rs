@@ -1,4 +1,4 @@
-use project_core::{general_types::vec3::Vec3, math::geometry::space::Pos3};
+use project_core::{math::geometry::space::Pos3, math::geometry::vec3::Vec3};
 use serde::{Deserialize, Serialize};
 
 use crate::world::chunk_position::ChunkPosition;

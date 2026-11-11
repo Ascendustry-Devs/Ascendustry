@@ -6,7 +6,7 @@ use game::{
     types::Position,
     world::world_position::WorldPosition,
 };
-use project_core::general_types::vec3::Vec3;
+use project_core::math::geometry::vec3::Vec3;
 
 fn aabb_at_feet(feet: &Position) -> AABB {
     let half_width = PLAYER_WIDTH / 2.0;

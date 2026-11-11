@@ -168,10 +168,10 @@ impl PipelineFactory {
         };
 
         let primitive = PrimitiveState {
-            topology: PrimitiveTopology::TriangleList,
+            topology: PrimitiveTopology::LineList,
             strip_index_format: None,
             front_face: FrontFace::Ccw,
-            cull_mode: Some(Face::Back),
+            cull_mode: None,
             polygon_mode: PolygonMode::Line,
             unclipped_depth: false,
             conservative: false,
@@ -179,8 +179,8 @@ impl PipelineFactory {
 
         let depth_stencil = DepthStencilState {
             format: TextureFormat::Depth32Float,
-            depth_write_enabled: Some(true),
-            depth_compare: Some(CompareFunction::Less),
+            depth_write_enabled: Some(false),
+            depth_compare: Some(CompareFunction::LessEqual),
             bias: DepthBiasState {
                 constant: 0,
                 slope_scale: 0.0,

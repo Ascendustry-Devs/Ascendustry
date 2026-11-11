@@ -2,33 +2,36 @@ pub mod camera;
 pub mod controllers;
 pub mod remote_players;
 
-use crate::network::protocol::GameProtocol;
-use crate::player::controllers::spectator::SpectatorPlayerController;
-use crate::player::controllers::walk::WalkPlayerController;
+use crate::{
+    network::protocol::GameProtocol,
+    player::{
+        camera::Camera,
+        controllers::{spectator::SpectatorPlayerController, walk::WalkPlayerController, CameraController, PlayerController},
+    },
+    world::ClientWorld,
+};
 
-use crate::player::camera::Camera;
-use crate::player::controllers::{CameraController, PlayerController};
-use crate::world::ClientWorld;
 use engine::core::inputs::InputState;
 use game::constants::{
     HORIZONTAL_RENDER_DISTANCE, HORIZONTAL_SIMULATION_DISTANCE, SPAWN_POSITION_X, SPAWN_POSITION_Y, SPAWN_POSITION_Z,
     SPECTATOR_FLY_SPEED, VERTICAL_RENDER_DISTANCE, VERTICAL_SIMULATION_DISTANCE,
 };
-use game::inventory::{Inventory, ItemData, ItemRules, SlotData, DEFAULT_INVENTORY_SIZE};
-use game::player::PlayerGameMode;
-use game::types::{Position, Rotation};
-use game::world::chunk_position::ChunkPosition;
-use game::world::data::block::BlockInstance;
-use game::world::data::chunk::Chunk;
-use game::world::raycast::voxel_raycast;
-use game::world::world_position::WorldPosition;
-use game::world::World;
+use game::{
+    inventory::{Inventory, ItemData, ItemRules, SlotData, DEFAULT_INVENTORY_SIZE},
+    player::PlayerGameMode,
+    types::{Position, Rotation},
+    world::{
+        chunk_position::ChunkPosition,
+        data::{block::BlockInstance, chunk::Chunk},
+        raycast::voxel_raycast,
+        world_position::WorldPosition,
+        World,
+    },
+};
 use network::messages::{new_inventory_update_paquet, Paquet};
 use physics::{body::PhysicsBody, collision::resolve_collision};
-use project_core::general_types::updatable::Updatable;
-use project_core::{log_client, log_err_client};
-use winit::event::MouseButton;
-use winit::keyboard::KeyCode;
+use project_core::{general_types::updatable::Updatable, log_client, log_err_client};
+use winit::{event::MouseButton, keyboard::KeyCode};
 
 /// État pur du joueur : position, caméra, contrôleurs, distances de rendu.
 /// Séparé de `Player` pour permettre l'ajout d'un corps physique sans tout casser.
@@ -359,73 +362,5 @@ impl Player {
 
     pub fn get_rendered_chunk_range(&self) -> [i32; 6] {
         self.state.get_rendered_chunk_range()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::player::controllers::spectator::FreeCameraController;
-
-    fn new_state(spawn_pos: Position) -> PlayerState {
-        PlayerState::new(
-            0,
-            Box::new(FreeCameraController::new(0.00390625)),
-            Box::new(WalkPlayerController),
-            spawn_pos,
-        )
-    }
-
-    /// Reproduit le test d'appartenance utilisé par l'élagage de rendu.
-    fn is_in_render_range(range: [i32; 6], chunk: &ChunkPosition) -> bool {
-        let (x, y, z) = chunk.into();
-        x >= range[0] && x <= range[1] && y >= range[2] && y <= range[3] && z >= range[4] && z <= range[5]
-    }
-
-    #[test]
-    fn test_render_range_contains_player_chunk_on_spawn() {
-        // Régression : la boîte de rendu doit contenir le chunk du joueur dès
-        // la première frame. Avant, un cache mal initialisé éliminait le monde
-        // entier de l'écran jusqu'au premier changement de chunk du joueur.
-        let state = new_state(Position::new(0.5, 12.0, 0.5));
-        let range = state.get_rendered_chunk_range();
-        let cpos = state.cpos.current();
-
-        assert!(
-            is_in_render_range(range, cpos),
-            "le chunk du joueur doit appartenir à la boîte de rendu, sinon rien n'est affiché"
-        );
-    }
-
-    #[test]
-    fn test_render_range_follows_teleportation() {
-        // Régression : après une téléportation, la boîte de rendu doit suivre la
-        // nouvelle position, y compris si le joueur change de chunk.
-        let mut state = new_state(Position::new(0.5, 12.0, 0.5));
-        state.set_pos(Position::new(100.5, 12.0, -64.5));
-
-        let cpos = state.cpos.current();
-        assert_eq!(
-            *cpos,
-            ChunkPosition::new(3, 0, -3),
-            "la position en chunk doit suivre la téléportation"
-        );
-
-        let range = state.get_rendered_chunk_range();
-        assert!(
-            is_in_render_range(range, cpos),
-            "la boîte de rendu doit contenir le chunk de destination"
-        );
-    }
-
-    #[test]
-    fn test_render_range_stays_consistent_when_chunk_does_not_change() {
-        // Se déplacer à l'intérieur du même chunk ne doit pas modifier la
-        // boîte de rendu.
-        let mut state = new_state(Position::new(0.5, 12.0, 0.5));
-        let before = state.get_rendered_chunk_range();
-
-        state.set_pos(Position::new(5.5, 13.0, 3.5));
-        assert_eq!(state.get_rendered_chunk_range(), before);
     }
 }

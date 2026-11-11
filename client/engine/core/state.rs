@@ -12,7 +12,7 @@ use crate::{
     },
     render::{
         camera::RenderCamera,
-        debug::DebugRenderResources,
+        debug::{DebugRenderResources, CHUNK_BORDERS, GIZMO},
         manager::RenderManager,
         options::RenderOptions,
         text::{text_renderer::FPS_UPDATE_DELAY, TextRenderer},
@@ -20,9 +20,7 @@ use crate::{
         Renderer,
     },
 };
-use game::world::data::chunk::CHUNK_SIZE_F;
 
-use crate::geometry::vertex::Vertex;
 use std::time::Instant;
 use std::{num::NonZero, sync::Arc};
 use wgpu::{
@@ -45,41 +43,6 @@ impl State {
         let audio_manager = GameAudioManager::new(&window).ok();
 
         let size = window.inner_size();
-
-        const GIZMO: [Vertex; 6] = [
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 0.0),
-            Vertex::new_with_rgba(1.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 0.0),
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 0.0),
-            Vertex::new_with_rgba(0.0, 1.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 0.0),
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 0.0),
-            Vertex::new_with_rgba(0.0, 0.0, 1.0, 0, 0, 255, 255, 0, 3.0, 0.0, 0.0),
-        ];
-        const CHUNK_BORDERS: [Vertex; 24] = [
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 255, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 255, 0, 0, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, 0.0, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(0.0, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, 0.0, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-            Vertex::new_with_rgba(CHUNK_SIZE_F, CHUNK_SIZE_F, CHUNK_SIZE_F, 0, 0, 255, 255, 0, 3.0, 0.0, 1.0),
-        ];
         let gpu_context = GpuContext::new(Arc::clone(&window), event_loop.owned_display_handle()).unwrap();
         let device = gpu_context.tools.device();
         let config = &gpu_context.config;
@@ -137,7 +100,7 @@ impl State {
         let gizmo_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Gizmo Buffer"),
             contents: bytemuck::cast_slice(&GIZMO),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         let chunk_borders_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Chunk Borders Buffer"),

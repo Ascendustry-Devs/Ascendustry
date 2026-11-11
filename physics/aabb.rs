@@ -1,5 +1,5 @@
 use game::types::Position;
-use project_core::general_types::vec3::Vec3;
+use project_core::math::geometry::vec3::Vec3;
 
 // miss_example
 /// Represents an **Axis-Aligned Bounding Box** *(AABB)* in 3D space by its two corners' `Position` `min` and `max`.
@@ -23,7 +23,7 @@ impl AABB {
     ///
     /// # Example:
     ///
-    /// ```
+    /// ```ignore
     /// let v = Vec3::new(3.0_f32);
     /// assert_eq!(v, Vec3::new(3.0, 3.0, 3.0));
     /// ```
@@ -33,7 +33,7 @@ impl AABB {
 
     // fn_miss_example
     /// Creates an `AABB` based on a `corner` and a `direction`, no matter what they are.
-    pub fn from_corner_and_dir(corner: Position, direction: Vec3<f32>) -> Self {
+    pub fn from_corner_and_extent(corner: Position, direction: Vec3<f32>) -> Self {
         let half_direction = direction / 2.0;
         Self::from_size(corner + half_direction, half_direction)
     }

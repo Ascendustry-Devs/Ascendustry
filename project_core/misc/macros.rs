@@ -50,7 +50,7 @@ macro_rules! log_err {
 macro_rules! log_server {
     ($($args:tt)*) => {{
         let msg = format!("[iSRV]$> {}", format_args!($($args)*));
-        if !$crate::audit::tui::log_to_tui(&msg) { println!("{}", msg); }
+        if !$crate::misc::tui::log_to_tui(&msg) { println!("{}", msg); }
     }};
 }
 
@@ -58,7 +58,7 @@ macro_rules! log_server {
 macro_rules! log_warn_server {
     ($($args:tt)*) => {{
         let msg = format!("[WSRV]$> {}", format_args!($($args)*));
-        if !$crate::audit::tui::log_to_tui(&msg) { eprintln!("{}", msg); }
+        if !$crate::misc::tui::log_to_tui(&msg) { eprintln!("{}", msg); }
     }};
 }
 
@@ -66,7 +66,7 @@ macro_rules! log_warn_server {
 macro_rules! log_err_server {
     ($($args:tt)*) => {{
         let msg = format!("[ESRV]$> {}", format_args!($($args)*));
-        if !$crate::audit::tui::log_to_tui(&msg) { eprintln!("{}", msg); }
+        if !$crate::misc::tui::log_to_tui(&msg) { eprintln!("{}", msg); }
     }};
 }
 
@@ -74,7 +74,7 @@ macro_rules! log_err_server {
 macro_rules! log_client {
     ($($args:tt)*) => {{
         let msg = format!("[iCLI]$> {}", format_args!($($args)*));
-        if !$crate::audit::tui::log_to_tui(&msg) { println!("{}", msg); }
+        if !$crate::misc::tui::log_to_tui(&msg) { println!("{}", msg); }
     }};
 }
 
@@ -90,6 +90,6 @@ macro_rules! log_warn_client {
 macro_rules! log_err_client {
     ($($args:tt)*) => {{
         let msg = format!("[ECLI]$> {}", format_args!($($args)*));
-        if !$crate::audit::tui::log_to_tui(&msg) { eprintln!("{}", msg); }
+        if !$crate::misc::tui::log_to_tui(&msg) { eprintln!("{}", msg); }
     }};
 }

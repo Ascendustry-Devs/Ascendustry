@@ -3,7 +3,7 @@ use crate::player::controllers::PlayerController;
 use engine::core::inputs::InputState;
 use game::constants::DECEL_COEF;
 use physics::body::PhysicsBody;
-use project_core::general_types::vec3::Vec3;
+use project_core::math::geometry::vec3::Vec3;
 use winit::keyboard::KeyCode;
 
 /// Contrôleur de déplacement au sol avec physique (gravité, collision, saut).

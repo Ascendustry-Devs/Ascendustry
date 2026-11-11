@@ -5,7 +5,7 @@ use engine::{
     render::modes::RenderMode,
 };
 use game::{inventory::item_manager::ItemId, world::data::block::BlockId};
-use project_core::general_types::unique_index::UniqueIndex;
+use project_core::data_structure_types::unique_index::UniqueIndex;
 
 #[derive(Debug, Default)]
 pub struct TextureRegistry {

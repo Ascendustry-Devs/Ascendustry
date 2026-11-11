@@ -6,14 +6,14 @@ use game::assets::block_loader::load_block_definitions;
 use game::assets::item_loader::load_item_definitions;
 use game::assets::resolve_asset_path;
 use game::constants::{
-    DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, HORIZONTAL_RENDER_DISTANCE, MAX_GENERATION_CHUNKS_IN_QUEUE,
-    SIMULATION_DISTANCE_CHUNK_COUNT, VERTICAL_RENDER_DISTANCE,
+    DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE,
+    SIMULATION_DISTANCE_CHUNK_COUNT,
 };
 use game::inventory::item_manager::ItemId;
 use game::inventory::{ItemInstance, ItemManager};
 use game::world::chunk_position::ChunkPosition;
 use game::world::data::block::{BlockId, BlockInstance, BlockManager};
-use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_BLOCK_NUMBER, CHUNK_SIZE_HALFED_VEC3_F};
+use game::world::data::chunk::{Chunk, ChunkData, ChunkState, CHUNK_SIZE_CUBE_USIZE, CHUNK_SIZE_HALFED_VEC3_F};
 use game::world::generation::chunk_generator::ChunkGenerator;
 use game::world::local_position::LocalPosition;
 use game::world::scheduling::compute_missing_chunks_sorted;
@@ -27,7 +27,7 @@ use physics::collision_world::CollisionWorld;
 use project_core::{log_client, log_err_client, log_warn_server};
 
 // use crate::api::texture_loader::TextureLoader;
-use project_core::general_types::unique_queue::{FxUniqueQueue, UniqueQueue};
+use project_core::data_structure_types::unique_queue::{FxUniqueQueue, UniqueQueue};
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::cmp::min;
 use std::collections::hash_map::Keys;
@@ -92,19 +92,13 @@ impl ClientWorld {
             missing_chunks: VecDeque::with_capacity(SIMULATION_DISTANCE_CHUNK_COUNT as usize),
             in_flight: HashSet::with_hasher(FxBuildHasher),
             mesh_request: MeshRequestMessage::empty(),
-            render_range: [
-                -(HORIZONTAL_RENDER_DISTANCE as i32) / 2,
-                (HORIZONTAL_RENDER_DISTANCE as i32) / 2,
-                -(VERTICAL_RENDER_DISTANCE as i32) / 2,
-                (VERTICAL_RENDER_DISTANCE as i32) / 2,
-                -(HORIZONTAL_RENDER_DISTANCE as i32) / 2,
-                (HORIZONTAL_RENDER_DISTANCE as i32) / 2,
-            ],
+            render_range: [0; 6],
         }
     }
 
     pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut MeshRequestMessage {
         {
+            self.render_range = player.get_rendered_chunk_range();
             let mut item_manager = self.item_manager.write().unwrap();
             let items = load_item_definitions(resolve_asset_path("items/")).expect("Failed to load item definitions");
             for item in items {
@@ -346,7 +340,7 @@ impl ClientWorld {
             }
         }
 
-        for (nx, ny, nz) in Chunk::neighbors_from_block_pos(position.x(), position.y(), position.z()) {
+        for (nx, ny, nz) in Chunk::neighbors_from_block_pos(&position.origin()) {
             self.mark_for_remesh(&ChunkPosition::new(nx, ny, nz));
         }
 
@@ -491,7 +485,7 @@ impl ClientWorld {
             (mb, kb, b)
         };
 
-        let chunk_size = size_of::<Chunk>() + size_of::<[BlockInstance; CHUNK_BLOCK_NUMBER]>() - size_of::<Vec<Chunk>>();
+        let chunk_size = size_of::<Chunk>() + size_of::<[BlockInstance; CHUNK_SIZE_CUBE_USIZE]>() - size_of::<Vec<Chunk>>();
         let chunks_capacity = (chunk_size * self.chunks.capacity()) as u32;
         let chunks_length = (chunk_size * self.chunks.len()) as u32;
 
@@ -660,8 +654,7 @@ impl World for ClientWorld {
 
         self.mark_for_remesh(&chunk_position);
 
-        let (x, y, z) = position.into();
-        for (nx, ny, nz) in Chunk::neighbors_from_block_pos(x, y, z) {
+        for (nx, ny, nz) in Chunk::neighbors_from_block_pos(position) {
             self.mark_for_remesh(&ChunkPosition::new(nx, ny, nz));
         }
 

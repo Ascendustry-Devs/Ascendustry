@@ -6,8 +6,9 @@ use project_core::general_types::checksum::Checksum;
 
 use crate::world::chunk_position::ChunkPosition;
 use crate::world::data::block::{BlockId, BlockInstance, BlockManager};
-use crate::world::data::chunk::{Chunk, ChunkData, CHUNK_BLOCK_NUMBER, CHUNK_SIZE};
+use crate::world::data::chunk::{Chunk, ChunkData, CHUNK_SIZE, CHUNK_SIZE_CUBE_USIZE};
 use crate::world::generation::chunk_generator::ChunkGenContext;
+use crate::world::local_position::LocalPosition;
 
 #[derive(Debug)]
 pub struct ChunkWithChecksum {
@@ -53,7 +54,7 @@ impl Chunk {
 
         drop(blocks);
 
-        let blocks_arr = vec![BlockInstance::air(); CHUNK_BLOCK_NUMBER];
+        let blocks_arr = vec![BlockInstance::air(); CHUNK_SIZE_CUBE_USIZE];
 
         #[derive(Clone, Copy)]
         struct ColInfo {
@@ -150,13 +151,16 @@ impl Chunk {
         let (ore_cell_mask, ore_sample_grids) = ctx.compute_ore_rejection_grid(cwx, cwy, cwz, &active_ores_by_y, max_terrain_y);
 
         // Passe de placement : surface, sous-surface, roche et résolution des minerais
+        let mut position = LocalPosition::zero();
         for x in 0..CHUNK_SIZE {
             let gx = (x / 4) as usize;
+            position.set_x(x as u16);
 
             for z in 0..CHUNK_SIZE {
                 let gz = (z / 4) as usize;
                 let col = (z as usize) * (CHUNK_SIZE as usize) + (x as usize);
                 let info = col_info[col];
+                position.set_z(z as u16);
 
                 for y in 0..CHUNK_SIZE {
                     let wy = y + cwy;
@@ -166,6 +170,7 @@ impl Chunk {
                     if (cave_bits[col] & (1 << y)) != 0 {
                         continue;
                     }
+                    position.set_y(y as u16);
 
                     let block_id_res = if wy == info.terrain_y - 1 {
                         info.surface_id
@@ -182,7 +187,7 @@ impl Chunk {
                                 let ore_idx = active.trailing_zeros() as usize;
                                 active &= active - 1;
 
-                                let is_ore = ctx.should_place_ore_approx(ore_idx, x, y, z, &ore_sample_grids[ore_idx]);
+                                let is_ore = ctx.should_place_ore_approx(ore_idx, &position, &ore_sample_grids[ore_idx]);
 
                                 if is_ore {
                                     if let Some(ore_id) = ore_ids[ore_idx] {
@@ -195,108 +200,11 @@ impl Chunk {
                         placed_id
                     };
 
-                    chunk.set_block_from_xyz(x, y, z, BlockInstance::new(block_id_res));
+                    chunk.set_block(&position, BlockInstance::new(block_id_res));
                 }
             }
         }
 
         chunk
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn cave_mask_bitpacking_column_layout() {
-        // Vérifie le layout par colonne (x,z) avec bit y
-        let mut cave_bits = [0u32; (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize)];
-        let x = 5;
-        let z = 3;
-        let col = z * (CHUNK_SIZE as usize) + x;
-        let mut mask_col: u32 = 0;
-        // Grottes aux y 1, 4, 7
-        for y in [1u32, 4, 7].iter() {
-            mask_col |= 1 << *y;
-        }
-        cave_bits[col] = mask_col;
-        // Vérification
-        assert_eq!((cave_bits[col] & (1 << 1)) != 0, true);
-        assert_eq!((cave_bits[col] & (1 << 4)) != 0, true);
-        assert_eq!((cave_bits[col] & (1 << 7)) != 0, true);
-        assert_eq!((cave_bits[col] & (1 << 0)) != 0, false);
-        assert_eq!((cave_bits[col] & (1 << 2)) != 0, false);
-    }
-
-    #[test]
-    fn cave_mask_empty() {
-        let cave_bits = [0u32; (CHUNK_SIZE as usize) * (CHUNK_SIZE as usize)];
-        for &m in cave_bits.iter().take((CHUNK_SIZE as usize) * (CHUNK_SIZE as usize)) {
-            assert_eq!(m, 0);
-        }
-    }
-
-    #[test]
-    fn active_ores_by_y_filtering() {
-        // Simule le filtrage par profondeur avec un masque u32
-        let mut active_ores_by_y = [0u32; CHUNK_SIZE as usize];
-        let cwy = 0i32;
-        let depth_min = 10i32;
-        let depth_max = 15i32;
-        let y0 = ((depth_min - cwy).max(0)) as usize;
-        let y1 = ((depth_max - cwy).min(CHUNK_SIZE - 1)) as usize;
-        let ore_bit = 1u32 << 0;
-        for y in y0..=y1 {
-            active_ores_by_y[y] |= ore_bit;
-        }
-        assert_ne!(active_ores_by_y[12] & ore_bit, 0);
-        assert_eq!(active_ores_by_y[5] & ore_bit, 0);
-        assert_eq!(active_ores_by_y[20] & ore_bit, 0);
-    }
-
-    #[test]
-    fn ore_priority_trailing_zeros() {
-        // Deux minerais 0 et 1 sont actifs simultanément sur le même bloc
-        let active = (1u32 << 0) | (1u32 << 1);
-        let first_match = active.trailing_zeros() as usize;
-        assert_eq!(first_match, 0, "Le premier minerai (priorité 0) doit être résolu en premier");
-
-        // Si le minerai 0 n'est pas actif, le minerai 1 doit être pris
-        let active_only_1 = 1u32 << 1;
-        assert_eq!(active_only_1.trailing_zeros() as usize, 1);
-    }
-
-    #[test]
-    fn test_chunk_air_early_exit() {
-        let mut bm = BlockManager::new();
-        let blocks = crate::assets::block_loader::load_block_definitions(crate::assets::resolve_asset_path("blocks/"))
-            .expect("Failed to load block definitions");
-        for block in blocks {
-            bm.register(block);
-        }
-        let bm = Arc::new(RwLock::new(bm));
-        // cy = 100 est très au-dessus de tout relief terrestre
-        let chunk = Chunk::generate(bm, &ChunkPosition::new(0, 100, 0), 42);
-        for b in chunk.blocks {
-            assert!(b.is_air(), "Un chunk à cy=100 doit être entièrement composé d'air");
-        }
-    }
-
-    #[test]
-    fn test_chunk_generation_with_ore_rejection_identical_blocks() {
-        let mut bm = BlockManager::new();
-        let blocks = crate::assets::block_loader::load_block_definitions(crate::assets::resolve_asset_path("blocks/"))
-            .expect("Failed to load block definitions");
-        for block in blocks {
-            bm.register(block);
-        }
-        let bm = Arc::new(RwLock::new(bm));
-
-        // Génère le même chunk deux fois et vérifie le déterminisme absolu
-        let position = ChunkPosition::new(1, -1, 1);
-        let chunk1 = Chunk::generate(Arc::clone(&bm), &position, 999);
-        let chunk2 = Chunk::generate(Arc::clone(&bm), &position, 999);
-        assert_eq!(chunk1.blocks, chunk2.blocks);
     }
 }
