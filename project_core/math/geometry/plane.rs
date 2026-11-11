@@ -9,7 +9,7 @@ pub struct Plane {
 impl Plane {
     pub const fn zero() -> Self {
         Self {
-            normal: Vec3::new(0.0, 0.0, 0.0),
+            normal: Vec3::zero(),
             d: 0.0,
         }
     }

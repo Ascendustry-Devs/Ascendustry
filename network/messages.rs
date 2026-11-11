@@ -151,7 +151,7 @@ pub const fn create_player_update(player_id: u64, x: f32, y: f32, z: f32, rx: f3
             data: PlayerTransformation {
                 player_id,
                 position: Position::new(x, y, z),
-                rotation: Rotation { x: rx, y: ry },
+                rotation: Rotation { yaw: rx, pitch: ry },
             },
         },
     )

@@ -28,7 +28,7 @@ mod tests {
                 data: PlayerTransformation {
                     player_id: 42,
                     position: Position::new(1.0, 2.0, 3.0),
-                    rotation: Rotation { x: 0.5, y: 0.1 },
+                    rotation: Rotation { yaw: 0.5, pitch: 0.1 },
                 },
             },
         );

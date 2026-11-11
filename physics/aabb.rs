@@ -1,43 +1,61 @@
 use game::types::Position;
 use project_core::general_types::vec3::Vec3;
 
+// miss_example
+/// Represents an **Axis-Aligned Bounding Box** *(AABB)* in 3D space by its two corners' `Position` `min` and `max`.
 pub struct AABB {
-    pub min: Vec3<f32>,
-    pub max: Vec3<f32>,
+    pub min: Position,
+    pub max: Position,
 }
 
 impl AABB {
-    pub fn new(center: Position, half_size: f32) -> Self {
-        Self::new_sized(center, Vec3::new(half_size, half_size, half_size))
+    // miss_example
+    /// Creates an `AABB`.
+    ///
+    /// # Security
+    ///
+    /// `min` <= `max`
+    pub const fn new(min: Position, max: Position) -> Self {
+        Self { min, max }
     }
 
-    pub fn new_from_corner_and_dir(corner: Position, dir: Vec3<f32>) -> Self {
-        let half = dir / 2.0;
-        Self::new_sized(corner + half, half)
+    /// Creates an `AABB` based on a cube's `center` and `half_size`.
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// let v = Vec3::new(3.0_f32);
+    /// assert_eq!(v, Vec3::new(3.0, 3.0, 3.0));
+    /// ```
+    pub fn from_cube(center: Position, half_size: f32) -> Self {
+        Self::from_size(center, Vec3::splat(half_size))
     }
 
-    pub fn new_sized(center: Position, half_size: Vec3<f32>) -> Self {
-        Self {
-            min: Vec3::new(
-                center.x() - half_size.x(),
-                center.y() - half_size.y(),
-                center.z() - half_size.z(),
-            ),
-            max: Vec3::new(
-                center.x() + half_size.x(),
-                center.y() + half_size.y(),
-                center.z() + half_size.z(),
-            ),
-        }
+    // fn_miss_example
+    /// Creates an `AABB` based on a `corner` and a `direction`, no matter what they are.
+    pub fn from_corner_and_dir(corner: Position, direction: Vec3<f32>) -> Self {
+        let half_direction = direction / 2.0;
+        Self::from_size(corner + half_direction, half_direction)
     }
 
-    pub fn translate(&mut self, v: Vec3<f32>) {
-        self.max += v;
-        self.min += v;
+    // fn_miss_example
+    /// Creates an `AABB` based on a `center` point and a `half_size`, no matter what they are.
+    pub fn from_size(center: Position, half_size: Vec3<f32>) -> Self {
+        let min = center - half_size;
+        let max = center + half_size;
+        Self::new(min, max)
     }
 
-    #[inline(never)]
-    pub fn overlaps(&self, other: &Self) -> bool {
+    // fn_miss_example
+    /// Translates current `AABB` to `self + vector`.
+    pub fn translate(&mut self, vector: Vec3<f32>) {
+        self.max += vector;
+        self.min += vector;
+    }
+
+    // fn_miss_example
+    /// Checks whether or not current `AABB` intersects with another `AABB`.
+    pub fn intersects(&self, other: &Self) -> bool {
         self.min.x() <= other.max.x()
             && self.max.x() >= other.min.x()
             && self.min.y() <= other.max.y()
@@ -46,20 +64,24 @@ impl AABB {
             && self.max.z() >= other.min.z()
     }
 
-    pub const fn corners(&self) -> [Vec3<f32>; 8] {
+    // fn_miss_example
+    /// Creates and returns the `8` corners' `Position` of current `AABB`.
+    pub const fn corners(&self) -> [Position; 8] {
         let [min, max] = [&self.min, &self.max];
         [
-            Vec3::new(*min.x(), *min.y(), *min.z()),
-            Vec3::new(*max.x(), *min.y(), *min.z()),
-            Vec3::new(*min.x(), *max.y(), *min.z()),
-            Vec3::new(*max.x(), *max.y(), *min.z()),
-            Vec3::new(*min.x(), *min.y(), *max.z()),
-            Vec3::new(*max.x(), *min.y(), *max.z()),
-            Vec3::new(*min.x(), *max.y(), *max.z()),
-            Vec3::new(*max.x(), *max.y(), *max.z()),
+            Position::new(*min.x(), *min.y(), *min.z()),
+            Position::new(*max.x(), *min.y(), *min.z()),
+            Position::new(*min.x(), *max.y(), *min.z()),
+            Position::new(*max.x(), *max.y(), *min.z()),
+            Position::new(*min.x(), *min.y(), *max.z()),
+            Position::new(*max.x(), *min.y(), *max.z()),
+            Position::new(*min.x(), *max.y(), *max.z()),
+            Position::new(*max.x(), *max.y(), *max.z()),
         ]
     }
 
+    // fn_miss_example
+    /// Creates and returns the center's `Position` of current `AABB`.
     pub fn center(&self) -> Position {
         let halfed_x = self.x_length() / 2.0;
         let halfed_y = self.y_length() / 2.0;
@@ -67,14 +89,20 @@ impl AABB {
         Position::new(halfed_x + self.min.x(), halfed_y + self.min.y(), halfed_z + self.min.z())
     }
 
+    // fn_miss_example
+    /// Creates and returns the x-axis `length` (or size) of current `AABB`.
     pub fn x_length(&self) -> f32 {
         (self.max.x() - self.min.x()).abs()
     }
 
+    // fn_miss_example
+    /// Creates and returns the y-axis `length` (or size) of current `AABB`.
     pub fn y_length(&self) -> f32 {
         (self.max.y() - self.min.y()).abs()
     }
 
+    // fn_miss_example
+    /// Creates and returns the z-axis `length` (or size) of current `AABB`.
     pub fn z_length(&self) -> f32 {
         (self.max.z() - self.min.z()).abs()
     }

@@ -12,7 +12,7 @@ fn aabb_at_feet(feet: &Position) -> AABB {
     let half_width = PLAYER_WIDTH / 2.0;
     let half_height = PLAYER_HEIGHT / 2.0;
     let center = Position::new(*feet.x(), feet.y() + half_height, *feet.z());
-    AABB::new_sized(center, Vec3::new(half_width, half_height, half_width))
+    AABB::from_size(center, Vec3::new(half_width, half_height, half_width))
 }
 
 pub fn get_colliding_blocks(world: &impl CollisionWorld, aabb: &AABB) -> Vec<WorldPosition> {

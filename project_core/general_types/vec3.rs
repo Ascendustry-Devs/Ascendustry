@@ -42,6 +42,24 @@ impl<T> Vec3<T> {
     }
 }
 
+impl<T: Copy> Vec3<T> {
+    /// Creates a `Vec3<T>` whose coordinates (x, y, z) are all `value`.
+    ///
+    /// # Example:
+    ///
+    /// ```
+    /// let v = Vec3::new(3.0_f32);
+    /// assert_eq!(v, Vec3::new(3.0, 3.0, 3.0));
+    /// ```
+    pub const fn splat(value: T) -> Self {
+        Self {
+            x: value,
+            y: value,
+            z: value,
+        }
+    }
+}
+
 impl Vec3<f32> {
     pub const fn zero() -> Self {
         Self { x: 0.0, y: 0.0, z: 0.0 }

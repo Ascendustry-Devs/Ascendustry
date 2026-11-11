@@ -46,11 +46,11 @@ impl Camera {
     }
 
     pub const fn yaw(&self) -> f32 {
-        self.rotation.current().x
+        self.rotation.current().yaw
     }
 
     pub const fn pitch(&self) -> f32 {
-        self.rotation.current().y
+        self.rotation.current().pitch
     }
 
     pub fn forward(&self) -> Vec3<f32> {
@@ -160,8 +160,8 @@ impl Camera {
         let un = up * nh;
         let un2 = up * fh;
 
-        let mut min = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
-        let mut max = Vec3::new(f32::MIN, f32::MIN, f32::MIN);
+        let mut min = Position::new(f32::MAX, f32::MAX, f32::MAX);
+        let mut max = Position::new(f32::MIN, f32::MIN, f32::MIN);
 
         for c in [
             (nc - rn) - un,
@@ -173,8 +173,8 @@ impl Camera {
             (fc - rn2) + un2,
             (fc + rn2) + un2,
         ] {
-            min = Vec3::new(min.x().min(*c.x()), min.y().min(*c.y()), min.z().min(*c.z()));
-            max = Vec3::new(max.x().max(*c.x()), max.y().max(*c.y()), max.z().max(*c.z()));
+            min = Position::new(min.x().min(*c.x()), min.y().min(*c.y()), min.z().min(*c.z()));
+            max = Position::new(max.x().max(*c.x()), max.y().max(*c.y()), max.z().max(*c.z()));
         }
 
         AABB { min, max }

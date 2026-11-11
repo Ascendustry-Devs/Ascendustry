@@ -81,8 +81,8 @@ impl CameraController for FreeCameraController {
         let (dx, dy) = inputs.take_mouse_delta_f32();
 
         camera.rotation.update_eq(|cur| Rotation {
-            x: cur.x + dx * self.sensitivity,
-            y: (cur.y - dy * self.sensitivity).clamp(CLAMP_BOTTOM, CLAMP_TOP),
+            yaw: cur.yaw + dx * self.sensitivity,
+            pitch: (cur.pitch - dy * self.sensitivity).clamp(CLAMP_BOTTOM, CLAMP_TOP),
         });
 
         if camera.needs_new_view_proj() {

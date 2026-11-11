@@ -95,8 +95,8 @@ mod tests {
         let rot = state.get_player_rotation(1).await;
         assert!(rot.is_some());
         let rot = rot.unwrap();
-        assert!((rot.x - 0.0).abs() < 1e-6);
-        assert!((rot.y - 0.0).abs() < 1e-6);
+        assert!((rot.yaw - 0.0).abs() < 1e-6);
+        assert!((rot.pitch - 0.0).abs() < 1e-6);
     }
 
     #[tokio::test]

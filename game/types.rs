@@ -3,23 +3,41 @@ use serde::{Deserialize, Serialize};
 
 use crate::world::chunk_position::ChunkPosition;
 
+// miss_example
+/// Represents a **Position** in 3D space by its 3 coordinates : `x`, `y` and `z`.
 pub type Position = Pos3<f32>;
 
+// miss_example
+/// Represents a z-axis-missing **Rotation** in 3D space by its yaw (x) and pitch (y).
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct Rotation {
-    pub x: f32,
-    pub y: f32,
+    pub yaw: f32,
+    pub pitch: f32,
 }
 
 impl Rotation {
-    pub fn new(yaw: f32, pitch: f32) -> Self {
-        Self { x: yaw, y: pitch }
+    // miss_example
+    /// Creates a `Rotation`.
+    pub const fn new(yaw: f32, pitch: f32) -> Self {
+        Self { yaw, pitch }
+    }
+
+    // miss_example
+    /// Returns the `yaw` of current `Rotation`.
+    pub const fn yaw(&self) -> f32 {
+        self.yaw
+    }
+
+    // miss_example
+    /// Returns the `pitch` of current `Rotation`.
+    pub const fn pitch(&self) -> f32 {
+        self.pitch
     }
 }
 
 impl From<&Rotation> for (f32, f32) {
     fn from(value: &Rotation) -> Self {
-        (value.x, value.y)
+        (value.yaw, value.pitch)
     }
 }
 

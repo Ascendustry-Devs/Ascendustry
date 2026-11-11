@@ -1,3 +1,5 @@
+use std::mem::transmute;
+
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
@@ -19,7 +21,7 @@ impl Direction {
     #[inline(always)]
     pub const fn from_bits_unchecked(v: u8) -> Self {
         debug_assert!(v < 6);
-        unsafe { std::mem::transmute(v) }
+        unsafe { transmute::<u8, Self>(v) }
     }
 
     #[inline(always)]

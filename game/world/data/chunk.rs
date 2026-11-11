@@ -38,6 +38,7 @@ pub const LAST_CHUNK_AXIS_INDEX_USIZE: usize = LAST_CHUNK_AXIS_INDEX as usize;
 pub enum ChunkState {
     Pending = 0,
     Ready = 1,
+    Meshed = 2,
 }
 
 impl Display for ChunkState {
@@ -45,6 +46,7 @@ impl Display for ChunkState {
         f.write_str(match self {
             Self::Pending => "Pending",
             Self::Ready => "Ready",
+            Self::Meshed => "Meshed",
         })
     }
 }
@@ -81,7 +83,7 @@ impl ChunkData {
     }
 
     pub fn set_dirty(&mut self) {
-        if self.state == ChunkState::Ready {
+        if self.state != ChunkState::Pending {
             self.is_dirty = true;
         }
     }

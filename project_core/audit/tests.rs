@@ -10,16 +10,15 @@ use crate::parallel::Parallelizable;
 
 #[test]
 fn test_direction_enum() {
-    assert_eq!(Direction::Left as u8, 0);
-    assert_eq!(Direction::Bottom as u8, 1);
-    assert_eq!(Direction::Back as u8, 2);
-    assert_eq!(Direction::Right as u8, 3);
-    assert_eq!(Direction::Top as u8, 4);
-    assert_eq!(Direction::Front as u8, 5);
+    assert_eq!(Direction::Left.to_usize(), 0);
+    assert_eq!(Direction::Bottom.to_usize(), 1);
+    assert_eq!(Direction::Back.to_usize(), 2);
+    assert_eq!(Direction::Right.to_usize(), 3);
+    assert_eq!(Direction::Top.to_usize(), 4);
+    assert_eq!(Direction::Front.to_usize(), 5);
 
     assert!(Direction::Left.is_negative());
     assert!(Direction::Right.is_positive());
-    assert_eq!(Direction::Top.to_usize(), 4);
 }
 
 #[test]

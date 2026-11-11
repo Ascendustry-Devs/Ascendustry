@@ -6,8 +6,8 @@ use game::assets::block_loader::load_block_definitions;
 use game::assets::item_loader::load_item_definitions;
 use game::assets::resolve_asset_path;
 use game::constants::{
-    DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, MAX_GENERATION_CHUNKS_IN_QUEUE,
-    SIMULATION_DISTANCE_CHUNK_COUNT,
+    DIRECT_NORMALS_3D, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F, HORIZONTAL_RENDER_DISTANCE, MAX_GENERATION_CHUNKS_IN_QUEUE,
+    SIMULATION_DISTANCE_CHUNK_COUNT, VERTICAL_RENDER_DISTANCE,
 };
 use game::inventory::item_manager::ItemId;
 use game::inventory::{ItemInstance, ItemManager};
@@ -63,6 +63,7 @@ pub struct ClientWorld {
     /// dans `chunks`).
     in_flight: FxHashSet<ChunkPosition>,
     mesh_request: MeshRequestMessage,
+    render_range: [i32; 6],
 }
 
 impl ClientWorld {
@@ -91,6 +92,14 @@ impl ClientWorld {
             missing_chunks: VecDeque::with_capacity(SIMULATION_DISTANCE_CHUNK_COUNT as usize),
             in_flight: HashSet::with_hasher(FxBuildHasher),
             mesh_request: MeshRequestMessage::empty(),
+            render_range: [
+                -(HORIZONTAL_RENDER_DISTANCE as i32) / 2,
+                (HORIZONTAL_RENDER_DISTANCE as i32) / 2,
+                -(VERTICAL_RENDER_DISTANCE as i32) / 2,
+                (VERTICAL_RENDER_DISTANCE as i32) / 2,
+                -(HORIZONTAL_RENDER_DISTANCE as i32) / 2,
+                (HORIZONTAL_RENDER_DISTANCE as i32) / 2,
+            ],
         }
     }
 
@@ -155,6 +164,24 @@ impl ClientWorld {
         player: &Player,
     ) -> &mut MeshRequestMessage {
         if player.state.cpos.has_changed() || self.chunks.is_empty() {
+            if player.state.cpos.has_changed() {
+                // Mettre à jour les chunks du bord de simulation afin qu'ils soient meshés et affichés à l'écran
+                // Une meilleure implémentation serait préférable pour passer de O(nombre de chunks total) à O(delta chunks)
+                self.render_range = player.get_rendered_chunk_range();
+                let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.render_range;
+                for cx in min_cx..=max_cx {
+                    for cy in min_cy..=max_cy {
+                        for cz in min_cz..=max_cz {
+                            let c = ChunkPosition::new(cx, cy, cz);
+                            if let Some(chunk) = self.chunks().get(&c) {
+                                if chunk.state != ChunkState::Meshed {
+                                    self.mark_for_remesh(&c);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             self.clean_chunks(mesh_manager, world_mesh, player);
             // La liste des chunks manquants est reconstruite et re-triée par
             // rapport à la nouvelle position du joueur.
@@ -170,9 +197,11 @@ impl ClientWorld {
     }
 
     pub fn listen(&mut self, mesh_responses: &mut Vec<MeshResponse>) {
-        for response in mesh_responses.drain(..) {
+        for response in mesh_responses.iter() {
             if let Some(chunk) = self.chunks.get_mut(&response) {
-                chunk.state = ChunkState::Ready;
+                chunk.state = ChunkState::Meshed;
+            } else {
+                log_err_client!("Mesh built for a chunk that doesn't exist anymore. {:?}", response);
             }
         }
     }
@@ -196,14 +225,14 @@ impl ClientWorld {
 
         // Coordonnées du chunk en blocks où se trouve le joueur
         let chunk_pos_in_blocks = player.get_cpos().into();
-        let player_simulation_aabb = AABB::new_sized(chunk_pos_in_blocks, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F);
+        let player_simulation_aabb = AABB::from_size(chunk_pos_in_blocks, HALFED_SIMULATION_DISTANCE_IN_BLOCKS_VEC3_F);
 
         self.chunks.retain(|key, _| {
             let key_vec_f = key.into();
-            let chunk_aabb = AABB::new_sized(key_vec_f, CHUNK_SIZE_HALFED_VEC3_F);
+            let chunk_aabb = AABB::from_size(key_vec_f, CHUNK_SIZE_HALFED_VEC3_F);
 
             // On garde les chunks qui sont à portée du joueur
-            if chunk_aabb.overlaps(&player_simulation_aabb) {
+            if chunk_aabb.intersects(&player_simulation_aabb) {
                 return true;
             }
 
@@ -301,15 +330,24 @@ impl ClientWorld {
         self.in_flight.remove(position);
         self.missing_chunks.retain(|p| p != position);
 
-        if self.are_all_neighbors_ready(position) {
-            let data = MeshRequestAdd::new(*position, self.get_mesh_snapshot(position));
-            self.mesh_request.add.insert(data);
-        } else {
-            self.waiting_to_mesh.push_back(*position);
+        let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.render_range;
+        if min_cx <= position.x()
+            && position.x() <= max_cx
+            && min_cy <= position.y()
+            && position.y() <= max_cy
+            && min_cz <= position.z()
+            && position.z() <= max_cz
+        {
+            if self.are_all_neighbors_ready(position) {
+                let data = MeshRequestAdd::new(*position, self.get_mesh_snapshot(position));
+                self.mesh_request.add.insert(data);
+            } else {
+                self.waiting_to_mesh.push_back(*position);
+            }
         }
 
         for (nx, ny, nz) in Chunk::neighbors_from_block_pos(position.x(), position.y(), position.z()) {
-            self.mark_for_remesh(ChunkPosition::new(nx, ny, nz));
+            self.mark_for_remesh(&ChunkPosition::new(nx, ny, nz));
         }
 
         // for (dx, dy, dz) in DIRECT_NORMALS_3D {
@@ -323,6 +361,7 @@ impl ClientWorld {
     }
 
     fn compute_generated_chunks(&mut self) {
+        let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.render_range;
         while let Some(result) = self.chunk_generator.try_recv() {
             let (chunk_position, chunk_with_checksum) = result.output;
 
@@ -336,14 +375,32 @@ impl ClientWorld {
             let mut chunk = chunk_with_checksum.chunk_data;
             chunk.is_dirty = false;
             self.chunks.insert(chunk_position, chunk);
-            self.waiting_to_mesh.push_back(chunk_position);
+
+            if min_cx <= chunk_position.x()
+                && chunk_position.x() <= max_cx
+                && min_cy <= chunk_position.y()
+                && chunk_position.y() <= max_cy
+                && min_cz <= chunk_position.z()
+                && chunk_position.z() <= max_cz
+            {
+                self.waiting_to_mesh.push_back(chunk_position);
+            }
         }
     }
 
-    fn mark_for_remesh(&mut self, position: ChunkPosition) {
-        if let Some(chunk) = self.chunks.get_mut(&position) {
-            chunk.set_dirty();
-            self.waiting_to_mesh.push_back(position);
+    fn mark_for_remesh(&mut self, position: &ChunkPosition) {
+        let [min_cx, max_cx, min_cy, max_cy, min_cz, max_cz] = self.render_range;
+        if min_cx <= position.x()
+            && position.x() <= max_cx
+            && min_cy <= position.y()
+            && position.y() <= max_cy
+            && min_cz <= position.z()
+            && position.z() <= max_cz
+        {
+            if let Some(chunk) = self.chunks.get_mut(&position) {
+                chunk.set_dirty();
+                self.waiting_to_mesh.push_back(*position);
+            }
         }
     }
 
@@ -415,8 +472,9 @@ impl ClientWorld {
         // Requires that every direct chunk neighbor's state is Ready.
         // If a neighbor chunk is missing, it is considered blocking to avoid inter-chunks faces.
         for (dx, dy, dz) in DIRECT_NORMALS_3D {
-            if let Some(neighbor) = self.chunks.get(&ChunkPosition::new(cx + dx, cy + dy, cz + dz)) {
-                if neighbor.state != ChunkState::Ready {
+            let (nx, ny, nz) = (cx + dx, cy + dy, cz + dz);
+            if let Some(neighbor) = self.chunks.get(&ChunkPosition::new(nx, ny, nz)) {
+                if neighbor.state == ChunkState::Pending {
                     return false;
                 }
             } else {
@@ -600,11 +658,11 @@ impl World for ClientWorld {
             return Ok(());
         }
 
-        self.mark_for_remesh(chunk_position);
+        self.mark_for_remesh(&chunk_position);
 
         let (x, y, z) = position.into();
         for (nx, ny, nz) in Chunk::neighbors_from_block_pos(x, y, z) {
-            self.mark_for_remesh(ChunkPosition::new(nx, ny, nz));
+            self.mark_for_remesh(&ChunkPosition::new(nx, ny, nz));
         }
 
         Ok(())

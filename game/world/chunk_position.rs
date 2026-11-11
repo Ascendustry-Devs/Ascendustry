@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -66,5 +68,17 @@ impl From<&Position> for ChunkPosition {
             value.y().div_euclid(CHUNK_SIZE_F).floor() as i32,
             value.z().div_euclid(CHUNK_SIZE_F).floor() as i32,
         )
+    }
+}
+
+impl Sub<ChunkPosition> for ChunkPosition {
+    type Output = Self;
+
+    fn sub(self, rhs: ChunkPosition) -> Self::Output {
+        Self {
+            x: self.x() - rhs.x(),
+            y: self.y() - rhs.y(),
+            z: self.z() - rhs.z(),
+        }
     }
 }

@@ -17,7 +17,7 @@ pub struct PhysicsBody {
 impl PhysicsBody {
     pub fn new(center: Position, half_size: f32) -> Self {
         Self {
-            aabb: AABB::new(center, half_size),
+            aabb: AABB::from_cube(center, half_size),
             velocity: Updatable::new(Vec3::new(0.0, 0.0, 0.0)),
             on_ground: false,
             gravity: GRAVITY,
