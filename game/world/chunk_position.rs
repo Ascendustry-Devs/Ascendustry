@@ -1,4 +1,7 @@
-use std::ops::Sub;
+use std::{
+    fmt::{Display, Formatter, Result},
+    ops::Sub,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +44,12 @@ impl ChunkPosition {
     #[inline(always)]
     pub fn z(&self) -> i32 {
         self.z
+    }
+}
+
+impl Display for ChunkPosition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "ChunkPosition({}, {}, {})", self.x, self.y, self.z)
     }
 }
 

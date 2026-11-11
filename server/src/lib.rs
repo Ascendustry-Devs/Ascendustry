@@ -25,7 +25,7 @@ use server::Server;
 pub use config::ServerConfig;
 
 pub async fn run_server(save_path: &str) -> Result<()> {
-    project_core::log_server!("Serveur: lancement.");
+    project_core::log_server!("Server: start.");
     let x = String::from(DEFAULT_SERVER_ADDRESS);
     let server = Server::new(&x, save_path, None, ServerConfig::default()).await?;
     server.run().await

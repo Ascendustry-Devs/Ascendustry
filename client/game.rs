@@ -116,7 +116,7 @@ impl GameState {
             let meshes = &self.world_mesh.meshes;
             println!("==== Mesh CPU Memory Dump ====");
             for (pos, mesh) in meshes.iter() {
-                println!("- Chunk {:?}", *pos);
+                println!("- Chunk {}", pos);
                 let Some(id) = mesh.id else {
                     continue;
                 };
@@ -133,7 +133,7 @@ impl GameState {
         // CURRENT CHUNK DEBUG
         if self.inputs.take_key_pressed(KeyCode::KeyC) {
             let cpos = self.player.state.cpos.current();
-            println!("==== Chunk {:?} ====", cpos);
+            println!("==== Chunk {} ====", cpos);
             if let Some((state, dirty)) = self.world.chunk_infos_at(cpos) {
                 println!("- Data (CPU):\n  └─ {:?}", state);
                 if dirty {
@@ -278,7 +278,7 @@ impl GameState {
                 }
                 ContenuPaquet::SetBlock { position, block } => {
                     if let Some(chunk) = self.world.set_block(&position, block).err() {
-                        log_err_client!("Couldn't place block {:?} at {:?}, in chunk {:?}", block, position, chunk);
+                        log_err_client!("Couldn't place block {:?} at {}, in chunk {}", block, position, chunk);
                     }
                 }
                 ContenuPaquet::Kick { reason } => {
@@ -313,7 +313,6 @@ impl AppState for GameState {
 
     fn init(&mut self, renderer: &mut Renderer, audio_manager: &mut Option<GameAudioManager>) {
         self.apply_received_packets();
-        println!("player initial pos: {:?} {:?}", self.player.get_pos(), self.player.get_cpos());
         let mut textures_registry = TextureRegistry::default();
         let mut tex_loader = TextureLoader::new(&mut renderer.texture_manager, &mut textures_registry);
         let meshin = self.world.init(&mut tex_loader, &self.player);

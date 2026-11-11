@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter, Result};
+
 use project_core::general_types::bit::Bit;
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +59,12 @@ impl LocalPosition {
     #[inline(always)]
     pub fn set_z(&mut self, z: u16) {
         self.inner = Bit::set_part_of(self.inner, Z_PADDING, COORD_BITS, z);
+    }
+}
+
+impl Display for LocalPosition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "LocalPosition({}, {}, {})", self.x(), self.y(), self.z())
     }
 }
 

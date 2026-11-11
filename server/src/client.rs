@@ -98,7 +98,7 @@ impl ClientSession {
         let packet = match self.conn.receive_packet(&mut stream).await {
             Ok(packet_payload) => packet_payload,
             Err(e) => {
-                project_core::log_err_server!("Échec de la réception du paquet.\nErreur : {}", e);
+                project_core::log_err_server!("Failed to receive packet (1).\nError: {}", e);
                 return Ok(());
             }
         };
@@ -114,7 +114,7 @@ impl ClientSession {
                     self.state.register_identity(player_unique_id, username.clone()).await;
                 } else {
                     let kick = messages::new_kick_paquet(
-                        "Identité invalide : ce pseudo ne correspond pas à l'ID enregistré".to_string(),
+                        "Invalid identity: username doesn't correspond to registered id.".to_string(),
                     );
                     let _ = self.conn.send_packet(&mut stream, &kick).await;
                     return Ok(());
@@ -129,7 +129,7 @@ impl ClientSession {
 
         // Ajout du joueur à l'état partagé
         self.state.add_player(player_id, self.username.clone()).await;
-        project_core::log_server!("Joueur {} ({}): ajout à l'état global du serveur", self.username, player_id);
+        project_core::log_server!("Player {} (id {}) added to server's state.", self.username, player_id);
 
         // Le handler traite le paquet de connexion (log)
         let ctx = HandlerContext {
@@ -142,17 +142,17 @@ impl ClientSession {
 
         let ack = messages::create_handshake_ack(player_id, 0, true);
         if let Err(e) = self.conn.send_packet(&mut stream, &ack).await {
-            project_core::log_err_server!("Échec de l'envoi du handshake ack.\nErreur : {}", e);
+            project_core::log_err_server!("Failed to send handshake ack.\nError: {}", e);
             return Ok(());
         }
 
         // Réponse : seed du monde
         let seed_packet = new_server_seed_paquet(self.state.get_seed().await);
         if let Err(e) = self.conn.send_packet(&mut stream, &seed_packet).await {
-            project_core::log_err_server!("Échec de l'envoi de la seed.\nErreur : {}", e);
+            project_core::log_err_server!("Failed to send seed.\nError: {}", e);
             return Ok(());
         }
-        project_core::log_server!("Seed envoyée au joueur {} !", player_id);
+        project_core::log_server!("Seed sent to player {} !", player_id);
 
         // Restauration de la position sauvegardée pour un joueur qui se reconnecte
         if self.player_unique_id != 0 {
@@ -171,24 +171,27 @@ impl ClientSession {
                     },
                 );
                 if let Err(e) = self.conn.send_packet(&mut stream, &correction).await {
-                    project_core::log_err_server!("Échec de l'envoi de la position restaurée.\nErreur : {}", e);
+                    project_core::log_err_server!("Failed to send restored position.\nError: {}", e);
                 }
             }
         }
 
         let modified_chunks = self.state.get_modified_chunks_data().await;
-        project_core::log_server!("Envoi de {} chunks modifiés", modified_chunks.len());
 
-        for chunk_batch in modified_chunks.chunks(MAX_CHUNKS_PER_WORLD_DATA) {
-            let world_data_packet = Paquet::new(
-                TypePaquet::WorldData,
-                ContenuPaquet::DonneesMonde {
-                    chunks: chunk_batch.to_vec(),
-                },
-            );
-            if let Err(e) = self.conn.send_packet(&mut stream, &world_data_packet).await {
-                project_core::log_err_server!("Échec de l'envoi des données monde: {}", e);
-                break;
+        if modified_chunks.len() > 0 {
+            project_core::log_server!("Send {} modified chunks.", modified_chunks.len());
+
+            for chunk_batch in modified_chunks.chunks(MAX_CHUNKS_PER_WORLD_DATA) {
+                let world_data_packet = Paquet::new(
+                    TypePaquet::WorldData,
+                    ContenuPaquet::DonneesMonde {
+                        chunks: chunk_batch.to_vec(),
+                    },
+                );
+                if let Err(e) = self.conn.send_packet(&mut stream, &world_data_packet).await {
+                    project_core::log_err_server!("Failed to send modified world.\nError: {}", e);
+                    break;
+                }
             }
         }
 
@@ -209,7 +212,7 @@ impl ClientSession {
                     ContenuPaquet::MultiplePlayerTransformation { data: players_data },
                 );
                 if let Err(e) = self.conn.send_packet(&mut stream, &sync_packet).await {
-                    project_core::log_err_server!("Échec de l'envoi du sync initial.\nErreur : {}", e);
+                    project_core::log_err_server!("Failed to send initial sync.\nError: {}", e);
                 }
             }
         }
@@ -222,7 +225,7 @@ impl ClientSession {
                 },
             );
             if let Err(e) = self.conn.send_packet(&mut stream, &inventory_packet).await {
-                project_core::log_err_server!("Échec de l'envoi de l'inventaire initial.\nErreur : {}", e);
+                project_core::log_err_server!("Failed to send initial inventory.\nError: {}", e);
             }
         }
 
@@ -244,7 +247,7 @@ impl ClientSession {
                 tokio::select! {
                     Some(packet) = write_rx.recv() => {
                         if let Err(e) = codec.send_packet(&mut write_half, &packet).await {
-                            log_err_server!("Erreur envoi paquet: {}", e);
+                            log_err_server!("Failed to send packet.\nError: {}", e);
                             break;
                         }
                     }
@@ -252,20 +255,20 @@ impl ClientSession {
                         match result {
                             Ok(BroadcastMessage::All(packet)) => {
                                 if let Err(e) = codec.send_packet(&mut write_half, &packet).await {
-                                    log_err_server!("Erreur envoi broadcast: {}", e);
+                                    log_err_server!("Failed to broadcast (1).\nError: {}", e);
                                     break;
                                 }
                             }
                             Ok(BroadcastMessage::AllExcept { player_id: source_id, paquet }) => {
                                 if source_id != player_id {
                                     if let Err(e) = codec.send_packet(&mut write_half, &paquet).await {
-                                        log_err_server!("Erreur envoi broadcast: {}", e);
+                                        log_err_server!("Failed to broadcast (2).\nError: {}", e);
                                         break;
                                     }
                                 }
                             }
                             Err(RecvError::Lagged(n)) => {
-                                log_server!("{} messages de broadcast perdus pour le joueur {}", n, player_id);
+                                log_server!("{} broadcasted messages lost for player {}.", n, player_id);
                             }
                             Err(RecvError::Closed) => break,
                         }
@@ -291,7 +294,7 @@ impl ClientSession {
                             // Vérification du rate limiting
                             if !self.rate_limiter.check_and_update() {
                                 self.state.metrics.record_packet_rejected();
-                                log_server!("Joueur {}: rate limit dépassé, déconnexion.", player_id);
+                                log_server!("Player {} exceeded rate limit. Disconnecting.", player_id);
                                 let kick = messages::new_kick_paquet("OOH MOLO L'ASTICOT !!".to_string());
                                 let _ = write_tx.send(kick).await;
                                 break;
@@ -313,21 +316,21 @@ impl ClientSession {
                             }
                         }
                         Err(e) => {
-                            log_err_server!("Échec de la réception du paquet.\nErreur : {}", e);
+                            log_err_server!("Failed to receive packet (2).\nError: {}", e);
                             break;
                         }
                     }
                 }
                 _ = &mut kick_rx => {
-                    log_server!("Joueur {}: kické par le serveur.", player_id);
-                    let kick_packet = messages::new_kick_paquet("Kické par un opérateur".to_string());
+                    log_server!("Player {} kicked by the server.", player_id);
+                    let kick_packet = messages::new_kick_paquet("Kicked by an operator.".to_string());
                     if write_tx.send(kick_packet).await.is_err() {
-                        log_err_server!("Impossible d'envoyer le paquet de kick au joueur {}.", player_id);
+                        log_err_server!("Failed to send kick packet to player {}.", player_id);
                     }
                     break;
                 }
                 _ = tokio::time::sleep(timeout) => {
-                    log_server!("Joueur {}: timeout d'inactivité ({}s), déconnexion.", player_id, timeout.as_secs());
+                    log_server!("Player {} timed out (inactive for {}s). Disconnecting.", player_id, timeout.as_secs());
                     break;
                 }
             }
@@ -353,11 +356,11 @@ impl ClientSession {
 
         let data = self.state.export_save().await;
         if let Err(e) = self.persistence.save(data).await {
-            project_core::log_err_server!("Échec de la sauvegarde du joueur.\nErreur : {}", e);
+            project_core::log_err_server!("Failed to save player.\nError: {}", e);
         }
 
         self.state.remove_player(&player_id).await;
-        project_core::log_server!("Joueur {}: déconnexion.", player_id);
+        project_core::log_server!("Player {} disconnecting.", player_id);
         Ok(())
     }
 }

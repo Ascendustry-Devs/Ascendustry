@@ -42,7 +42,7 @@ impl eframe::App for LauncherApp {
                 ui.label("Nom du joueur :");
                 ui.add_sized(
                     [250.0, 30.0],
-                    egui::TextEdit::singleline(&mut self.username).hint_text("Lambda Player"),
+                    egui::TextEdit::singleline(&mut self.username).hint_text("Unnamed"),
                 );
                 ui.add_space(10.0);
 

@@ -73,8 +73,6 @@ impl ClientWorld {
 
         let cpus_count = get();
         let worker_count = max(cpus_count / 2, min(cpus_count, 2));
-        println!("Available cpus: {}", cpus_count);
-        println!("ChunkGenerator worker_count: {}", worker_count);
         let chunk_generator = ChunkGenerator::with_max_pending(
             worker_count,
             Arc::clone(&block_manager),
@@ -97,7 +95,9 @@ impl ClientWorld {
     }
 
     pub fn init(&mut self, texture_loader: &mut TextureLoader, player: &Player) -> &mut MeshRequestMessage {
+        log_client!("World: initialization");
         {
+            log_client!("World: initialization - items");
             self.render_range = player.get_rendered_chunk_range();
             let mut item_manager = self.item_manager.write().unwrap();
             let items = load_item_definitions(resolve_asset_path("items/")).expect("Failed to load item definitions");
@@ -105,13 +105,9 @@ impl ClientWorld {
                 let id = item_manager.register(item.clone());
                 if let Some(tex_path) = &item.texture_path {
                     match texture_loader.register_item(&id, tex_path.clone(), RenderMode::Opaque) {
-                        Ok(texture_id) => log_client!(
-                            "Successfully added item {} to the texture registry with id {:?}.",
-                            item.name,
-                            texture_id
-                        ),
+                        Ok(texture_id) => log_client!("Registered \"{}\"'s texture - id {}.", item.name, texture_id),
                         Err(err) => {
-                            log_err_client!("Failed to add item {} to the texture registry. Error: {:?}", item.name, err)
+                            log_err_client!("Failed to register \"{}\"'s texture. Error: {:?}", item.name, err)
                         }
                     }
                 }
@@ -119,6 +115,7 @@ impl ClientWorld {
         }
 
         {
+            log_client!("World: initialization - blocks");
             let mut block_manager = self.block_manager.write().unwrap();
             let item_manager = self.item_manager.read().unwrap();
 
@@ -132,13 +129,9 @@ impl ClientWorld {
                         _ => RenderMode::Opaque,
                     };
                     match texture_loader.register_block(&id, tex_path.clone(), render_mode) {
-                        Ok(texture_id) => log_client!(
-                            "Successfully added block {} to the texture registry with id {:?}.",
-                            def.name,
-                            texture_id
-                        ),
+                        Ok(texture_id) => log_client!("Registered \"{}\"'s texture - id {}.", def.name, texture_id),
                         Err(err) => {
-                            log_err_client!("Failed to add block {} to the texture registry. Error: {:?}", def.name, err)
+                            log_err_client!("Failed to register \"{}\"'s texture. Error: {:?}", def.name, err)
                         }
                     }
                 }
@@ -195,7 +188,7 @@ impl ClientWorld {
             if let Some(chunk) = self.chunks.get_mut(&response) {
                 chunk.state = ChunkState::Meshed;
             } else {
-                log_err_client!("Mesh built for a chunk that doesn't exist anymore. {:?}", response);
+                log_err_client!("Mesh built for a chunk that doesn't exist anymore. {}", response);
             }
         }
     }
@@ -243,8 +236,8 @@ impl ClientWorld {
                 Ok(_) => {}
                 Err(err) => {
                     project_core::log_err_client!(
-                        "World: an error occured while trying to free chunk (pos: {:?})'s mesh with id {}.\nError: {}",
-                        *key,
+                        "World: an error occured while trying to free chunk {}'s mesh with id {}.\nError: {}",
+                        key,
                         mesh_id,
                         err
                     )
@@ -644,7 +637,7 @@ impl World for ClientWorld {
         let (chunk_position, local_position): (ChunkPosition, LocalPosition) = position.into();
 
         let Some(chunk) = self.chunks.get_mut(&chunk_position) else {
-            log_warn_server!("Tentative de modification d'un chunk non chargé : {:?}", chunk_position);
+            log_warn_server!("Tentative de modification d'un chunk non chargé : {}", chunk_position);
             return Err(chunk_position);
         };
 

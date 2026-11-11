@@ -35,7 +35,7 @@ impl AppState {
 
     pub fn from_save(data: SaveData) -> Self {
         let modif_count = data.world.chunks.len();
-        log_server!("import_save: {} chunks modifiés chargés (seed={})", modif_count, data.seed);
+        log_server!("Importing save with {} modified chunks and seed {}.", modif_count, data.seed);
 
         let identity = data.identity;
         let mut players = PlayerRegistry::new();
@@ -177,7 +177,7 @@ impl AppState {
         let identity = self.identity.read().await.clone();
         let modif_count = world.chunks.len();
         log_server!(
-            "export_save: {} chunks modifiés sauvegardés (seed={})",
+            "Exporting save with {} modified chunks and seed {}",
             modif_count,
             self.world.read().await.seed()
         );

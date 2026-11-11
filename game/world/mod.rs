@@ -66,7 +66,7 @@ pub trait World {
             chunk.set_block(&local_position, block);
             Ok(())
         } else {
-            log_warn_server!("Tentative de modification d'un chunk non chargé : {:?}", chunk_position);
+            log_warn_server!("Tentative de modification d'un chunk non chargé : {}", chunk_position);
             Err(chunk_position)
         }
     }
@@ -77,7 +77,7 @@ pub trait World {
         if let Some(chunk) = self.get_chunk(&chunk_position) {
             Some(chunk.get_block(&local_position))
         } else {
-            log_warn_server!("Tentative d'accès à un chunk non chargé : {:?}", chunk_position);
+            log_warn_server!("Attempted to access an unloaded chunk ({}).", chunk_position);
             None
         }
     }

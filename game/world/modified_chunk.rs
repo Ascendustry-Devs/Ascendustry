@@ -17,7 +17,7 @@ impl fmt::Display for ModifiedWorldError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ValeurInvalide(position) => {
-                write!(f, "Le chunk ({:?}) n'existe pas ou n'a pas été modifié", position)
+                write!(f, "Le chunk {} n'existe pas ou n'a pas été modifié", position)
             }
         }
     }
@@ -111,7 +111,7 @@ impl ModifiedWorld {
     pub fn get_chunk_at_mut(&mut self, position: &ChunkPosition) -> Result<&mut ModifiedChunk, String> {
         self.chunks
             .get_mut(position)
-            .ok_or_else(|| format!("Le chunk ({:?}) n'existe pas ou n'a pas été modifié", position))
+            .ok_or_else(|| format!("Le chunk {} n'existe pas ou n'a pas été modifié", position))
     }
 
     pub fn get_block_at(&self, position: &WorldPosition) -> Option<&BlockInstance> {

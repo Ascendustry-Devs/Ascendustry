@@ -124,7 +124,7 @@ impl PlayerState {
         };
         let item = world.block_to_item(&block_id);
         if let Some(item) = item {
-            log_client!("Ajout de l'item id n°{:?} dans l'inventaire", item.id);
+            log_client!("Added item with {:?} in the inventory.", item.id);
             if let Some(slot) = self.inventory.add_item(ItemData::new(item, None), 1, &ItemRules::default()) {
                 // TODO: get item rules based on item
                 commands.push(new_inventory_update_paquet(self.player_id, vec![slot]));
@@ -138,7 +138,7 @@ impl PlayerState {
             Err(chunk) => {
                 let current_block = world.get_block(&hit.block_pos);
                 log_err_client!(
-                    "Couldn't break block {:?} at {:?} in chunk {:?}.",
+                    "Couldn't break block {:?} at {} in chunk {}.",
                     current_block,
                     hit.block_pos,
                     chunk
@@ -158,7 +158,7 @@ impl PlayerState {
 
         let item = world.block_to_item(&block.get_block_id());
         if let Some(item) = item {
-            log_client!("Retrait de l'item id n°{:?} de l'inventaire", item.id);
+            log_client!("Removed item with n°{:?} of the inventory.", item.id);
             if let Some(updated_stack) = self.inventory.remove_item(ItemData::new(item, None), 1, self.selected_slot) {
                 commands.push(new_inventory_update_paquet(
                     self.player_id,
@@ -177,7 +177,7 @@ impl PlayerState {
                 commands.push(GameProtocol::create_block_modification(position, block));
             }
             Err(chunk) => {
-                log_err_client!("Couldn't place block {:?} at {:?} in chunk {:?}.", block, position, chunk);
+                log_err_client!("Couldn't place block {:?} at {} in chunk {}.", block, position, chunk);
             }
         }
     }
@@ -196,7 +196,7 @@ impl PlayerState {
     }
 
     pub fn teleport(&mut self, position: Position) {
-        log_client!("Téléportation du joueur de {:?} à {:?}", self.get_pos(), position);
+        log_client!("Teleported player from {:?} to {:?}.", self.get_pos(), position);
         self.set_pos(position);
     }
 

@@ -103,7 +103,7 @@ impl WorldMesh {
                     Ok(_) => {}
                     Err(e) => {
                         println!(
-                            "WorldMesh delete_mesh: could not free mesh {:?} with id {}.\nError: {}",
+                            "WorldMesh delete_mesh: could not free mesh {} with id {}.\nError: {}",
                             chunk, mesh_id, e
                         );
                     }

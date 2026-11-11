@@ -41,11 +41,11 @@ impl Server {
         let persistence = Arc::new(PersistenceService::new(save_path));
         let state = Arc::new(match persistence.load().await.ok().flatten() {
             Some(save) => {
-                log_server!("Sauvegarde trouvée, restauration du monde.");
+                log_server!("Save found! Restoring world...");
                 AppState::from_save(save)
             }
             None => {
-                log_server!("Aucune sauvegarde trouvée, création d'un nouveau monde.");
+                log_server!("No save found. Creating a new world.");
                 AppState::new(AppState::get_random_seed())
             }
         });
@@ -73,7 +73,7 @@ impl Server {
     }
 
     pub async fn run(&self) -> Result<()> {
-        log_server!("Serveur: démarre à l'adresse {}.", self.listener.local_addr()?);
+        log_server!("Server: starting @ {}.", self.listener.local_addr()?);
 
         let state = Arc::clone(&self.state);
         let bc = self.broadcaster.clone();
@@ -95,9 +95,9 @@ impl Server {
                 interval.tick().await;
                 let data = state.export_save().await;
                 if let Err(e) = persistence.save(data).await {
-                    project_core::log_err_server!("Auto-save échoué : {}", e);
+                    project_core::log_err_server!("Auto-save failed.\nError: {}", e);
                 } else {
-                    project_core::log_server!("Auto-save effectué.");
+                    project_core::log_server!("Auto-save succeeded!");
                 }
             }
         });
@@ -119,11 +119,11 @@ impl Server {
         loop {
             let (stream, addr) = self.listener.accept().await?;
             self.state.metrics.record_connection();
-            project_core::log_server!("Serveur: connexion de l'adresse {}.", addr);
+            project_core::log_server!("Server: {} is connecting.", addr);
 
             let player_id = self.next_id.fetch_add(1, Ordering::SeqCst);
             let server_id = generate_server_id();
-            project_core::log_server!("Joueur {}: connexion (ID serveur: {:02x?}).", player_id, server_id);
+            project_core::log_server!("Player {} connected (server id: {:02x?}).", player_id, server_id);
 
             let handler = ProductionHandler;
 
@@ -145,7 +145,7 @@ impl Server {
 
             tokio::spawn(async move {
                 if let Err(e) = session.run(stream).await {
-                    project_core::log_err_server!("Échec du traitement du client.\nErreur : {}", e);
+                    project_core::log_err_server!("Failed to process client.\nError : {}", e);
                 }
                 sessions.lock().unwrap().remove(&player_id);
             });
@@ -163,7 +163,7 @@ impl Server {
             self.state.kick_player(id, reason).await;
             true
         } else {
-            project_core::log_server!("Joueur {} non trouvé dans les sessions actives.", id);
+            project_core::log_server!("Player {} not found in active sessions.", id);
             false
         }
     }

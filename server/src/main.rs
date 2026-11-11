@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run_headless(args: &Args) -> Result<()> {
-    log_server!("Serveur: lancement (mode headless).");
+    log_server!("Server: start (headless mode).");
 
     let server = Server::new(&args.address, &args.save_path, None, ServerConfig::default()).await?;
     server.run().await
@@ -42,7 +42,7 @@ async fn run_with_tui(args: &Args) -> Result<()> {
     use std::sync::atomic::{AtomicBool, Ordering};
     use tokio::time::sleep;
 
-    log_server!("Serveur: lancement.");
+    log_server!("Server: start.");
 
     let state = Arc::new(std::sync::Mutex::new(server::tui::bridge::TuiState::default()));
     let (command_tx, mut command_rx) = tokio::sync::mpsc::unbounded_channel();

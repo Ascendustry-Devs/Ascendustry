@@ -10,7 +10,7 @@ use engine::core::application::App;
 struct Args {
     #[arg(short, long, default_value_t = String::from(DEFAULT_SERVER_ADDRESS))]
     address: String,
-    #[arg(short, long, default_value_t = String::from("Lambda Player"))]
+    #[arg(short, long, default_value_t = String::from("Unnamed"))]
     name: String,
 }
 

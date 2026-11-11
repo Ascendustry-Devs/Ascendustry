@@ -76,7 +76,6 @@ impl Texture2DAtlas {
     }
 
     pub fn write_at(&mut self, queue: &Queue, x: u32, y: u32, width: u32, height: u32, data: &[u8]) {
-        println!("data: {} width: {} height: {}", data.len(), width, height);
         assert!(data.len() == (width * height * 4) as usize);
         queue.write_texture(
             TexelCopyTextureInfo {

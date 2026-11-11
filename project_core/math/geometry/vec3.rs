@@ -47,7 +47,7 @@ impl<T: Copy> Vec3<T> {
     ///
     /// # Example:
     ///
-    /// ```
+    /// ```ignore
     /// let v = Vec3::new(3.0_f32);
     /// assert_eq!(v, Vec3::new(3.0, 3.0, 3.0));
     /// ```

@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter, Result};
+
 use serde::{Deserialize, Serialize};
 
 use crate::world::{chunk_position::ChunkPosition, local_position::LocalPosition};
@@ -28,6 +30,12 @@ impl WorldPosition {
     #[inline(always)]
     pub fn z(&self) -> i32 {
         self.z
+    }
+}
+
+impl Display for WorldPosition {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        write!(f, "WorldPosition({}, {}, {})", self.x, self.y, self.z)
     }
 }
 

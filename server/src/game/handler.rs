@@ -94,7 +94,7 @@ impl PacketHandler for ProductionHandler {
                 tokio::spawn(async move {
                     let data = state.export_save().await;
                     if let Err(e) = persistence.save(data).await {
-                        project_core::log_err_server!("Échec de la sauvegarde : {}", e);
+                        project_core::log_err_server!("Failed to save.\nError: {}", e);
                     }
                 });
                 Some(packet)
